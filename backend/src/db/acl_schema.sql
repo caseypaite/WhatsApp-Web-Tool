@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS message_history (
 CREATE TABLE IF NOT EXISTS otp_verification (
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    phone_number VARCHAR(20),
     code VARCHAR(6) NOT NULL,
     expires_at TIMESTAMP NOT NULL,
     retry_count INT DEFAULT 0,

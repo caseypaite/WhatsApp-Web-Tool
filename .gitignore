@@ -3,3 +3,4 @@ node_modules/
 *.log
 dist/
 .wwebjs_auth/
+backend/.wwebjs_cache/

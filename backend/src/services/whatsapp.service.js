@@ -74,7 +74,7 @@ class WhatsappService {
       this.status = 'CONNECTED';
       this.isReady = true;
       this.me = this.client.info;
-      console.log('[WHATSAPP] Client is ready! Connected as:', this.me.pushname);
+      console.log('[WHATSAPP] Client is ready! Connected as:', this.me.pushname, '(', this.me.wid._serialized, ')');
       await settingsService.set('whatsapp_status', 'CONNECTED');
       await settingsService.set('whatsapp_qr', '');
     });
@@ -133,8 +133,40 @@ class WhatsappService {
 
   async sendMessage(number, message) {
     if (!this.isReady) throw new Error('WhatsApp client not ready');
-    const jid = this.formatJid(number);
-    return await this.client.sendMessage(jid, message);
+    const cleanNumber = number.toString().replace(/\D/g, '');
+    const jid = this.formatJid(cleanNumber);
+    
+    console.log(`[WHATSAPP] Attempting to send message to: ${cleanNumber}`);
+    
+    try {
+      // Try to get the registered WhatsApp ID
+      const numberId = await this.client.getNumberId(cleanNumber);
+      const finalJid = numberId ? numberId._serialized : jid;
+      
+      console.log(`[WHATSAPP] Sending to JID: ${finalJid}`);
+      const result = await this.client.sendMessage(finalJid, message);
+      
+      // Log success to DB
+      await this.logMessage({
+        phoneNumber: cleanNumber,
+        message: message,
+        status: 'SUCCESS'
+      });
+      
+      return result;
+    } catch (err) {
+      console.error(`[WHATSAPP] Send error to ${cleanNumber}:`, err.message);
+      
+      // Log failure to DB
+      await this.logMessage({
+        phoneNumber: cleanNumber,
+        message: message,
+        status: 'FAILED',
+        errorMessage: err.message
+      });
+      
+      throw err;
+    }
   }
 
   async sendMedia(number, url, caption = '') {
