@@ -12,6 +12,7 @@ router.get('/contacts', authenticate, checkRole(['Admin']), whatsappController.g
 router.post('/logout', authenticate, checkRole(['Admin']), whatsappController.logout);
 router.post('/reinitialize', authenticate, checkRole(['Admin']), whatsappController.reinitialize);
 router.post('/send-test', authenticate, checkRole(['Admin']), whatsappController.sendTestMessage);
+router.post('/broadcast', authenticate, checkRole(['Admin']), whatsappController.broadcast);
 
 // New Management Routes
 router.post('/groups', authenticate, checkRole(['Admin']), whatsappController.createGroup);

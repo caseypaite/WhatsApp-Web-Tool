@@ -85,6 +85,17 @@ CREATE TABLE IF NOT EXISTS otp_verification (
     status VARCHAR(20) DEFAULT 'PENDING' -- PENDING, VERIFIED, EXPIRED, FAILED
 );
 
+-- Create Message Templates table
+CREATE TABLE IF NOT EXISTS message_templates (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) UNIQUE NOT NULL,
+    content TEXT NOT NULL,
+    media_url TEXT,
+    media_type VARCHAR(50), -- image, document, audio
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create System Settings table
 CREATE TABLE IF NOT EXISTS system_settings (
     key VARCHAR(50) PRIMARY KEY,

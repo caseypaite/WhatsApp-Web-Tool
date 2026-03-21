@@ -251,9 +251,9 @@ const UserDashboard = () => {
   ];
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-slate-50 overflow-x-hidden">
       {/* SIDEBAR */}
-      <aside className={`bg-white border-r border-slate-200 flex flex-col fixed inset-y-0 left-0 z-20 transition-all duration-300 ${isSidebarCollapsed ? 'w-24' : 'w-72'}`}>
+      <aside className={`bg-white border-r border-slate-200 flex flex-col sticky top-0 h-screen z-20 transition-all duration-300 flex-shrink-0 ${isSidebarCollapsed ? 'w-24' : 'w-72'}`}>
         <div className={`p-6 border-b border-slate-50 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center shadow-lg shadow-primary-200 flex-shrink-0">
@@ -331,8 +331,8 @@ const UserDashboard = () => {
       </aside>
 
       {/* MAIN CONTENT AREA */}
-      <main className={`flex-1 transition-all duration-300 ${isSidebarCollapsed ? 'ml-24' : 'ml-72'}`}>
-        <div className="p-12 max-w-5xl">
+      <main className="flex-1 min-w-0 transition-all duration-300">
+        <div className="p-12 max-w-5xl mx-auto lg:mx-0">
           {/* Header Info */}
           <div className="mb-10 flex items-center justify-between">
             <div>

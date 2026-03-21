@@ -174,8 +174,23 @@ class WhatsappService {
     const myId = this.me.wid._serialized;
 
     const enrichedChats = await Promise.all(allChats.map(async (chat) => {
-      // If it's already an enriched object from internal store, return it
-      if (chat.isAdmin !== undefined && chat.id.server === 'newsletter') return chat;
+      // If it's already an enriched object from internal store (newsletter), we still need to try getting icon
+      let iconUrl = null;
+      try {
+        // Try to get icon from the chat instance or by ID
+        if (chat.getContact) {
+          const contact = await chat.getContact();
+          iconUrl = await contact.getProfilePicUrl();
+        } else {
+          iconUrl = await this.client.getProfilePicUrl(chat.id._serialized || chat.id);
+        }
+      } catch (err) {
+        // Ignore icon fetch errors
+      }
+
+      if (chat.isAdmin !== undefined && chat.id.server === 'newsletter') {
+        return { ...chat, iconUrl };
+      }
 
       let isAdmin = false;
       
@@ -196,7 +211,8 @@ class WhatsappService {
         unreadCount: chat.unreadCount,
         timestamp: chat.timestamp,
         isAdmin: isAdmin,
-        viewerRole: chat.viewerRole || null
+        viewerRole: chat.viewerRole || null,
+        iconUrl: iconUrl
       };
     }));
 
@@ -252,7 +268,7 @@ class WhatsappService {
     return `${cleaned}@c.us`;
   }
 
-  async sendMessage(number, message) {
+  async sendMessage(number, message, mediaOptions = null) {
     if (!this.isReady) throw new Error('WhatsApp client not ready');
     const cleanNumber = number.toString().replace(/\D/g, '');
     const jid = this.formatJid(cleanNumber);
@@ -265,7 +281,18 @@ class WhatsappService {
       const finalJid = numberId ? numberId._serialized : jid;
       
       console.log(`[WHATSAPP] Sending to JID: ${finalJid}`);
-      const result = await this.client.sendMessage(finalJid, message);
+      let result;
+
+      if (mediaOptions && mediaOptions.url) {
+        // Try to determine filename if possible for documents
+        const media = await MessageMedia.fromUrl(mediaOptions.url, { unsafeMime: true });
+        result = await this.client.sendMessage(finalJid, media, { 
+          caption: message,
+          sendMediaAsDocument: mediaOptions.type === 'document' 
+        });
+      } else {
+        result = await this.client.sendMessage(finalJid, message);
+      }
       
       // Log success to DB
       await this.logMessage({

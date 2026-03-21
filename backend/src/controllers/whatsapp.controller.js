@@ -135,6 +135,55 @@ const whatsappController = {
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
+  },
+
+  broadcast: async (req, res) => {
+    try {
+      const { targets, message, templateId, mediaUrl, mediaType } = req.body; // targets: [{id, type}]
+      if (!targets || !targets.length) return res.status(400).json({ error: 'No targets specified' });
+      
+      let finalMessage = message;
+      let mediaOptions = null;
+
+      // If custom media is provided directly
+      if (mediaUrl) {
+        mediaOptions = { url: mediaUrl, type: mediaType || 'image' };
+      }
+
+      // If template is used, it overrides custom media/message if template has them
+      if (templateId) {
+        const { Client } = require('pg');
+        const client = new Client({ connectionString: process.env.DATABASE_URL });
+        await client.connect();
+        const tplRes = await client.query('SELECT * FROM message_templates WHERE id = $1', [templateId]);
+        await client.end();
+        
+        if (tplRes.rows.length > 0) {
+          const tpl = tplRes.rows[0];
+          finalMessage = tpl.content;
+          if (tpl.media_url) {
+            mediaOptions = { url: tpl.media_url, type: tpl.media_type };
+          }
+        }
+      }
+
+      if (!finalMessage) return res.status(400).json({ error: 'Message content is empty' });
+
+      const results = { success: [], failed: [] };
+
+      for (const target of targets) {
+        try {
+          await whatsappService.sendMessage(target.id, finalMessage, mediaOptions);
+          results.success.push(target.id);
+        } catch (err) {
+          results.failed.push({ id: target.id, error: err.message });
+        }
+      }
+
+      res.json({ success: true, results });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
   }
 };
 

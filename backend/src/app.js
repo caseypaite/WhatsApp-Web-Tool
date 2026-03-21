@@ -5,10 +5,25 @@ const cmsRoutes = require('./routes/cms.routes');
 const userRoutes = require('./routes/user.routes');
 const settingsRoutes = require('./routes/settings.routes');
 const whatsappRoutes = require('./routes/whatsapp.routes');
+const templateRoutes = require('./routes/template.routes');
 const whatsappService = require('./services/whatsapp.service');
+const multer = require('multer');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Multer Setup for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, '/home/ubuntu/AppStack/backend/uploads/');
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+const upload = multer({ storage: storage });
 
 // Initialize WhatsApp
 whatsappService.initialize();
@@ -24,6 +39,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'x-simple-auth']
 }));
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Request Logging
 app.use((req, res, next) => {
@@ -36,6 +52,30 @@ app.use('/api/cms', cmsRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
+app.use('/api/templates', templateRoutes);
+
+// Upload Endpoint
+const { authenticate, checkRole } = require('./middleware/auth.middleware');
+app.post('/api/upload', authenticate, checkRole(['Admin']), (req, res) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      console.error('[UPLOAD] Multer error:', err);
+      return res.status(500).json({ error: 'Multer error', details: err.message });
+    }
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    
+    console.log('[UPLOAD] File received:', req.file.filename);
+    
+    // Construct full URL
+    const domain = process.env.WEBSITE_DOMAIN || `localhost:${PORT}`;
+    const protocol = domain.includes('localhost') ? 'http' : 'https';
+    const baseUrl = domain.startsWith('http') ? domain : `${protocol}://${domain}`;
+    const cleanBaseUrl = baseUrl.replace(/\/api$/, '');
+    const fileUrl = `${cleanBaseUrl}/uploads/${req.file.filename}`;
+    
+    res.json({ url: fileUrl, filename: req.file.filename, type: req.file.mimetype });
+  });
+});
 
 // Health Check
 app.get('/health', (req, res) => {

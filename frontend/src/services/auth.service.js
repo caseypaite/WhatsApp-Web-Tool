@@ -182,6 +182,36 @@ const confirmWaDelete = async (id, type, otp) => {
   return response.data;
 };
 
+const sendWaBroadcast = async (targets, message, templateId, mediaUrl = null, mediaType = null) => {
+  const response = await api.post('/whatsapp/broadcast', { targets, message, templateId, mediaUrl, mediaType });
+  return response.data;
+};
+
+// Template Management
+const getTemplates = async () => {
+  const response = await api.get('/templates/all');
+  return response.data;
+};
+
+const createTemplate = async (data) => {
+  const response = await api.post('/templates/create', data);
+  return response.data;
+};
+
+const deleteTemplate = async (id) => {
+  const response = await api.delete(`/templates/${id}`);
+  return response.data;
+};
+
+const uploadFile = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await api.post('/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+  return response.data;
+};
+
 // CMS Integration
 const getLandingPage = async () => {
   const response = await api.get('/cms/landing');
@@ -228,5 +258,10 @@ export default {
   createWaGroup,
   createWaChannel,
   requestWaDeleteOtp,
-  confirmWaDelete
+  confirmWaDelete,
+  sendWaBroadcast,
+  getTemplates,
+  createTemplate,
+  deleteTemplate,
+  uploadFile
 };

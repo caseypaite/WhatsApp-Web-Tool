@@ -32,9 +32,29 @@ const AdminDashboard = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteOtpSent, setDeleteOtpSent] = useState(false);
 
+  // Direct Message State
+  const [showDirectMessage, setShowDirectMessage] = useState(false);
+  const [directMessageTarget, setDirectMessageTarget] = useState(null); // { id, name, type }
+  const [directMessageContent, setDirectMessageContent] = useState('');
+  const [directMessageTemplate, setDirectMessageTemplate] = useState('');
+  const [directMediaUrl, setDirectMediaUrl] = useState('');
+  const [directMediaType, setDirectMediaType] = useState('image');
+  const [isUploading, setIsUploading] = useState(false);
+
   // Landing Page CMS State
   const [landingContent, setLandingContent] = useState({ hero_text: '', cta_text: '', image_url: '' });
   const [landingLoading, setLandingLoading] = useState(false);
+
+  // Template & Broadcast State
+  const [templates, setTemplates] = useState([]);
+  const [showCreateTemplate, setShowCreateTemplate] = useState(false);
+  const [newTemplate, setNewTemplate] = useState({ name: '', content: '', media_url: '', media_type: 'image' });
+  const [selectedTargets, setSelectedTargets] = useState([]); // [{id, name}]
+  const [selectedTemplate, setSelectedTemplate] = useState('');
+  const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [broadcastMediaUrl, setBroadcastMediaUrl] = useState('');
+  const [broadcastMediaType, setBroadcastMediaType] = useState('image');
+  const [isBroadcasting, setIsBroadcastLoading] = useState(false);
 
   // Flash Message State
   const [flash, setFlash] = useState(null);
@@ -170,6 +190,108 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchTemplates = async () => {
+    try {
+      const data = await authService.getTemplates();
+      setTemplates(data);
+    } catch (err) {
+      console.error('Failed to fetch templates');
+    }
+  };
+
+  const handleFileUpload = async (file, onSuccess) => {
+    if (!file) return;
+    setIsUploading(true);
+    try {
+      const data = await authService.uploadFile(file);
+      // Determine simplified type
+      let type = 'document';
+      if (data.type.startsWith('image/')) type = 'image';
+      else if (data.type.startsWith('video/')) type = 'video';
+      else if (data.type.startsWith('audio/')) type = 'audio';
+      
+      onSuccess(data.url, type);
+      showFlash('File uploaded successfully');
+    } catch (err) {
+      console.error('Upload error:', err);
+      showFlash('File upload failed', 'error');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleCreateTemplate = async (e) => {
+    e.preventDefault();
+    setWaActionLoading(true);
+    try {
+      await authService.createTemplate(newTemplate);
+      showFlash('Template created successfully');
+      setShowCreateTemplate(false);
+      setNewTemplate({ name: '', content: '', media_url: '', media_type: 'image' });
+      fetchTemplates();
+    } catch (err) {
+      showFlash('Failed to create template', 'error');
+    } finally {
+      setWaActionLoading(false);
+    }
+  };
+
+  const handleDeleteTemplate = async (id) => {
+    if (!window.confirm('Delete this template?')) return;
+    try {
+      await authService.deleteTemplate(id);
+      showFlash('Template deleted');
+      fetchTemplates();
+    } catch (err) {
+      showFlash('Failed to delete template', 'error');
+    }
+  };
+
+  const handleSendBroadcast = async () => {
+    if (selectedTargets.length === 0) return showFlash('No targets selected', 'error');
+    if (!selectedTemplate && !broadcastMessage) return showFlash('Message content is empty', 'error');
+
+    setIsBroadcastLoading(true);
+    try {
+      const targets = selectedTargets.map(t => ({ id: t.id, type: t.type }));
+      await authService.sendWaBroadcast(targets, broadcastMessage, selectedTemplate, broadcastMediaUrl, broadcastMediaType);
+      showFlash('Broadcast initiated successfully');
+      setBroadcastMessage('');
+      setBroadcastMediaUrl('');
+      setSelectedTargets([]);
+      setSelectedTemplate('');
+    } catch (err) {
+      showFlash('Broadcast failed', 'error');
+    } finally {
+      setIsBroadcastLoading(false);
+    }
+  };
+
+  const handleSendDirectMessage = async (e) => {
+    e.preventDefault();
+    if (!directMessageTemplate && !directMessageContent) return showFlash('Message is empty', 'error');
+    
+    setWaActionLoading(true);
+    try {
+      await authService.sendWaBroadcast(
+        [{ id: directMessageTarget.id, type: directMessageTarget.type }], 
+        directMessageContent, 
+        directMessageTemplate,
+        directMediaUrl,
+        directMediaType
+      );
+      showFlash('Message sent successfully');
+      setShowDirectMessage(false);
+      setDirectMessageContent('');
+      setDirectMessageTemplate('');
+      setDirectMediaUrl('');
+    } catch (err) {
+      showFlash('Failed to send message', 'error');
+    } finally {
+      setWaActionLoading(false);
+    }
+  };
+
   const handleCreateWaGroup = async (e) => {
     e.preventDefault();
     setWaActionLoading(true);
@@ -255,7 +377,7 @@ const AdminDashboard = () => {
 
   const loadData = async () => {
     setLoading(true);
-    await Promise.all([fetchUsers(), fetchSettings(), fetchGroups(), fetchWaStatus(), fetchLandingContent()]);
+    await Promise.all([fetchUsers(), fetchSettings(), fetchGroups(), fetchWaStatus(), fetchLandingContent(), fetchTemplates()]);
     setLoading(false);
   };
 
@@ -478,6 +600,18 @@ const AdminDashboard = () => {
             className={`px-6 py-2 rounded-xl font-semibold transition-all ${activeTab === 'cms' ? 'bg-primary-600 text-white shadow-lg' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
           >
             Landing Page
+          </button>
+          <button 
+            onClick={() => setActiveTab('broadcast')}
+            className={`px-6 py-2 rounded-xl font-semibold transition-all ${activeTab === 'broadcast' ? 'bg-primary-600 text-white shadow-lg' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+          >
+            Broadcast
+          </button>
+          <button 
+            onClick={() => setActiveTab('templates')}
+            className={`px-6 py-2 rounded-xl font-semibold transition-all ${activeTab === 'templates' ? 'bg-primary-600 text-white shadow-lg' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+          >
+            Templates
           </button>
         </div>
 
@@ -953,15 +1087,29 @@ const AdminDashboard = () => {
                             waChats.filter(c => c.isGroup && c.isAdmin).map(group => (
                               <div key={group.id._serialized} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between group hover:border-red-200 transition-all">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 bg-primary-50 text-primary-600 rounded-xl flex items-center justify-center font-black">
-                                    {group.name?.[0] || 'G'}
-                                  </div>
+                                  {group.iconUrl ? (
+                                    <img src={group.iconUrl} alt={group.name} className="w-10 h-10 rounded-xl object-cover" />
+                                  ) : (
+                                    <div className="w-10 h-10 bg-primary-50 text-primary-600 rounded-xl flex items-center justify-center font-black">
+                                      {group.name?.[0] || 'G'}
+                                    </div>
+                                  )}
                                   <div>
                                     <p className="text-sm font-bold text-slate-800">{group.name}</p>
                                     <p className="text-[10px] text-slate-400 font-mono">{group.id._serialized || group.id.user}</p>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2">
+                                  <button 
+                                    onClick={() => {
+                                      setDirectMessageTarget({ id: group.id._serialized, name: group.name, type: 'group' });
+                                      setShowDirectMessage(true);
+                                    }}
+                                    className="p-2 text-primary-600 hover:bg-primary-50 rounded-xl transition-all"
+                                    title="Send Message"
+                                  >
+                                    <MessageSquare className="w-4 h-4" />
+                                  </button>
                                   <span className="text-[10px] font-black bg-slate-50 text-slate-400 px-2 py-1 rounded-lg uppercase">Admin</span>
                                   <button 
                                     onClick={() => initiateDelete(group.id._serialized, group.name, 'group')}
@@ -989,15 +1137,29 @@ const AdminDashboard = () => {
                             waChats.filter(c => c.id.server === 'newsletter' && c.isAdmin).map(channel => (
                               <div key={channel.id._serialized} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between group hover:border-red-200 transition-all">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center font-black">
-                                    {channel.name?.[0] || 'C'}
-                                  </div>
+                                  {channel.iconUrl ? (
+                                    <img src={channel.iconUrl} alt={channel.name} className="w-10 h-10 rounded-xl object-cover" />
+                                  ) : (
+                                    <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center font-black">
+                                      {channel.name?.[0] || 'C'}
+                                    </div>
+                                  )}
                                   <div>
                                     <p className="text-sm font-bold text-slate-800">{channel.name}</p>
                                     <p className="text-[10px] text-slate-400 font-mono">{channel.id._serialized || channel.id.user}</p>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2">
+                                  <button 
+                                    onClick={() => {
+                                      setDirectMessageTarget({ id: channel.id._serialized, name: channel.name, type: 'channel' });
+                                      setShowDirectMessage(true);
+                                    }}
+                                    className="p-2 text-primary-600 hover:bg-primary-50 rounded-xl transition-all"
+                                    title="Send Message"
+                                  >
+                                    <MessageSquare className="w-4 h-4" />
+                                  </button>
                                   <span className="text-[10px] font-black bg-amber-50 text-amber-600 px-2 py-1 rounded-lg uppercase">Admin</span>
                                   <button 
                                     onClick={() => initiateDelete(channel.id._serialized, channel.name, 'channel')}
@@ -1048,6 +1210,230 @@ const AdminDashboard = () => {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'broadcast' && (
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 animate-in fade-in duration-500">
+            <header className="mb-10">
+              <h2 className="text-2xl font-bold text-slate-900">Bulk Broadcast</h2>
+              <p className="text-slate-500 mt-2">Send messages or newsletters to multiple groups and channels at once.</p>
+            </header>
+
+            <div className="grid lg:grid-cols-2 gap-12">
+              {/* Target Selection */}
+              <div className="space-y-8">
+                <div>
+                  <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest border-b pb-2 mb-4">Available Targets</h3>
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                    {waChats.filter(c => c.isAdmin).map(chat => (
+                      <div key={chat.id._serialized} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between group">
+                        <div className="flex items-center gap-3">
+                          {chat.iconUrl ? (
+                            <img src={chat.iconUrl} alt={chat.name} className="w-10 h-10 rounded-xl object-cover" />
+                          ) : (
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black ${chat.isGroup ? 'bg-primary-50 text-primary-600' : 'bg-amber-50 text-amber-600'}`}>
+                              {chat.name?.[0] || (chat.isGroup ? 'G' : 'C')}
+                            </div>
+                          )}
+                          <div>
+                            <p className="text-sm font-bold text-slate-800">{chat.name}</p>
+                            <p className="text-[10px] text-slate-400 font-mono uppercase">{chat.isGroup ? 'Group' : 'Channel'}</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            if (!selectedTargets.find(t => t.id === chat.id._serialized)) {
+                              setSelectedTargets([...selectedTargets, { id: chat.id._serialized, name: chat.name, type: chat.isGroup ? 'group' : 'channel' }]);
+                            }
+                          }}
+                          className="p-2 text-primary-600 hover:bg-primary-100 rounded-xl transition-all"
+                        >
+                          <Plus className="w-5 h-5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest border-b pb-2 mb-4">Selected Recipients ({selectedTargets.length})</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedTargets.map(target => (
+                      <span key={target.id} className="inline-flex items-center gap-2 px-3 py-1.5 bg-primary-600 text-white text-xs font-bold rounded-lg shadow-sm">
+                        {target.name}
+                        <button onClick={() => setSelectedTargets(selectedTargets.filter(t => t.id !== target.id))}><X className="w-3.5 h-3.5" /></button>
+                      </span>
+                    ))}
+                    {selectedTargets.length === 0 && <p className="text-xs text-slate-400 italic">No targets selected yet</p>}
+                  </div>
+                </div>
+              </div>
+
+              {/* Message Composition */}
+              <div className="space-y-8 bg-slate-50 p-8 rounded-[2.5rem]">
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-4 ml-1">Use Template (Optional)</label>
+                  <select 
+                    className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none font-bold transition-all appearance-none"
+                    value={selectedTemplate}
+                    onChange={(e) => setSelectedTemplate(e.target.value)}
+                  >
+                    <option value="">-- No Template --</option>
+                    {templates.map(tpl => (
+                      <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {!selectedTemplate && (
+                  <div className="space-y-6 animate-in fade-in duration-300">
+                    <div>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-4 ml-1">Custom Message</label>
+                      <textarea 
+                        rows="4"
+                        className="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none font-medium transition-all resize-none"
+                        placeholder="Type your message here..."
+                        value={broadcastMessage}
+                        onChange={(e) => setBroadcastMessage(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="col-span-2 space-y-2">
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Media / Attachment</label>
+                        <div className="flex gap-2">
+                          <input 
+                            type="url"
+                            className="flex-1 px-5 py-3.5 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none font-mono text-xs transition-all"
+                            placeholder="URL: https://..."
+                            value={broadcastMediaUrl}
+                            onChange={(e) => setBroadcastMediaUrl(e.target.value)}
+                          />
+                          <div className="relative">
+                            <input 
+                              type="file" 
+                              id="broadcast-file" 
+                              className="hidden" 
+                              onChange={(e) => handleFileUpload(e.target.files[0], (url, type) => {
+                                setBroadcastMediaUrl(url);
+                                setBroadcastMediaType(type);
+                              })}
+                            />
+                            <label 
+                              htmlFor="broadcast-file"
+                              className={`px-4 py-3.5 rounded-2xl font-black text-xs uppercase cursor-pointer flex items-center gap-2 transition-all ${isUploading ? 'bg-slate-100 text-slate-400' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
+                            >
+                              {isUploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                              Upload
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {broadcastMediaUrl && (
+                        <>
+                          <div className="col-span-1">
+                            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Type</label>
+                            <select 
+                              className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none font-bold transition-all appearance-none"
+                              value={broadcastMediaType}
+                              onChange={(e) => setBroadcastMediaType(e.target.value)}
+                            >
+                              <option value="image">Image</option>
+                              <option value="document">Document</option>
+                              <option value="audio">Audio</option>
+                              <option value="video">Video</option>
+                            </select>
+                          </div>
+                          <div className="col-span-1 flex items-end">
+                            <button 
+                              onClick={() => { setBroadcastMediaUrl(''); setBroadcastMediaType('image'); }}
+                              className="w-full py-3.5 bg-red-50 text-red-600 font-bold rounded-2xl hover:bg-red-100 transition text-xs uppercase"
+                            >
+                              Reset Media
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {selectedTemplate && (
+                  <div className="p-6 bg-white rounded-2xl border border-primary-100">
+                    <p className="text-xs font-black text-primary-600 uppercase tracking-widest mb-2">Template Content</p>
+                    <p className="text-sm text-slate-600 leading-relaxed italic line-clamp-4">
+                      {templates.find(t => t.id.toString() === selectedTemplate.toString())?.content}
+                    </p>
+                  </div>
+                )}
+
+                <button 
+                  onClick={handleSendBroadcast}
+                  disabled={isBroadcasting || (selectedTargets.length === 0) || (!selectedTemplate && !broadcastMessage)}
+                  className="w-full py-5 bg-primary-600 text-white font-black rounded-2xl hover:bg-primary-700 transition shadow-xl shadow-primary-200 disabled:opacity-50 flex items-center justify-center gap-3 uppercase tracking-widest"
+                >
+                  {isBroadcasting ? <RefreshCw className="w-6 h-6 animate-spin" /> : <Send className="w-6 h-6" />}
+                  {isBroadcasting ? 'Broadcasting...' : `Send Broadcast to ${selectedTargets.length} Targets`}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'templates' && (
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8 animate-in fade-in duration-500">
+            <header className="mb-10 flex items-center justify-between">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">Message Templates</h2>
+                <p className="text-slate-500 mt-2">Create reusable messages with media attachments for quick broadcasting.</p>
+              </div>
+              <button 
+                onClick={() => setShowCreateTemplate(true)}
+                className="px-6 py-3 bg-primary-600 text-white font-black rounded-2xl hover:bg-primary-700 transition shadow-lg flex items-center gap-2"
+              >
+                <Plus className="w-5 h-5" />
+                Create Template
+              </button>
+            </header>
+
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {templates.length > 0 ? (
+                templates.map(tpl => (
+                  <div key={tpl.id} className="bg-slate-50 rounded-[2rem] border border-slate-100 p-6 flex flex-col group">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm text-primary-600">
+                        <MessageSquare className="w-5 h-5" />
+                      </div>
+                      <button 
+                        onClick={() => handleDeleteTemplate(tpl.id)}
+                        className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-900 mb-2">{tpl.name}</h3>
+                    <p className="text-sm text-slate-500 line-clamp-3 mb-6 flex-1">{tpl.content}</p>
+                    {tpl.media_url && (
+                      <div className="pt-4 border-t border-slate-200/50 flex items-center gap-2">
+                        <span className="text-[10px] font-black bg-white text-slate-400 px-2 py-1 rounded-lg uppercase border border-slate-100">
+                          {tpl.media_type || 'Media'} Included
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-full py-20 text-center">
+                  <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <MessageSquare className="w-10 h-10 text-slate-200" />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-400">No Templates Found</h3>
+                  <p className="text-slate-400 mt-2">Create your first template to start broadcasting</p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1132,6 +1518,137 @@ const AdminDashboard = () => {
           </div>
         )}
       </div>
+
+      {/* DIRECT MESSAGE MODAL */}
+      {showDirectMessage && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in-95 duration-200">
+            <header className="mb-8">
+              <h3 className="text-2xl font-black text-slate-900 tracking-tight">Send Message</h3>
+              <p className="text-slate-500 font-medium mt-1">To: <span className="text-primary-600 font-bold">{directMessageTarget?.name}</span></p>
+            </header>
+            <form onSubmit={handleSendDirectMessage} className="space-y-6">
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-4 ml-1">Use Template (Optional)</label>
+                <select 
+                  className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none font-bold transition-all appearance-none"
+                  value={directMessageTemplate}
+                  onChange={(e) => setDirectMessageTemplate(e.target.value)}
+                >
+                  <option value="">-- No Template --</option>
+                  {templates.map(tpl => (
+                    <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {!directMessageTemplate && (
+                <div className="space-y-6 animate-in fade-in duration-300">
+                  <div>
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-4 ml-1">Message Content</label>
+                    <textarea 
+                      rows="4"
+                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none font-medium transition-all resize-none"
+                      placeholder="Type your message here..."
+                      value={directMessageContent}
+                      onChange={(e) => setDirectMessageContent(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2 space-y-2">
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Media / Attachment</label>
+                      <div className="flex gap-2">
+                        <input 
+                          type="url"
+                          className="flex-1 px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none font-mono text-xs transition-all"
+                          placeholder="URL: https://..."
+                          value={directMediaUrl}
+                          onChange={(e) => setDirectMediaUrl(e.target.value)}
+                        />
+                        <div className="relative">
+                          <input 
+                            type="file" 
+                            id="direct-file" 
+                            className="hidden" 
+                            onChange={(e) => handleFileUpload(e.target.files[0], (url, type) => {
+                              setDirectMediaUrl(url);
+                              setDirectMediaType(type);
+                            })}
+                          />
+                          <label 
+                            htmlFor="direct-file"
+                            className={`px-4 py-3.5 rounded-2xl font-black text-xs uppercase cursor-pointer flex items-center gap-2 transition-all ${isUploading ? 'bg-slate-100 text-slate-400' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
+                          >
+                            {isUploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                            Upload
+                          </label>
+                        </div>
+                      </div>
+                    </div>
+                    {directMediaUrl && (
+                      <>
+                        <div className="col-span-1">
+                          <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Type</label>
+                          <select 
+                            className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none font-bold transition-all appearance-none"
+                            value={directMediaType}
+                            onChange={(e) => setDirectMediaType(e.target.value)}
+                          >
+                            <option value="image">Image</option>
+                            <option value="document">Document</option>
+                            <option value="audio">Audio</option>
+                            <option value="video">Video</option>
+                          </select>
+                        </div>
+                        <div className="col-span-1 flex items-end">
+                          <button 
+                            onClick={() => { setDirectMediaUrl(''); setDirectMediaType('image'); }}
+                            className="w-full py-3.5 bg-red-50 text-red-600 font-bold rounded-2xl hover:bg-red-100 transition text-xs uppercase"
+                          >
+                            Reset Media
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {directMessageTemplate && (
+                <div className="p-6 bg-primary-50/50 rounded-2xl border border-primary-100">
+                  <p className="text-xs font-black text-primary-600 uppercase tracking-widest mb-2">Template Preview</p>
+                  <p className="text-sm text-slate-600 italic">
+                    {templates.find(t => t.id.toString() === directMessageTemplate.toString())?.content}
+                  </p>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-4">
+                <button 
+                  type="submit"
+                  disabled={waActionLoading || (!directMessageTemplate && !directMessageContent)}
+                  className="flex-1 py-4 bg-primary-600 text-white font-black rounded-2xl hover:bg-primary-700 transition shadow-lg shadow-primary-100 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {waActionLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {waActionLoading ? 'Sending...' : 'Send Message'}
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setShowDirectMessage(false);
+                    setDirectMessageContent('');
+                    setDirectMessageTemplate('');
+                  }}
+                  className="px-6 py-4 bg-slate-100 text-slate-500 font-black rounded-2xl hover:bg-slate-200 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* WHATSAPP CREATE GROUP MODAL */}
       {showCreateGroup && (
@@ -1300,6 +1817,116 @@ const AdminDashboard = () => {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* MESSAGE MODAL */}
+      {showCreateTemplate && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in-95 duration-200">
+            <header className="mb-8">
+              <h3 className="text-2xl font-black text-slate-900 tracking-tight">Create Message Template</h3>
+              <p className="text-slate-500 font-medium mt-1">Define a reusable message with media</p>
+            </header>
+            <form onSubmit={handleCreateTemplate} className="space-y-6">
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Template Name</label>
+                <input 
+                  type="text" 
+                  required
+                  className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none font-bold transition-all"
+                  placeholder="e.g. Welcome Message"
+                  value={newTemplate.name}
+                  onChange={(e) => setNewTemplate({...newTemplate, name: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Message Content</label>
+                <textarea 
+                  required
+                  rows="4"
+                  className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none font-medium transition-all resize-none"
+                  placeholder="Type the message body..."
+                  value={newTemplate.content}
+                  onChange={(e) => setNewTemplate({...newTemplate, content: e.target.value})}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2 space-y-2">
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Media / Attachment</label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="url"
+                      className="flex-1 px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none font-mono text-xs transition-all"
+                      placeholder="URL: https://..."
+                      value={newTemplate.media_url}
+                      onChange={(e) => setNewTemplate({...newTemplate, media_url: e.target.value})}
+                    />
+                    <div className="relative">
+                      <input 
+                        type="file" 
+                        id="template-file" 
+                        className="hidden" 
+                        onChange={(e) => handleFileUpload(e.target.files[0], (url, type) => {
+                          setNewTemplate({ ...newTemplate, media_url: url, media_type: type });
+                        })}
+                      />
+                      <label 
+                        htmlFor="template-file"
+                        className={`px-4 py-3.5 rounded-2xl font-black text-xs uppercase cursor-pointer flex items-center gap-2 transition-all ${isUploading ? 'bg-slate-100 text-slate-400' : 'bg-slate-900 text-white hover:bg-slate-800'}`}
+                      >
+                        {isUploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                        Upload
+                      </label>
+                    </div>
+                  </div>
+                </div>
+                
+                {newTemplate.media_url && (
+                  <>
+                    <div className="col-span-1">
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Type</label>
+                      <select 
+                        className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none font-bold transition-all appearance-none"
+                        value={newTemplate.media_type}
+                        onChange={(e) => setNewTemplate({...newTemplate, media_type: e.target.value})}
+                      >
+                        <option value="image">Image</option>
+                        <option value="document">Document</option>
+                        <option value="audio">Audio</option>
+                        <option value="video">Video</option>
+                      </select>
+                    </div>
+                    <div className="col-span-1 flex items-end">
+                      <button 
+                        type="button"
+                        onClick={() => setNewTemplate({ ...newTemplate, media_url: '', media_type: 'image' })}
+                        className="w-full py-3.5 bg-red-50 text-red-600 font-bold rounded-2xl hover:bg-red-100 transition text-xs uppercase"
+                      >
+                        Reset Media
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button 
+                  type="submit"
+                  disabled={waActionLoading}
+                  className="flex-1 py-4 bg-primary-600 text-white font-black rounded-2xl hover:bg-primary-700 transition shadow-lg shadow-primary-100 disabled:opacity-50"
+                >
+                  {waActionLoading ? 'Saving...' : 'Save Template'}
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setShowCreateTemplate(false)}
+                  className="px-6 py-4 bg-slate-100 text-slate-500 font-black rounded-2xl hover:bg-slate-200 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
