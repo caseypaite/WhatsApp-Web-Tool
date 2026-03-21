@@ -121,6 +121,27 @@ const getMyMessages = async () => {
   return response.data;
 };
 
+// WhatsApp Integration
+const getWhatsappStatus = async () => {
+  const response = await api.get('/whatsapp/status');
+  return response.data;
+};
+
+const logoutWhatsapp = async () => {
+  const response = await api.post('/whatsapp/logout');
+  return response.data;
+};
+
+const reinitializeWhatsapp = async () => {
+  const response = await api.post('/whatsapp/reinitialize');
+  return response.data;
+};
+
+const sendWhatsappTest = async (number, message) => {
+  const response = await api.post('/whatsapp/send-test', { number, message });
+  return response.data;
+};
+
 export default {
   login,
   loginWithPhoneRequest,
@@ -142,5 +163,9 @@ export default {
   sendMessage,
   getMessageHistory,
   getMyGroups,
-  getMyMessages
+  getMyMessages,
+  getWhatsappStatus,
+  logoutWhatsapp,
+  reinitializeWhatsapp,
+  sendWhatsappTest
 };

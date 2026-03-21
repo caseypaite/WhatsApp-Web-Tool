@@ -1,4 +1,3 @@
-const axios = require('axios');
 const { Client } = require('pg');
 const settingsService = require('./settings.service');
 
@@ -60,34 +59,20 @@ class OtpService {
   }
 
   /**
-   * Triggers the external OTP gateway.
+   * Triggers the internal WhatsApp service for OTP.
    */
   async callOtpGateway(phoneNumber, code) {
-    const gatewayUrl = await settingsService.get('otp_gateway_url');
-    const apiKey = await settingsService.get('otp_api_key');
-
-    if (!gatewayUrl || !apiKey) {
-      const msg = '[OTP] Gateway URL or API Key not configured.';
-      console.warn(msg, 'Logging code instead:', code);
-      return { status: 'mock', message: msg, code };
-    }
-
+    const whatsappService = require('./whatsapp.service');
     try {
       const siteName = await settingsService.get('site_name') || 'AppStack';
-      const response = await axios.post(gatewayUrl, {
-        number: phoneNumber,
-        message: `Your ${siteName} verification code is: ${code}`,
-      }, {
-        headers: {
-          'X-API-KEY': apiKey
-        }
-      });
-      return { status: response.status, data: response.data };
+      const message = `Your ${siteName} verification code is: ${code}`;
+      const result = await whatsappService.sendMessage(phoneNumber, message);
+      return { status: 200, data: { success: true, messageId: result.id?._serialized || result.id } };
     } catch (error) {
-      console.error('Error calling OTP Gateway:', error.message);
+      console.error('[OTP] Error via WhatsApp Service:', error.message);
       return { 
-        status: error.response?.status || 'error', 
-        data: error.response?.data || error.message 
+        status: 500, 
+        data: { error: true, message: error.message }
       };
     }
   }
@@ -142,32 +127,18 @@ class OtpService {
   }
 
   /**
-   * Sends a raw message without any template.
+   * Sends a raw message via WhatsApp service.
    */
   async sendRawMessage(phoneNumber, message) {
-    const gatewayUrl = await settingsService.get('otp_gateway_url');
-    const apiKey = await settingsService.get('otp_api_key');
-
-    if (!gatewayUrl || !apiKey) {
-      console.warn('[OTP] Gateway URL or API Key not configured. Message:', message);
-      return { status: 'mock', message: 'Gateway not configured', data: message };
-    }
-
+    const whatsappService = require('./whatsapp.service');
     try {
-      const response = await axios.post(gatewayUrl, {
-        number: phoneNumber,
-        message: message,
-      }, {
-        headers: {
-          'X-API-KEY': apiKey
-        }
-      });
-      return { status: response.status, data: response.data };
+      const result = await whatsappService.sendMessage(phoneNumber, message);
+      return { status: 200, data: { success: true, messageId: result.id?._serialized || result.id } };
     } catch (error) {
-      console.error('Error calling OTP Gateway for raw message:', error.message);
+      console.error('[OTP] Raw message error:', error.message);
       return { 
-        status: error.response?.status || 'error', 
-        data: error.response?.data || error.message 
+        status: 500, 
+        data: { error: true, message: error.message }
       };
     }
   }

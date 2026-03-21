@@ -4,9 +4,14 @@ const cors = require('cors');
 const cmsRoutes = require('./routes/cms.routes');
 const userRoutes = require('./routes/user.routes');
 const settingsRoutes = require('./routes/settings.routes');
+const whatsappRoutes = require('./routes/whatsapp.routes');
+const whatsappService = require('./services/whatsapp.service');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Initialize WhatsApp
+whatsappService.initialize();
 
 // Middleware
 app.use(cors());
@@ -22,6 +27,7 @@ app.use((req, res, next) => {
 app.use('/api/cms', cmsRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/whatsapp', whatsappRoutes);
 
 app.use((req, res, next) => {
   console.log(`[404] Unhandled request: ${req.method} ${req.url}`);

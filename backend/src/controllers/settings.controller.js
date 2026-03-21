@@ -59,8 +59,10 @@ class SettingsController {
       const otpService = require('../services/otp.service');
       // Call gateway directly with a dummy code to bypass database insertion
       const gatewayResponse = await otpService.callOtpGateway(phoneNumber, '123456');
+      const success = gatewayResponse.status === 200;
+      
       res.json({ 
-        message: `Test message triggered for ${phoneNumber}`,
+        message: success ? `Test message sent via WhatsApp Service to ${phoneNumber}` : `Failed to send via WhatsApp Service`,
         result: { gatewayResponse } 
       });
     } catch (error) {

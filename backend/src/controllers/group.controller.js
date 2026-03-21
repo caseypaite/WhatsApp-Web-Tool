@@ -1,5 +1,5 @@
 const { Client } = require('pg');
-const otpService = require('../services/otp.service');
+const whatsappService = require('../services/whatsapp.service');
 
 const groupController = {
   createGroup: async (req, res) => {
@@ -26,7 +26,6 @@ const groupController = {
     const client = new Client({ connectionString: process.env.DATABASE_URL });
     try {
       await client.connect();
-      // group_members has ON DELETE CASCADE on group_id, so we just delete the group
       const result = await client.query('DELETE FROM groups WHERE id = $1 RETURNING *', [groupId]);
       if (result.rowCount === 0) return res.status(404).json({ error: 'Group not found.' });
       res.json({ message: 'Group deleted successfully.' });
@@ -38,15 +37,12 @@ const groupController = {
   },
 
   getAllGroups: async (req, res) => {
-    console.log('[GROUP] getAllGroups called');
     const client = new Client({ connectionString: process.env.DATABASE_URL });
     try {
       await client.connect();
       const result = await client.query('SELECT * FROM groups ORDER BY created_at DESC');
-      console.log(`[GROUP] Returning ${result.rows.length} groups`);
       res.json(result.rows);
     } catch (error) {
-      console.error('[GROUP] getAllGroups error:', error.message);
       res.status(500).json({ error: 'Database error' });
     } finally {
       await client.end();
@@ -106,7 +102,7 @@ const groupController = {
   },
 
   promoteMember: async (req, res) => {
-    const { groupId, userId, role } = req.body; // role should be 'ADMIN' or 'MEMBER'
+    const { groupId, userId, role } = req.body;
     const client = new Client({ connectionString: process.env.DATABASE_URL });
     try {
       await client.connect();
@@ -126,23 +122,31 @@ const groupController = {
     const { userId, phoneNumber, message } = req.body;
     if (!phoneNumber || !message) return res.status(400).json({ error: 'Missing phoneNumber or message.' });
     
-    const client = new Client({ connectionString: process.env.DATABASE_URL });
     try {
-      await client.connect();
-      const response = await otpService.sendRawMessage(phoneNumber, message);
-      const success = response.status >= 200 && response.status < 300 || response.status === 'mock';
+      const result = await whatsappService.sendMessage(phoneNumber, message);
+      const success = !!result.id;
       
-      await client.query(
-        'INSERT INTO message_history (user_id, phone_number, message, status, error_message) VALUES ($1, $2, $3, $4, $5)',
-        [userId || null, phoneNumber, message, success ? 'SUCCESS' : 'FAILED', success ? null : JSON.stringify(response.data)]
-      );
+      await whatsappService.logMessage({
+        userId: userId || null,
+        phoneNumber,
+        message,
+        status: success ? 'SUCCESS' : 'FAILED',
+        errorMessage: success ? null : 'Failed to get message ID'
+      });
 
-      res.json({ message: 'Process complete.', success, result: response });
+      res.json({ message: 'Process complete.', success, result });
     } catch (error) {
       console.error('Error sending custom message:', error.message);
-      res.status(500).json({ error: 'Failed to send message.' });
-    } finally {
-      await client.end();
+      
+      await whatsappService.logMessage({
+        userId: userId || null,
+        phoneNumber,
+        message,
+        status: 'FAILED',
+        errorMessage: error.message
+      });
+
+      res.status(500).json({ error: error.message || 'Failed to send message.' });
     }
   },
 

@@ -36,9 +36,43 @@ const AdminDashboard = () => {
   const [messageHistory, setMessageHistory] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
+  // WhatsApp-web State
+  const [waStatus, setWaStatus] = useState({ status: 'DISCONNECTED', ready: false, qr: null });
+  const [waLoading, setWaLoading] = useState(false);
+
   const showFlash = (message, type = 'success') => {
     setFlash({ message, type });
     setTimeout(() => setFlash(null), 5000);
+  };
+
+  const fetchWaStatus = async () => {
+    try {
+      const data = await authService.getWhatsappStatus();
+      setWaStatus(data);
+    } catch (err) {
+      console.error('Failed to fetch WA status');
+    }
+  };
+
+  const handleWaLogout = async () => {
+    if (!window.confirm('Are you sure you want to logout from WhatsApp?')) return;
+    try {
+      await authService.logoutWhatsapp();
+      showFlash('Logged out from WhatsApp');
+      fetchWaStatus();
+    } catch (err) {
+      showFlash('Logout failed', 'error');
+    }
+  };
+
+  const handleWaReinit = async () => {
+    try {
+      await authService.reinitializeWhatsapp();
+      showFlash('Re-initialization started');
+      setTimeout(fetchWaStatus, 2000);
+    } catch (err) {
+      showFlash('Failed to reinitialize', 'error');
+    }
   };
 
   const fetchUsers = async () => {
@@ -91,12 +125,17 @@ const AdminDashboard = () => {
 
   const loadData = async () => {
     setLoading(true);
-    await Promise.all([fetchUsers(), fetchSettings(), fetchGroups()]);
+    await Promise.all([fetchUsers(), fetchSettings(), fetchGroups(), fetchWaStatus()]);
     setLoading(false);
   };
 
   useEffect(() => {
     loadData();
+    // Poll for WA status if disconnected and might be showing QR
+    const interval = setInterval(() => {
+      fetchWaStatus();
+    }, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -298,9 +337,15 @@ const AdminDashboard = () => {
           >
             System Settings
           </button>
-        </div>
+          <button 
+            onClick={() => setActiveTab('whatsapp')}
+            className={`px-6 py-2 rounded-xl font-semibold transition-all ${activeTab === 'whatsapp' ? 'bg-primary-600 text-white shadow-lg' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+          >
+            WhatsApp Instance
+          </button>
+          </div>
 
-        {/* USERS TAB */}
+          {activeTab === 'users' && (
         {activeTab === 'users' && (
           <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
             <div className="overflow-x-auto">
@@ -604,6 +649,129 @@ const AdminDashboard = () => {
                   )}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'whatsapp' && (
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8">
+            <div className="flex flex-wrap items-center justify-between gap-6 mb-10">
+              <div className="flex items-center gap-4">
+                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg ${
+                  waStatus.status === 'CONNECTED' ? 'bg-green-100 text-green-600 shadow-green-100' : 'bg-slate-100 text-slate-400 shadow-slate-100'
+                }`}>
+                  <MessageSquare className="w-8 h-8" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-slate-900">WhatsApp Instance</h2>
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className={`w-2 h-2 rounded-full ${waStatus.status === 'CONNECTED' ? 'bg-green-500 animate-pulse' : 'bg-slate-300'}`} />
+                    <span className={`text-sm font-bold uppercase tracking-wider ${waStatus.status === 'CONNECTED' ? 'text-green-600' : 'text-slate-500'}`}>
+                      {waStatus.status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex gap-3">
+                <button 
+                  onClick={handleWaReinit}
+                  className="px-6 py-2 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition flex items-center gap-2"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  Re-initialize
+                </button>
+                {waStatus.status === 'CONNECTED' && (
+                  <button 
+                    onClick={handleWaLogout}
+                    className="px-6 py-2 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition flex items-center gap-2"
+                  >
+                    <X className="w-4 h-4" />
+                    Logout
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-12">
+              <div className="space-y-6">
+                <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest border-b pb-2">Status Details</h3>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center py-2 border-b border-slate-50">
+                    <span className="text-slate-500 text-sm">Client Ready</span>
+                    <span className={`text-sm font-bold ${waStatus.ready ? 'text-green-600' : 'text-red-600'}`}>
+                      {waStatus.ready ? 'YES' : 'NO'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b border-slate-50">
+                    <span className="text-slate-500 text-sm">Session Data</span>
+                    <span className="text-sm font-bold text-slate-700">LocalAuth (Persistent)</span>
+                  </div>
+                </div>
+
+                <div className="mt-8 p-6 bg-slate-50 rounded-2xl border border-slate-100">
+                  <h4 className="text-xs font-bold text-slate-700 uppercase mb-3">Quick Test</h4>
+                  <div className="flex gap-3">
+                    <input 
+                      type="tel" 
+                      placeholder="919560436836" 
+                      className="flex-1 px-4 py-2 rounded-xl border border-slate-200 text-sm outline-none focus:ring-2 focus:ring-primary-500 transition-all"
+                      id="test-wa-phone"
+                    />
+                    <button 
+                      onClick={async () => {
+                        const num = document.getElementById('test-wa-phone').value;
+                        if (!num) return alert('Enter number');
+                        try {
+                          await authService.sendWhatsappTest(num, 'Hello from AppStack Instance!');
+                          alert('Test message sent!');
+                        } catch (err) {
+                          alert('Failed: ' + (err.response?.data?.error || err.message));
+                        }
+                      }}
+                      className="px-4 py-2 bg-primary-600 text-white font-bold rounded-xl hover:bg-primary-700 transition shadow-lg shadow-primary-100"
+                    >
+                      Test
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col items-center justify-center p-8 bg-slate-50 rounded-[2.5rem] border-2 border-dashed border-slate-200 min-h-[400px]">
+                {waStatus.status === 'CONNECTED' ? (
+                  <div className="text-center">
+                    <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <Check className="w-12 h-12" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-900 mb-2">Authenticated</h3>
+                    <p className="text-slate-500">Your WhatsApp instance is active and ready to send messages.</p>
+                  </div>
+                ) : waStatus.qr ? (
+                  <div className="text-center w-full">
+                    <h3 className="text-lg font-bold text-slate-900 mb-6 uppercase tracking-wider">Scan QR Code</h3>
+                    <div className="bg-white p-6 rounded-3xl shadow-xl inline-block mb-6 border border-slate-100">
+                      <img 
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(waStatus.qr)}`} 
+                        alt="WhatsApp QR Code"
+                        className="w-[250px] h-[250px]"
+                      />
+                    </div>
+                    <p className="text-sm text-slate-500 max-w-[280px] mx-auto leading-relaxed">
+                      Open WhatsApp on your phone, go to Linked Devices, and scan this code to connect.
+                    </p>
+                    <div className="mt-6 flex items-center justify-center gap-2 text-primary-600 animate-pulse">
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span className="text-xs font-bold uppercase tracking-widest">Waiting for scan</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center">
+                    <RefreshCw className="w-12 h-12 text-slate-200 animate-spin mx-auto mb-6" />
+                    <h3 className="text-lg font-bold text-slate-400">Initializing Client...</h3>
+                    <p className="text-slate-400 text-sm mt-2">This may take a few seconds.</p>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
