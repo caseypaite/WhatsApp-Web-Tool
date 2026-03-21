@@ -365,9 +365,8 @@ const AdminDashboard = () => {
           >
             WhatsApp Instance
           </button>
-          </div>
+        </div>
 
-          {activeTab === 'users' && (
         {activeTab === 'users' && (
           <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
             <div className="overflow-x-auto">
