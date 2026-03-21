@@ -14,8 +14,12 @@ const PORT = process.env.PORT || 3000;
 whatsappService.initialize();
 
 // Middleware
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',') 
+  : ['https://app.kcdev.qzz.io', 'http://localhost:3081', 'http://localhost:3001', 'http://localhost:3085'];
+
 app.use(cors({
-  origin: ['https://app.kcdev.qzz.io', 'http://localhost:3081', 'http://localhost:3001'],
+  origin: allowedOrigins,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-simple-auth']
 }));

@@ -8,14 +8,17 @@ class VerifiableCredentialService {
    * @returns {Object} The signed W3C Verifiable Credential.
    */
   async issueCredential(userData) {
+    const domain = await settingsService.get('website_domain') || process.env.WEBSITE_DOMAIN || 'appstack.com';
+    const issuerUrl = domain.startsWith('http') ? domain : `https://${domain}`;
+
     const vc = {
       "@context": [
         "https://www.w3.org/2018/credentials/v1",
         "https://www.w3.org/2018/credentials/examples/v1"
       ],
-      "id": `http://example.edu/credentials/${userData.id}`,
+      "id": `${issuerUrl}/credentials/${userData.id}`,
       "type": ["VerifiableCredential", "IdentityCredential"],
-      "issuer": "https://appstack.com/issuer",
+      "issuer": `${issuerUrl}/issuer`,
       "issuanceDate": new Date().toISOString(),
       "credentialSubject": {
         "id": `did:example:${userData.id}`,
@@ -26,11 +29,10 @@ class VerifiableCredentialService {
         "type": "Ed25519Signature2018",
         "created": new Date().toISOString(),
         "proofPurpose": "assertionMethod",
-        "verificationMethod": "https://appstack.com/issuer/keys/1",
-        "jws": "eyJhbGciOiJFZERTQSIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il19..SIGNED_JWT_HERE"
+        "verificationMethod": `${issuerUrl}/issuer/keys/1`,
+        "jws": "eyJhbGciOiJSUzI1NiIsImI2NCI6ZmFsc2UsImNyaXQiOlsiYjY0Il19..TCjH9"
       }
     };
-
     return vc;
   }
 
