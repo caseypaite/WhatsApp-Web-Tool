@@ -309,7 +309,7 @@ const AdminDashboard = () => {
   const categories = {
     general: { label: 'General', icon: Globe, keys: ['site_name', 'website_domain'] },
     security: { label: 'Security & Auth', icon: Lock, keys: ['otp_enabled', 'otp_expiration_minutes', 'otp_max_retries', 'jwt_secret'] },
-    technical: { label: 'Technical / API', icon: Cpu, keys: ['vite_api_base_url', 'otp_gateway_url', 'otp_api_key'] }
+    technical: { label: 'Technical / API', icon: Cpu, keys: ['vite_api_base_url'] }
   };
 
   return (

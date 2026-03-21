@@ -5,8 +5,20 @@ const whatsappController = {
   getStatus: async (req, res) => {
     try {
       const status = await whatsappService.getStatus();
+      const settingsService = require('../services/settings.service');
+      
+      // Fallback to DB stored QR/Status if service is still initializing
+      if (!status.qr || status.status === 'DISCONNECTED') {
+        const storedQr = await settingsService.get('whatsapp_qr');
+        const storedStatus = await settingsService.get('whatsapp_status');
+        
+        status.qr = status.qr || storedQr || null;
+        status.status = status.status === 'DISCONNECTED' && storedStatus ? storedStatus : status.status;
+      }
+
       res.json(status);
     } catch (err) {
+      console.error('[WHATSAPP CONTROLLER] Error getting status:', err.message);
       res.status(500).json({ error: 'Failed to get status' });
     }
   },

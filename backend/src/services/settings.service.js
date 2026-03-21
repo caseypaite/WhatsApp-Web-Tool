@@ -38,8 +38,6 @@ class SettingsService {
       'otp_enabled',
       'otp_expiration_minutes',
       'otp_max_retries',
-      'otp_gateway_url',
-      'otp_api_key',
       'jwt_secret',
       'vite_api_base_url'
     ];
