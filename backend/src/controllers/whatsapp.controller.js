@@ -7,13 +7,18 @@ const whatsappController = {
       const status = await whatsappService.getStatus();
       const settingsService = require('../services/settings.service');
       
-      // Fallback to DB stored QR/Status if service is still initializing
-      if (!status.qr || status.status === 'DISCONNECTED') {
+      // If service is DISCONNECTED but DB says CONNECTED, it means service is still booting up
+      // or session is being restored. We should trust the service's runtime isReady flag
+      // for the "ready" state, but can use DB status for the "label" if appropriate.
+      
+      if (!status.qr && status.status === 'DISCONNECTED') {
         const storedQr = await settingsService.get('whatsapp_qr');
-        const storedStatus = await settingsService.get('whatsapp_status');
-        
-        status.qr = status.qr || storedQr || null;
-        status.status = status.status === 'DISCONNECTED' && storedStatus ? storedStatus : status.status;
+        if (storedQr) status.qr = storedQr;
+      }
+
+      // If runtime says NOT READY, but status is CONNECTED, it's inconsistent
+      if (!status.ready && status.status === 'CONNECTED') {
+        status.status = 'AUTHENTICATING';
       }
 
       res.json(status);

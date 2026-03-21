@@ -20,6 +20,10 @@ const AdminDashboard = () => {
   const [gatewayResponse, setGatewayResponse] = useState(null);
   const [isDebugExpanded, setIsDebugExpanded] = useState(true);
 
+  // Landing Page CMS State
+  const [landingContent, setLandingContent] = useState({ hero_text: '', cta_text: '', image_url: '' });
+  const [landingLoading, setLandingLoading] = useState(false);
+
   // Flash Message State
   const [flash, setFlash] = useState(null);
 
@@ -145,9 +149,33 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchLandingContent = async () => {
+    try {
+      const data = await authService.getLandingPage();
+      setLandingContent(data);
+    } catch (err) {
+      console.error('Failed to fetch landing content');
+    }
+  };
+
+  const handleUpdateLandingPage = async (e) => {
+    e.preventDefault();
+    setLandingLoading(true);
+    try {
+      await authService.updateLandingPage(landingContent);
+      showFlash('Landing page updated successfully');
+    } catch (err) {
+      console.error('Landing update error:', err);
+      const errorMsg = err.response?.data?.details || err.response?.data?.message || err.message || 'Failed to update landing page.';
+      showFlash(errorMsg, 'error');
+    } finally {
+      setLandingLoading(false);
+    }
+  };
+
   const loadData = async () => {
     setLoading(true);
-    await Promise.all([fetchUsers(), fetchSettings(), fetchGroups(), fetchWaStatus()]);
+    await Promise.all([fetchUsers(), fetchSettings(), fetchGroups(), fetchWaStatus(), fetchLandingContent()]);
     setLoading(false);
   };
 
@@ -364,6 +392,12 @@ const AdminDashboard = () => {
             className={`px-6 py-2 rounded-xl font-semibold transition-all ${activeTab === 'whatsapp' ? 'bg-primary-600 text-white shadow-lg' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
           >
             WhatsApp Instance
+          </button>
+          <button 
+            onClick={() => setActiveTab('cms')}
+            className={`px-6 py-2 rounded-xl font-semibold transition-all ${activeTab === 'cms' ? 'bg-primary-600 text-white shadow-lg' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+          >
+            Landing Page
           </button>
         </div>
 
@@ -799,14 +833,80 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              <div className="flex flex-col items-center justify-center p-8 bg-slate-50 rounded-[2.5rem] border-2 border-dashed border-slate-200 min-h-[400px]">
+              <div className="flex flex-col p-8 bg-slate-50 rounded-[2.5rem] border-2 border-dashed border-slate-200 min-h-[400px]">
                 {waStatus.status === 'CONNECTED' ? (
-                  <div className="text-center">
-                    <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                      <Check className="w-12 h-12" />
+                  <div className="h-full flex flex-col">
+                    <div className="flex items-center gap-3 mb-8">
+                      <div className="w-10 h-10 bg-green-100 text-green-600 rounded-xl flex items-center justify-center">
+                        <ShieldCheck className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-900">Managed Entities</h3>
+                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Groups & Channels</p>
+                      </div>
                     </div>
-                    <h3 className="text-xl font-bold text-slate-900 mb-2">Authenticated</h3>
-                    <p className="text-slate-500">Your WhatsApp instance is active and ready to send messages.</p>
+
+                    <div className="flex-1 space-y-8 overflow-y-auto pr-2 custom-scrollbar">
+                      {/* Groups Section */}
+                      <div>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                          <Users className="w-3 h-3" /> Managed Groups
+                        </h4>
+                        <div className="space-y-2">
+                          {waChats.filter(c => c.isGroup && c.isAdmin).length > 0 ? (
+                            waChats.filter(c => c.isGroup && c.isAdmin).map(group => (
+                              <div key={group.id._serialized} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between group hover:border-primary-200 transition-all">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 bg-primary-50 text-primary-600 rounded-xl flex items-center justify-center font-black">
+                                    {group.name?.[0] || 'G'}
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-bold text-slate-800">{group.name}</p>
+                                    <p className="text-[10px] text-slate-400 font-mono">{group.id.user}</p>
+                                  </div>
+                                </div>
+                                <span className="text-[10px] font-black bg-slate-50 text-slate-400 px-2 py-1 rounded-lg uppercase">Admin</span>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-xs text-slate-400 italic ml-2">No groups with admin access</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Channels Section */}
+                      <div>
+                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                          <Globe className="w-3 h-3" /> Active Channels
+                        </h4>
+                        <div className="space-y-2">
+                          {waChats.filter(c => c.id.server === 'newsletter' && c.isAdmin).length > 0 ? (
+                            waChats.filter(c => c.id.server === 'newsletter' && c.isAdmin).map(channel => (
+                              <div key={channel.id._serialized} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between group hover:border-primary-200 transition-all">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center font-black">
+                                    {channel.name?.[0] || 'C'}
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-bold text-slate-800">{channel.name}</p>
+                                    <p className="text-[10px] text-slate-400 font-mono">{channel.id.user}</p>
+                                  </div>
+                                </div>
+                                <span className="text-[10px] font-black bg-amber-50 text-amber-600 px-2 py-1 rounded-lg uppercase">Admin</span>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-xs text-slate-400 italic ml-2">No channels with admin access</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : waStatus.status === 'AUTHENTICATED' || waStatus.status === 'AUTHENTICATING' ? (
+                  <div className="text-center">
+                    <RefreshCw className="w-12 h-12 text-primary-600 animate-spin mx-auto mb-6" />
+                    <h3 className="text-xl font-bold text-slate-900 mb-2 uppercase tracking-tight">Finalizing Session...</h3>
+                    <p className="text-slate-500 font-medium">Authenticating with WhatsApp. Please wait a moment.</p>
                   </div>
                 ) : waStatus.qr ? (
                   <div className="text-center w-full">
@@ -829,10 +929,90 @@ const AdminDashboard = () => {
                 ) : (
                   <div className="text-center">
                     <RefreshCw className="w-12 h-12 text-slate-200 animate-spin mx-auto mb-6" />
-                    <h3 className="text-lg font-bold text-slate-400">Initializing Client...</h3>
-                    <p className="text-slate-400 text-sm mt-2">This may take a few seconds.</p>
+                    <h3 className="text-lg font-bold text-slate-400 uppercase tracking-tight">Initializing Client...</h3>
+                    <p className="text-slate-400 text-sm mt-2 font-medium">This may take a few seconds.</p>
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'cms' && (
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-8">
+            <header className="mb-10">
+              <h2 className="text-2xl font-bold text-slate-900">Landing Page Configuration</h2>
+              <p className="text-slate-500 mt-2">Edit the main content of your public landing page</p>
+            </header>
+
+            <div className="grid md:grid-cols-2 gap-12">
+              <form onSubmit={handleUpdateLandingPage} className="space-y-6">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wider">Hero Headline</label>
+                  <textarea 
+                    required
+                    rows="3"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none transition-all resize-none font-bold text-lg"
+                    placeholder="Main headline for the hero section"
+                    value={landingContent.hero_text}
+                    onChange={(e) => setLandingContent({ ...landingContent, hero_text: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wider">CTA Button Text</label>
+                  <input 
+                    type="text"
+                    required
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none transition-all"
+                    placeholder="Text for the main action button"
+                    value={landingContent.cta_text}
+                    onChange={(e) => setLandingContent({ ...landingContent, cta_text: e.target.value })}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-2 uppercase tracking-wider">Hero Image URL</label>
+                  <input 
+                    type="url"
+                    required
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none transition-all font-mono text-sm"
+                    placeholder="https://images.unsplash.com/..."
+                    value={landingContent.image_url}
+                    onChange={(e) => setLandingContent({ ...landingContent, image_url: e.target.value })}
+                  />
+                  <p className="mt-2 text-xs text-slate-400">Provide a high-quality image URL (Unsplash recommended)</p>
+                </div>
+
+                <div className="pt-4">
+                  <button 
+                    type="submit"
+                    disabled={landingLoading}
+                    className="w-full py-4 bg-primary-600 text-white font-bold rounded-2xl hover:bg-primary-700 transition shadow-lg shadow-primary-200 disabled:opacity-50 flex items-center justify-center gap-3"
+                  >
+                    {landingLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                    {landingLoading ? 'Updating...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+
+              <div className="space-y-6">
+                <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest border-b pb-2">Live Preview</h3>
+                <div className="border border-slate-100 rounded-[2.5rem] overflow-hidden shadow-2xl bg-white">
+                  <div className="p-8">
+                    <h1 className="text-2xl font-extrabold text-slate-900 leading-tight mb-4">
+                      {landingContent.hero_text || 'Headline Preview'}
+                    </h1>
+                    <button className="px-6 py-2 bg-primary-600 text-white font-bold rounded-xl text-sm mb-6 pointer-events-none">
+                      {landingContent.cta_text || 'CTA Preview'}
+                    </button>
+                    <img 
+                      src={landingContent.image_url || 'https://via.placeholder.com/800x600'} 
+                      alt="Preview" 
+                      className="rounded-2xl w-full aspect-video object-cover"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
+import api from '../services/api';
 import { LogOut, User, Shield } from 'lucide-react';
 
 const Navbar = () => {
@@ -12,8 +12,7 @@ const Navbar = () => {
   useEffect(() => {
     const fetchSiteName = async () => {
       try {
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://backend.kcdev.qzz.io/api';
-        const res = await axios.get(`${baseUrl}/settings/public`);
+        const res = await api.get('/settings/public');
         if (res.data.SITE_NAME) setSiteName(res.data.SITE_NAME);
       } catch (err) {
         console.error('Failed to fetch site name');

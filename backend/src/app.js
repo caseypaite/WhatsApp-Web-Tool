@@ -29,9 +29,9 @@ app.use('/api/user', userRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 
-app.use((req, res, next) => {
-  console.log(`[404] Unhandled request: ${req.method} ${req.url}`);
-  res.status(404).json({ error: 'Not Found', url: req.url });
+// Health Check
+app.get('/health', (req, res) => {
+  res.json({ status: 'up' });
 });
 
 // Mock Registration route to trigger OTP (Demonstration)
@@ -47,9 +47,10 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
-// Health Check
-app.get('/health', (req, res) => {
-  res.json({ status: 'up' });
+// 404 Handler
+app.use((req, res, next) => {
+  console.log(`[404] Unhandled request: ${req.method} ${req.url}`);
+  res.status(404).json({ error: 'Not Found', url: req.url });
 });
 
 // Error handling

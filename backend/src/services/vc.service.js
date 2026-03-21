@@ -18,7 +18,7 @@ class VerifiableCredentialService {
       "issuer": "https://appstack.com/issuer",
       "issuanceDate": new Date().toISOString(),
       "credentialSubject": {
-        "id": `did:example:${userData.auth0_id}`,
+        "id": `did:example:${userData.id}`,
         "name": userData.name,
         "email": userData.email
       },

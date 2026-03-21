@@ -1,23 +1,5 @@
-const { auth } = require('express-oauth2-jwt-bearer');
-
-/**
- * Validates the Auth0 JWT.
- */
-let checkJwt;
-
-if (process.env.AUTH0_AUDIENCE && process.env.AUTH0_ISSUER_BASE_URL) {
-  checkJwt = auth({
-    audience: process.env.AUTH0_AUDIENCE,
-    issuerBaseURL: process.env.AUTH0_ISSUER_BASE_URL,
-  });
-} else {
-  // If Auth0 is not configured, we provide a placeholder middleware.
-  // This allows the server to start even without configuration.
-  checkJwt = (req, res, next) => {
-    console.warn('Auth0 is not configured. Skipping JWT check.');
-    next();
-  };
-}
+const jwt = require('jsonwebtoken');
+const settingsService = require('../services/settings.service');
 
 /**
  * Middleware to check for required permissions/roles.
@@ -25,8 +7,8 @@ if (process.env.AUTH0_AUDIENCE && process.env.AUTH0_ISSUER_BASE_URL) {
  */
 const checkRole = (requiredRoles) => {
   return (req, res, next) => {
-    // Check both standard roles field and Auth0 custom claim
-    const userRoles = req.auth?.payload?.['https://appstack.com/roles'] || req.auth?.payload?.roles || [];
+    // Check roles field in the payload
+    const userRoles = req.auth?.payload?.roles || req.user?.roles || [];
 
     const hasRole = requiredRoles.some((role) => userRoles.includes(role));
 
@@ -42,59 +24,42 @@ const checkRole = (requiredRoles) => {
 };
 
 /**
- * Simple Authentication Fallback.
- * Checks for a specific header if Auth0 is not yet configured.
- */
-const simpleAuth = (req, res, next) => {
-  const adminSecret = process.env.SIMPLE_AUTH_PASSWORD;
-  const providedSecret = req.headers['x-simple-auth'];
-
-  if (providedSecret && providedSecret === adminSecret) {
-    req.auth = { payload: { 'https://appstack.com/roles': ['Admin'] } };
-    return next();
-  }
-  
-  // If not simple auth, proceed to checkJwt if it's defined and correctly called
-  next();
-};
-
-const jwt = require('jsonwebtoken');
-const settingsService = require('../services/settings.service');
-
-/**
  * Unified Authentication Middleware
+ * Handles local JWT verification and simple auth fallback.
  */
 const authenticate = async (req, res, next) => {
   const adminSecret = process.env.SIMPLE_AUTH_PASSWORD;
   const providedSecret = req.headers['x-simple-auth'];
 
+  // Simple Auth (e.g. for development or special scripts)
   if (providedSecret && providedSecret === adminSecret) {
     req.user = { id: 0, email: 'admin@simpleauth.local', roles: ['Admin'] };
-    req.auth = { payload: { sub: 0, email: 'admin@simpleauth.local', roles: ['Admin'], 'https://appstack.com/roles': ['Admin'] } };
+    req.auth = { payload: { sub: 0, email: 'admin@simpleauth.local', roles: ['Admin'] } };
     return next();
   }
 
   const authHeader = req.headers.authorization;
   if (!authHeader) {
-    return checkJwt(req, res, next);
+    return res.status(401).json({ error: 'Unauthorized', message: 'Authorization header missing' });
   }
 
   const token = authHeader.split(' ')[1];
   try {
     const jwtSecret = await settingsService.get('jwt_secret') || process.env.JWT_SECRET || 'your_fallback_jwt_secret';
     const decoded = jwt.verify(token, jwtSecret);
+    
+    console.log('[AUTH] Token verified for:', decoded.email);
+    
     req.user = { id: decoded.sub, email: decoded.email, roles: decoded.roles };
     req.auth = { payload: decoded };
     return next();
   } catch (err) {
-    // If local verification fails, try checkJwt (Auth0)
-    return checkJwt(req, res, next);
+    console.error('[AUTH] Token verification failed:', err.message);
+    return res.status(401).json({ error: 'Unauthorized', message: 'Invalid or expired token' });
   }
 };
 
 module.exports = {
-  checkJwt,
   checkRole,
-  simpleAuth,
   authenticate
 };

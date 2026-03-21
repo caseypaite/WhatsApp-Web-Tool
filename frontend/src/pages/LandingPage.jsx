@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ArrowRight, Shield, Zap, Layout as LayoutIcon, Cpu, User } from 'lucide-react';
@@ -15,12 +15,12 @@ const LandingPage = () => {
 
   useEffect(() => {
     const fetchContent = async () => {
-      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://backend.kcdev.qzz.io/api';
-      console.log('Fetching CMS content from:', `${baseUrl}/cms/landing`);
       try {
-        const response = await axios.get(`${baseUrl}/cms/landing`);
+        const response = await api.get('/cms/landing');
         console.log('CMS content response:', response.data);
-        if (response.data) setContent(response.data);
+        if (response.data && response.data.hero_text) {
+          setContent(response.data);
+        }
       } catch (err) {
         console.error('Failed to fetch CMS content:', err);
       }

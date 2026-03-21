@@ -13,20 +13,8 @@ const normalizePhone = (phone) => {
   return cleaned;
 };
 
-const getDbUserId = async (req) => {
-  const userId = req.user?.id || req.auth?.payload?.sub;
-  if (!userId) return null;
-  if (!isNaN(userId)) return parseInt(userId);
-  const client = new Client({ connectionString: process.env.DATABASE_URL });
-  try {
-    await client.connect();
-    const res = await client.query('SELECT id FROM users WHERE auth0_id = $1 OR email = $2', [userId, req.user?.email || req.auth?.payload?.email]);
-    return res.rows[0]?.id || null;
-  } catch (err) {
-    return null;
-  } finally {
-    await client.end();
-  }
+const getDbUserId = (req) => {
+  return req.user?.id || null;
 };
 
 const userController = {
@@ -109,7 +97,7 @@ const userController = {
       const isMatch = await bcrypt.compare(password, user.password);
       if (!isMatch) return res.status(401).json({ error: 'Invalid credentials.' });
       const jwtSecret = await settingsService.get('jwt_secret') || process.env.JWT_SECRET || 'your_fallback_jwt_secret';
-      const token = jwt.sign({ sub: user.id, email: user.email, roles: user.roles, 'https://appstack.com/roles': user.roles }, jwtSecret, { expiresIn: '24h' });
+      const token = jwt.sign({ sub: user.id, email: user.email, roles: user.roles }, jwtSecret, { expiresIn: '24h' });
       delete user.password;
       res.json({ token, user });
     } catch (error) {
@@ -120,13 +108,13 @@ const userController = {
   },
 
   requestPhoneUpdate: async (req, res) => {
-    const dbUserId = await getDbUserId(req);
+    const dbUserId = getDbUserId(req);
     let { phone_number } = req.body;
     if (!dbUserId || !phone_number) return res.status(400).json({ error: 'Missing info.' });
     phone_number = normalizePhone(phone_number);
     try {
       const result = await otpService.generateAndSendOtp(dbUserId, phone_number);
-      const isAdmin = (req.user?.roles || req.auth?.payload?.['https://appstack.com/roles'] || []).includes('Admin');
+      const isAdmin = (req.user?.roles || []).includes('Admin');
       if (!isAdmin && result.gatewayResponse) delete result.gatewayResponse;
       res.json({ message: 'OTP sent.', result });
     } catch (error) {
@@ -135,7 +123,7 @@ const userController = {
   },
 
   confirmPhoneUpdate: async (req, res) => {
-    const dbUserId = await getDbUserId(req);
+    const dbUserId = getDbUserId(req);
     let { otp, phone_number } = req.body;
     phone_number = normalizePhone(phone_number);
     try {
@@ -152,7 +140,7 @@ const userController = {
   },
 
   requestPasswordChange: async (req, res) => {
-    const dbUserId = await getDbUserId(req);
+    const dbUserId = getDbUserId(req);
     const client = new Client({ connectionString: process.env.DATABASE_URL });
     try {
       await client.connect();
@@ -160,7 +148,7 @@ const userController = {
       const phone = resUser.rows[0]?.phone_number;
       if (!phone) return res.status(400).json({ error: 'No phone number.' });
       const result = await otpService.generateAndSendOtp(dbUserId, phone);
-      const isAdmin = (req.user?.roles || req.auth?.payload?.['https://appstack.com/roles'] || []).includes('Admin');
+      const isAdmin = (req.user?.roles || []).includes('Admin');
       if (!isAdmin && result.gatewayResponse) delete result.gatewayResponse;
       res.json({ message: 'OTP sent.', result });
     } catch (error) {
@@ -171,7 +159,7 @@ const userController = {
   },
 
   confirmPasswordChange: async (req, res) => {
-    const dbUserId = await getDbUserId(req);
+    const dbUserId = getDbUserId(req);
     const { otp, new_password } = req.body;
     try {
       const isValid = await otpService.verifyOtp(dbUserId, otp);
@@ -220,7 +208,7 @@ const userController = {
       const isValid = await otpService.verifyOtp(user.id, otp);
       if (!isValid) return res.status(400).json({ error: 'Invalid OTP.' });
       const jwtSecret = await settingsService.get('jwt_secret') || process.env.JWT_SECRET || 'your_fallback_jwt_secret';
-      const token = jwt.sign({ sub: user.id, email: user.email, roles: user.roles, 'https://appstack.com/roles': user.roles }, jwtSecret, { expiresIn: '24h' });
+      const token = jwt.sign({ sub: user.id, email: user.email, roles: user.roles }, jwtSecret, { expiresIn: '24h' });
       delete user.password;
       res.json({ token, user });
     } catch (error) {
@@ -271,12 +259,12 @@ const userController = {
   },
 
   getProfile: async (req, res) => {
-    const userId = req.user?.id || req.auth?.payload?.sub;
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ error: 'Unauthorized' });
     const client = new Client({ connectionString: process.env.DATABASE_URL });
     try {
       await client.connect();
-      const query = isNaN(userId) ? 'SELECT u.*, array_agg(r.name) as roles FROM users u LEFT JOIN user_roles ur ON u.id = ur.user_id LEFT JOIN roles r ON ur.role_id = r.id WHERE u.auth0_id = $1 GROUP BY u.id' : 'SELECT u.*, array_agg(r.name) as roles FROM users u LEFT JOIN user_roles ur ON u.id = ur.user_id LEFT JOIN roles r ON ur.role_id = r.id WHERE u.id = $1 GROUP BY u.id';
-      const result = await client.query(query, [userId]);
+      const result = await client.query('SELECT u.*, array_agg(r.name) as roles FROM users u LEFT JOIN user_roles ur ON u.id = ur.user_id LEFT JOIN roles r ON ur.role_id = r.id WHERE u.id = $1 GROUP BY u.id', [userId]);
       if (result.rows.length === 0) return res.status(404).json({ error: 'Not found' });
       const user = result.rows[0];
       delete user.password;
@@ -316,7 +304,7 @@ const userController = {
   },
 
   updateProfile: async (req, res) => {
-    const dbUserId = await getDbUserId(req);
+    const dbUserId = getDbUserId(req);
     let { name, phone_number, address, country, state, district, pincode } = req.body;
     phone_number = normalizePhone(phone_number);
     const client = new Client({ connectionString: process.env.DATABASE_URL });

@@ -79,8 +79,10 @@ class WhatsappService {
       await settingsService.set('whatsapp_qr', '');
     });
 
-    this.client.on('authenticated', () => {
+    this.client.on('authenticated', async () => {
       console.log('[WHATSAPP] Authenticated');
+      this.status = 'AUTHENTICATED';
+      await settingsService.set('whatsapp_status', 'AUTHENTICATED');
     });
 
     this.client.on('auth_failure', async (msg) => {
@@ -115,7 +117,36 @@ class WhatsappService {
 
   async getChats() {
     if (!this.isReady) return [];
-    return await this.client.getChats();
+    const chats = await this.client.getChats();
+    const myId = this.me.wid._serialized;
+
+    const enrichedChats = await Promise.all(chats.map(async (chat) => {
+      let isAdmin = false;
+      
+      if (chat.isGroup) {
+        // For groups, check participants
+        // Note: Sometimes we need to fetch full group metadata if participants are missing
+        const participants = chat.groupMetadata?.participants || [];
+        const me = participants.find(p => p.id._serialized === myId);
+        isAdmin = me ? (me.isAdmin || me.isSuperAdmin) : false;
+      } else if (chat.id.server === 'newsletter') {
+        // For channels (newsletters), check viewer role or similar if available
+        // This is a newer feature in wwebjs, so we check common properties
+        isAdmin = chat.viewerRole === 'ADMIN' || chat.viewerRole === 'OWNER';
+      }
+
+      return {
+        id: chat.id,
+        name: chat.name,
+        isGroup: chat.isGroup,
+        unreadCount: chat.unreadCount,
+        timestamp: chat.timestamp,
+        isAdmin: isAdmin,
+        viewerRole: chat.viewerRole || null
+      };
+    }));
+
+    return enrichedChats;
   }
 
   async getContacts() {

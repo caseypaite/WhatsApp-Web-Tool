@@ -137,6 +137,16 @@ const getWhatsappContacts = async () => {
   return response.data;
 };
 
+const confirmPasswordChange = async (otp, new_password) => {
+  const response = await api.post('/user/confirm-password-change', { otp, new_password });
+  return response.data;
+};
+
+const requestPasswordChange = async () => {
+  const response = await api.post('/user/request-password-change');
+  return response.data;
+};
+
 const logoutWhatsapp = async () => {
   const response = await api.post('/whatsapp/logout');
   return response.data;
@@ -149,6 +159,17 @@ const reinitializeWhatsapp = async () => {
 
 const sendWhatsappTest = async (number, message) => {
   const response = await api.post('/whatsapp/send-test', { number, message });
+  return response.data;
+};
+
+// CMS Integration
+const getLandingPage = async () => {
+  const response = await api.get('/cms/landing');
+  return response.data;
+};
+
+const updateLandingPage = async (data) => {
+  const response = await api.put('/cms/landing', data);
   return response.data;
 };
 
@@ -179,5 +200,9 @@ export default {
   getWhatsappContacts,
   logoutWhatsapp,
   reinitializeWhatsapp,
-  sendWhatsappTest
+  sendWhatsappTest,
+  getLandingPage,
+  updateLandingPage,
+  requestPasswordChange,
+  confirmPasswordChange
 };

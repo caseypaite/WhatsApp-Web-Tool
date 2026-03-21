@@ -16,7 +16,6 @@ ON CONFLICT (name) DO NOTHING;
 -- Create Users table
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
-    auth0_id VARCHAR(255) UNIQUE,
     email VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255),
     name VARCHAR(255),
