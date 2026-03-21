@@ -1,6 +1,64 @@
 const whatsappService = require('../services/whatsapp.service');
+const otpService = require('../services/otp.service');
 
 const whatsappController = {
+  // ... existing methods
+  
+  createGroup: async (req, res) => {
+    try {
+      const { name, participants } = req.body;
+      if (!name) return res.status(400).json({ error: 'Group name is required' });
+      const result = await whatsappService.createGroup(name, participants || []);
+      res.json({ success: true, gid: result.gid?._serialized || result.gid });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  createChannel: async (req, res) => {
+    try {
+      const { name, description } = req.body;
+      if (!name) return res.status(400).json({ error: 'Channel name is required' });
+      const result = await whatsappService.createChannel(name, description || '');
+      res.json({ success: true, id: result.id });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  requestDeletionOtp: async (req, res) => {
+    try {
+      // Send OTP to the admin account itself (the one connected to WhatsApp)
+      if (!whatsappService.me) return res.status(400).json({ error: 'WhatsApp account not connected' });
+      const phone = whatsappService.me.wid.user;
+      const result = await otpService.generateAndSendOtp(null, phone);
+      res.json({ success: true, message: 'OTP sent to admin WhatsApp' });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  confirmDelete: async (req, res) => {
+    try {
+      const { id, type, otp } = req.body; // type: 'group' or 'channel'
+      if (!id || !type || !otp) return res.status(400).json({ error: 'Missing parameters' });
+      
+      const phone = whatsappService.me.wid.user;
+      const isValid = await otpService.verifyOtp(phone, otp);
+      if (!isValid) return res.status(400).json({ error: 'Invalid OTP' });
+
+      if (type === 'group') {
+        await whatsappService.deleteGroup(id);
+      } else {
+        await whatsappService.deleteChannel(id);
+      }
+
+      res.json({ success: true, message: `${type} deleted successfully` });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
   // Get connection status and QR if available
   getStatus: async (req, res) => {
     try {

@@ -117,22 +117,76 @@ class WhatsappService {
 
   async getChats() {
     if (!this.isReady) return [];
-    const chats = await this.client.getChats();
+    
+    // Fetch regular chats
+    let chats = [];
+    try {
+      chats = await this.client.getChats();
+    } catch (err) {
+      console.error('[WHATSAPP] Error fetching chats:', err.message);
+    }
+
+    // Fetch channels/newsletters via internal store (more reliable for admin/creator roles)
+    let channels = [];
+    try {
+      const internalChannels = await this.client.pupPage.evaluate(async () => {
+        const coll = window.Store?.NewsletterMetadataCollection || window.Store?.WAWebNewsletterMetadataCollection;
+        if (!coll) return [];
+        return coll.getModelsArray().map(m => {
+          const data = {};
+          const source = m.attributes || m;
+          for (const key in source) {
+            if (typeof source[key] !== 'function' && typeof source[key] !== 'object') {
+              data[key] = source[key];
+            }
+          }
+          data.id = m.id?._serialized || m.id || source.id;
+          data.name = m.name || m.newsletterName || source.name || source.newsletterName;
+          data.isCreator = m.isCreator === true || source.isCreator === true;
+          data.viewerRole = m.viewerRole || source.viewerRole;
+          return data;
+        });
+      });
+      
+      if (internalChannels && internalChannels.length > 0) {
+        channels = internalChannels.map(c => {
+          // Broadest possible admin/creator check - case insensitive
+          const role = (c.viewerRole || c.role || c.membershipType || c.membership || '').toUpperCase();
+          const isAdmin = role === 'ADMIN' || 
+                          role === 'OWNER' || 
+                          c.isCreator === true;
+          
+          return {
+            id: { _serialized: c.id, server: 'newsletter' },
+            name: c.name || 'Unnamed Channel',
+            isGroup: false,
+            isAdmin: isAdmin,
+            unreadCount: 0
+          };
+        });
+      }
+    } catch (err) {
+      console.error('[WHATSAPP] Newsletter internal fetch error:', err.message);
+    }
+
+    // Combine them
+    const allChats = [...chats, ...channels];
     const myId = this.me.wid._serialized;
 
-    const enrichedChats = await Promise.all(chats.map(async (chat) => {
+    const enrichedChats = await Promise.all(allChats.map(async (chat) => {
+      // If it's already an enriched object from internal store, return it
+      if (chat.isAdmin !== undefined && chat.id.server === 'newsletter') return chat;
+
       let isAdmin = false;
       
       if (chat.isGroup) {
-        // For groups, check participants
-        // Note: Sometimes we need to fetch full group metadata if participants are missing
         const participants = chat.groupMetadata?.participants || [];
         const me = participants.find(p => p.id._serialized === myId);
         isAdmin = me ? (me.isAdmin || me.isSuperAdmin) : false;
       } else if (chat.id.server === 'newsletter') {
-        // For channels (newsletters), check viewer role or similar if available
-        // This is a newer feature in wwebjs, so we check common properties
-        isAdmin = chat.viewerRole === 'ADMIN' || chat.viewerRole === 'OWNER';
+        // Fallback for newsletter admin check
+        const role = (chat.viewerRole || chat.role || chat.membershipType || '').toUpperCase();
+        isAdmin = role === 'ADMIN' || role === 'OWNER' || chat.isCreator === true;
       }
 
       return {
@@ -152,6 +206,42 @@ class WhatsappService {
   async getContacts() {
     if (!this.isReady) return [];
     return await this.client.getContacts();
+  }
+
+  async createGroup(name, participants) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    return await this.client.createGroup(name, participants);
+  }
+
+  async deleteGroup(groupId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    const chat = await this.client.getChatById(groupId);
+    if (!chat.isGroup) throw new Error('Chat is not a group');
+    return await chat.delete();
+  }
+
+  async createChannel(name, description) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    return await this.client.pupPage.evaluate(async (name, description) => {
+      if (!window.Store || !window.Store.ChannelUtils) throw new Error('Channel utilities not found');
+      const response = await window.Store.ChannelUtils.createNewsletterQuery({
+        name,
+        description
+      });
+      return response;
+    }, name, description);
+  }
+
+  async deleteChannel(channelId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    return await this.client.pupPage.evaluate(async (id) => {
+      const coll = window.Store?.NewsletterMetadataCollection || window.Store?.WAWebNewsletterMetadataCollection;
+      if (!coll) throw new Error('Newsletter collection not found');
+      const newsletter = coll.get(id);
+      if (!newsletter) throw new Error('Newsletter not found in store');
+      await window.Store.ChannelUtils.deleteNewsletterAction(newsletter);
+      return { success: true };
+    }, channelId);
   }
 
   formatJid(number) {

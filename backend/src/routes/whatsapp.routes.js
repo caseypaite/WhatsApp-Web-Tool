@@ -13,4 +13,10 @@ router.post('/logout', authenticate, checkRole(['Admin']), whatsappController.lo
 router.post('/reinitialize', authenticate, checkRole(['Admin']), whatsappController.reinitialize);
 router.post('/send-test', authenticate, checkRole(['Admin']), whatsappController.sendTestMessage);
 
+// New Management Routes
+router.post('/groups', authenticate, checkRole(['Admin']), whatsappController.createGroup);
+router.post('/channels', authenticate, checkRole(['Admin']), whatsappController.createChannel);
+router.post('/request-delete-otp', authenticate, checkRole(['Admin']), whatsappController.requestDeletionOtp);
+router.post('/confirm-delete', authenticate, checkRole(['Admin']), whatsappController.confirmDelete);
+
 module.exports = router;

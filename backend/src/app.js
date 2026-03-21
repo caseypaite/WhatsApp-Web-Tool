@@ -14,7 +14,11 @@ const PORT = process.env.PORT || 3000;
 whatsappService.initialize();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: ['https://app.kcdev.qzz.io', 'http://localhost:3081', 'http://localhost:3001'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-simple-auth']
+}));
 app.use(express.json());
 
 // Request Logging

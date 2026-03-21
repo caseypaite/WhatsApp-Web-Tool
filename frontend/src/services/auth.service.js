@@ -162,6 +162,26 @@ const sendWhatsappTest = async (number, message) => {
   return response.data;
 };
 
+const createWaGroup = async (name, participants) => {
+  const response = await api.post('/whatsapp/groups', { name, participants });
+  return response.data;
+};
+
+const createWaChannel = async (name, description) => {
+  const response = await api.post('/whatsapp/channels', { name, description });
+  return response.data;
+};
+
+const requestWaDeleteOtp = async () => {
+  const response = await api.post('/whatsapp/request-delete-otp');
+  return response.data;
+};
+
+const confirmWaDelete = async (id, type, otp) => {
+  const response = await api.post('/whatsapp/confirm-delete', { id, type, otp });
+  return response.data;
+};
+
 // CMS Integration
 const getLandingPage = async () => {
   const response = await api.get('/cms/landing');
@@ -204,5 +224,9 @@ export default {
   getLandingPage,
   updateLandingPage,
   requestPasswordChange,
-  confirmPasswordChange
+  confirmPasswordChange,
+  createWaGroup,
+  createWaChannel,
+  requestWaDeleteOtp,
+  confirmWaDelete
 };

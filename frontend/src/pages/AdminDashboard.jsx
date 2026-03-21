@@ -20,6 +20,18 @@ const AdminDashboard = () => {
   const [gatewayResponse, setGatewayResponse] = useState(null);
   const [isDebugExpanded, setIsDebugExpanded] = useState(true);
 
+  // WhatsApp Management State
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showCreateChannel, setShowCreateChannel] = useState(false);
+  const [newEntity, setNewEntity] = useState({ name: '', description: '', participants: '' });
+  const [waActionLoading, setWaActionLoading] = useState(false);
+
+  // Deletion State
+  const [deleteContext, setDeleteContext] = useState(null); // { id, name, type }
+  const [deleteOtp, setDeleteOtp] = useState('');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteOtpSent, setDeleteOtpSent] = useState(false);
+
   // Landing Page CMS State
   const [landingContent, setLandingContent] = useState({ hero_text: '', cta_text: '', image_url: '' });
   const [landingLoading, setLandingLoading] = useState(false);
@@ -155,6 +167,74 @@ const AdminDashboard = () => {
       setLandingContent(data);
     } catch (err) {
       console.error('Failed to fetch landing content');
+    }
+  };
+
+  const handleCreateWaGroup = async (e) => {
+    e.preventDefault();
+    setWaActionLoading(true);
+    try {
+      const parts = newEntity.participants.split(',').map(p => p.trim()).filter(p => p);
+      await authService.createWaGroup(newEntity.name, parts);
+      showFlash('WhatsApp group created successfully');
+      setShowCreateGroup(false);
+      setNewEntity({ name: '', description: '', participants: '' });
+      fetchWaChats();
+    } catch (err) {
+      showFlash(err.response?.data?.error || 'Failed to create group', 'error');
+    } finally {
+      setWaActionLoading(false);
+    }
+  };
+
+  const handleCreateWaChannel = async (e) => {
+    e.preventDefault();
+    setWaActionLoading(true);
+    try {
+      await authService.createWaChannel(newEntity.name, newEntity.description);
+      showFlash('WhatsApp channel created successfully');
+      setShowCreateChannel(false);
+      setNewEntity({ name: '', description: '', participants: '' });
+      fetchWaChats();
+    } catch (err) {
+      showFlash(err.response?.data?.error || 'Failed to create channel', 'error');
+    } finally {
+      setWaActionLoading(false);
+    }
+  };
+
+  const initiateDelete = async (id, name, type) => {
+    setDeleteContext({ id, name, type });
+    setShowDeleteModal(true);
+    setDeleteOtpSent(false);
+    setDeleteOtp('');
+  };
+
+  const handleRequestWaDeleteOtp = async () => {
+    setWaActionLoading(true);
+    try {
+      await authService.requestWaDeleteOtp();
+      setDeleteOtpSent(true);
+      showFlash('Deletion OTP sent to your WhatsApp');
+    } catch (err) {
+      showFlash(err.response?.data?.error || 'Failed to send OTP', 'error');
+    } finally {
+      setWaActionLoading(false);
+    }
+  };
+
+  const handleConfirmWaDelete = async () => {
+    setWaActionLoading(true);
+    try {
+      await authService.confirmWaDelete(deleteContext.id, deleteContext.type, deleteOtp);
+      showFlash(`${deleteContext.type === 'group' ? 'Group' : 'Channel'} deleted successfully`);
+      setShowDeleteModal(false);
+      setDeleteContext(null);
+      fetchWaChats();
+    } catch (err) {
+      showFlash(err.response?.data?.error || 'Deletion failed', 'error');
+    } finally {
+      setWaActionLoading(false);
     }
   };
 
@@ -836,13 +916,29 @@ const AdminDashboard = () => {
               <div className="flex flex-col p-8 bg-slate-50 rounded-[2.5rem] border-2 border-dashed border-slate-200 min-h-[400px]">
                 {waStatus.status === 'CONNECTED' ? (
                   <div className="h-full flex flex-col">
-                    <div className="flex items-center gap-3 mb-8">
-                      <div className="w-10 h-10 bg-green-100 text-green-600 rounded-xl flex items-center justify-center">
-                        <ShieldCheck className="w-6 h-6" />
+                    <div className="flex items-center justify-between mb-8">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-green-100 text-green-600 rounded-xl flex items-center justify-center">
+                          <ShieldCheck className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-bold text-slate-900">Managed Entities</h3>
+                          <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Groups & Channels</p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="text-lg font-bold text-slate-900">Managed Entities</h3>
-                        <p className="text-xs text-slate-500 font-medium uppercase tracking-wider">Groups & Channels</p>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => setShowCreateGroup(true)}
+                          className="px-3 py-1.5 bg-primary-600 text-white text-[10px] font-black rounded-lg uppercase tracking-wider hover:bg-primary-700 transition"
+                        >
+                          New Group
+                        </button>
+                        <button 
+                          onClick={() => setShowCreateChannel(true)}
+                          className="px-3 py-1.5 bg-slate-900 text-white text-[10px] font-black rounded-lg uppercase tracking-wider hover:bg-slate-800 transition"
+                        >
+                          New Channel
+                        </button>
                       </div>
                     </div>
 
@@ -855,17 +951,26 @@ const AdminDashboard = () => {
                         <div className="space-y-2">
                           {waChats.filter(c => c.isGroup && c.isAdmin).length > 0 ? (
                             waChats.filter(c => c.isGroup && c.isAdmin).map(group => (
-                              <div key={group.id._serialized} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between group hover:border-primary-200 transition-all">
+                              <div key={group.id._serialized} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between group hover:border-red-200 transition-all">
                                 <div className="flex items-center gap-3">
                                   <div className="w-10 h-10 bg-primary-50 text-primary-600 rounded-xl flex items-center justify-center font-black">
                                     {group.name?.[0] || 'G'}
                                   </div>
                                   <div>
                                     <p className="text-sm font-bold text-slate-800">{group.name}</p>
-                                    <p className="text-[10px] text-slate-400 font-mono">{group.id.user}</p>
+                                    <p className="text-[10px] text-slate-400 font-mono">{group.id._serialized || group.id.user}</p>
                                   </div>
                                 </div>
-                                <span className="text-[10px] font-black bg-slate-50 text-slate-400 px-2 py-1 rounded-lg uppercase">Admin</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-black bg-slate-50 text-slate-400 px-2 py-1 rounded-lg uppercase">Admin</span>
+                                  <button 
+                                    onClick={() => initiateDelete(group.id._serialized, group.name, 'group')}
+                                    className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                    title="Delete Group"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
                             ))
                           ) : (
@@ -882,17 +987,26 @@ const AdminDashboard = () => {
                         <div className="space-y-2">
                           {waChats.filter(c => c.id.server === 'newsletter' && c.isAdmin).length > 0 ? (
                             waChats.filter(c => c.id.server === 'newsletter' && c.isAdmin).map(channel => (
-                              <div key={channel.id._serialized} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between group hover:border-primary-200 transition-all">
+                              <div key={channel.id._serialized} className="p-4 bg-white rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between group hover:border-red-200 transition-all">
                                 <div className="flex items-center gap-3">
                                   <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center font-black">
                                     {channel.name?.[0] || 'C'}
                                   </div>
                                   <div>
                                     <p className="text-sm font-bold text-slate-800">{channel.name}</p>
-                                    <p className="text-[10px] text-slate-400 font-mono">{channel.id.user}</p>
+                                    <p className="text-[10px] text-slate-400 font-mono">{channel.id._serialized || channel.id.user}</p>
                                   </div>
                                 </div>
-                                <span className="text-[10px] font-black bg-amber-50 text-amber-600 px-2 py-1 rounded-lg uppercase">Admin</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] font-black bg-amber-50 text-amber-600 px-2 py-1 rounded-lg uppercase">Admin</span>
+                                  <button 
+                                    onClick={() => initiateDelete(channel.id._serialized, channel.name, 'channel')}
+                                    className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                                    title="Delete Channel"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
                             ))
                           ) : (
@@ -1018,6 +1132,177 @@ const AdminDashboard = () => {
           </div>
         )}
       </div>
+
+      {/* WHATSAPP CREATE GROUP MODAL */}
+      {showCreateGroup && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in-95 duration-200">
+            <header className="mb-8">
+              <h3 className="text-2xl font-black text-slate-900 tracking-tight">Create WhatsApp Group</h3>
+              <p className="text-slate-500 font-medium mt-1">Start a new organizational group</p>
+            </header>
+            <form onSubmit={handleCreateWaGroup} className="space-y-6">
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Group Name</label>
+                <input 
+                  type="text" 
+                  required
+                  className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none font-bold transition-all"
+                  placeholder="e.g. Sales Team"
+                  value={newEntity.name}
+                  onChange={(e) => setNewEntity({...newEntity, name: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Participants (Optional)</label>
+                <textarea 
+                  rows="2"
+                  className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none font-mono text-xs transition-all resize-none"
+                  placeholder="919876543210, 918887776665..."
+                  value={newEntity.participants}
+                  onChange={(e) => setNewEntity({...newEntity, participants: e.target.value})}
+                />
+                <p className="text-[10px] text-slate-400 mt-2 ml-1">Comma-separated phone numbers with country code</p>
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button 
+                  type="submit"
+                  disabled={waActionLoading}
+                  className="flex-1 py-4 bg-primary-600 text-white font-black rounded-2xl hover:bg-primary-700 transition shadow-lg shadow-primary-100 disabled:opacity-50"
+                >
+                  {waActionLoading ? 'Creating...' : 'Create Group'}
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setShowCreateGroup(false)}
+                  className="px-6 py-4 bg-slate-100 text-slate-500 font-black rounded-2xl hover:bg-slate-200 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* WHATSAPP CREATE CHANNEL MODAL */}
+      {showCreateChannel && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in-95 duration-200">
+            <header className="mb-8">
+              <h3 className="text-2xl font-black text-slate-900 tracking-tight">Create WhatsApp Channel</h3>
+              <p className="text-slate-500 font-medium mt-1">Start a new broadcast channel</p>
+            </header>
+            <form onSubmit={handleCreateWaChannel} className="space-y-6">
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Channel Name</label>
+                <input 
+                  type="text" 
+                  required
+                  className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none font-bold transition-all"
+                  placeholder="e.g. Official Updates"
+                  value={newEntity.name}
+                  onChange={(e) => setNewEntity({...newEntity, name: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Description</label>
+                <textarea 
+                  rows="3"
+                  className="w-full px-5 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-primary-500 outline-none font-medium text-sm transition-all"
+                  placeholder="Channel purpose and details..."
+                  value={newEntity.description}
+                  onChange={(e) => setNewEntity({...newEntity, description: e.target.value})}
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button 
+                  type="submit"
+                  disabled={waActionLoading}
+                  className="flex-1 py-4 bg-slate-900 text-white font-black rounded-2xl hover:bg-slate-800 transition shadow-lg disabled:opacity-50"
+                >
+                  {waActionLoading ? 'Creating...' : 'Create Channel'}
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setShowCreateChannel(false)}
+                  className="px-6 py-4 bg-slate-100 text-slate-500 font-black rounded-2xl hover:bg-slate-200 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* WHATSAPP DELETE CONFIRMATION MODAL */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-md p-10 shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 bg-red-50 text-red-600 rounded-2xl flex items-center justify-center mb-6">
+              <AlertCircle className="w-10 h-10" />
+            </div>
+            <header className="mb-8">
+              <h3 className="text-2xl font-black text-slate-900 tracking-tight">Delete {deleteContext?.type === 'group' ? 'Group' : 'Channel'}?</h3>
+              <p className="text-slate-500 font-medium mt-1 leading-relaxed">
+                You are about to delete <span className="text-slate-900 font-bold">"{deleteContext?.name}"</span>. This action is permanent and requires WhatsApp verification.
+              </p>
+            </header>
+
+            {!deleteOtpSent ? (
+              <div className="flex gap-3">
+                <button 
+                  onClick={handleRequestWaDeleteOtp}
+                  disabled={waActionLoading}
+                  className="flex-1 py-4 bg-red-600 text-white font-black rounded-2xl hover:bg-red-700 transition shadow-lg shadow-red-100 disabled:opacity-50"
+                >
+                  {waActionLoading ? 'Requesting...' : 'Verify & Delete'}
+                </button>
+                <button 
+                  onClick={() => setShowDeleteModal(false)}
+                  className="px-6 py-4 bg-slate-100 text-slate-500 font-black rounded-2xl hover:bg-slate-200 transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Verification Code</label>
+                    <button onClick={() => setDeleteOtpSent(false)} className="text-[10px] font-black text-primary-600 uppercase hover:underline">Resend</button>
+                  </div>
+                  <input 
+                    type="text" 
+                    maxLength="6"
+                    className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-center font-black tracking-[0.8em] text-2xl focus:ring-2 focus:ring-primary-500 outline-none transition-all shadow-inner"
+                    placeholder="000000"
+                    value={deleteOtp}
+                    onChange={(e) => setDeleteOtp(e.target.value)}
+                  />
+                  <p className="text-[10px] text-center text-slate-400 mt-4 uppercase font-black tracking-widest">Enter the code sent to admin WhatsApp</p>
+                </div>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={handleConfirmWaDelete}
+                    disabled={waActionLoading || deleteOtp.length !== 6}
+                    className="flex-1 py-4 bg-red-600 text-white font-black rounded-2xl hover:bg-red-700 transition shadow-lg shadow-red-100 disabled:opacity-50"
+                  >
+                    {waActionLoading ? 'Confirming...' : 'Confirm Deletion'}
+                  </button>
+                  <button 
+                    onClick={() => { setShowDeleteModal(false); setDeleteOtpSent(false); }}
+                    className="px-6 py-4 bg-slate-100 text-slate-500 font-black rounded-2xl hover:bg-slate-200 transition"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* MESSAGE MODAL */}
       {showMessageForm && (
