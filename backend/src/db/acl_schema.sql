@@ -22,6 +22,11 @@ CREATE TABLE IF NOT EXISTS users (
     name VARCHAR(255),
     phone_number VARCHAR(20),
     status VARCHAR(50) DEFAULT 'PENDING_VERIFICATION', -- PENDING_VERIFICATION, PENDING_APPROVAL, ACTIVE, INACTIVE
+    address TEXT,
+    country VARCHAR(100),
+    state VARCHAR(100),
+    district VARCHAR(100),
+    pincode VARCHAR(20),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -40,6 +45,34 @@ CREATE TABLE IF NOT EXISTS landing_page_config (
     cta_text VARCHAR(255) NOT NULL,
     image_url TEXT,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create Groups table
+CREATE TABLE IF NOT EXISTS groups (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) UNIQUE NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create GroupMembers association table
+CREATE TABLE IF NOT EXISTS group_members (
+    group_id INT REFERENCES groups(id) ON DELETE CASCADE,
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    role VARCHAR(50) DEFAULT 'MEMBER', -- MEMBER, ADMIN
+    joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (group_id, user_id)
+);
+
+-- Create Message History table
+CREATE TABLE IF NOT EXISTS message_history (
+    id SERIAL PRIMARY KEY,
+    user_id INT REFERENCES users(id) ON DELETE SET NULL,
+    phone_number VARCHAR(20) NOT NULL,
+    message TEXT NOT NULL,
+    status VARCHAR(50) DEFAULT 'SUCCESS', -- SUCCESS, FAILED
+    error_message TEXT,
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create OTP table
