@@ -37,7 +37,9 @@ const AdminDashboard = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
 
   // WhatsApp-web State
-  const [waStatus, setWaStatus] = useState({ status: 'DISCONNECTED', ready: false, qr: null });
+  const [waStatus, setWaStatus] = useState({ status: 'DISCONNECTED', ready: false, qr: null, me: null });
+  const [waChats, setWaChats] = useState([]);
+  const [waContacts, setWaContacts] = useState([]);
   const [waLoading, setWaLoading] = useState(false);
 
   const showFlash = (message, type = 'success') => {
@@ -53,6 +55,26 @@ const AdminDashboard = () => {
       console.error('Failed to fetch WA status');
     }
   };
+
+  const fetchWaData = async () => {
+    if (!waStatus.ready) return;
+    try {
+      const [chats, contacts] = await Promise.all([
+        authService.getWhatsappChats(),
+        authService.getWhatsappContacts()
+      ]);
+      setWaChats(chats);
+      setWaContacts(contacts);
+    } catch (err) {
+      console.error('Failed to fetch WA data');
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'whatsapp' && waStatus.ready) {
+      fetchWaData();
+    }
+  }, [activeTab, waStatus.ready]);
 
   const handleWaLogout = async () => {
     if (!window.confirm('Are you sure you want to logout from WhatsApp?')) return;
@@ -703,11 +725,52 @@ const AdminDashboard = () => {
                       {waStatus.ready ? 'YES' : 'NO'}
                     </span>
                   </div>
+                  {waStatus.me && (
+                    <>
+                      <div className="flex justify-between items-center py-2 border-b border-slate-50">
+                        <span className="text-slate-500 text-sm">Connected As</span>
+                        <span className="text-sm font-bold text-primary-600">{waStatus.me.pushname} ({waStatus.me.wid.user})</span>
+                      </div>
+                      <div className="flex justify-between items-center py-2 border-b border-slate-50">
+                        <span className="text-slate-500 text-sm">Platform</span>
+                        <span className="text-sm font-bold text-slate-700 uppercase">{waStatus.me.platform}</span>
+                      </div>
+                    </>
+                  )}
                   <div className="flex justify-between items-center py-2 border-b border-slate-50">
-                    <span className="text-slate-500 text-sm">Session Data</span>
-                    <span className="text-sm font-bold text-slate-700">LocalAuth (Persistent)</span>
+                    <span className="text-slate-500 text-sm">Session ID</span>
+                    <span className="text-xs font-mono text-slate-400 bg-slate-50 px-2 py-1 rounded">Unique Global Session</span>
                   </div>
                 </div>
+
+                {waStatus.ready && (
+                  <div className="mt-8 space-y-6">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest">Recent Chats ({waChats.length})</h3>
+                      <button onClick={fetchWaData} className="text-primary-600 hover:underline text-xs font-bold uppercase">Refresh List</button>
+                    </div>
+                    <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                      {waChats.length > 0 ? waChats.slice(0, 10).map(chat => (
+                        <div key={chat.id._serialized} className="p-3 bg-slate-50 rounded-xl flex items-center justify-between group hover:bg-slate-100 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-slate-200 rounded-full flex items-center justify-center text-xs font-bold text-slate-500">
+                              {chat.name?.charAt(0) || '?'}
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-slate-700">{chat.name || chat.id.user}</p>
+                              <p className="text-[10px] text-slate-400">{chat.id._serialized}</p>
+                            </div>
+                          </div>
+                          {chat.unreadCount > 0 && (
+                            <span className="bg-primary-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{chat.unreadCount}</span>
+                          )}
+                        </div>
+                      )) : (
+                        <p className="text-center py-8 text-slate-400 text-xs italic">No active chats found</p>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="mt-8 p-6 bg-slate-50 rounded-2xl border border-slate-100">
                   <h4 className="text-xs font-bold text-slate-700 uppercase mb-3">Quick Test</h4>

@@ -127,6 +127,16 @@ const getWhatsappStatus = async () => {
   return response.data;
 };
 
+const getWhatsappChats = async () => {
+  const response = await api.get('/whatsapp/chats');
+  return response.data;
+};
+
+const getWhatsappContacts = async () => {
+  const response = await api.get('/whatsapp/contacts');
+  return response.data;
+};
+
 const logoutWhatsapp = async () => {
   const response = await api.post('/whatsapp/logout');
   return response.data;
@@ -165,6 +175,8 @@ export default {
   getMyGroups,
   getMyMessages,
   getWhatsappStatus,
+  getWhatsappChats,
+  getWhatsappContacts,
   logoutWhatsapp,
   reinitializeWhatsapp,
   sendWhatsappTest

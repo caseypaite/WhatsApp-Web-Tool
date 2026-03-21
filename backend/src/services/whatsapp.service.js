@@ -1,7 +1,9 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const settingsService = require('./settings.service');
 const { Client: PgClient } = require('pg');
+const fs = require('fs');
+const path = require('path');
 
 class WhatsappService {
   constructor() {
@@ -9,17 +11,51 @@ class WhatsappService {
     this.qrCode = null;
     this.status = 'DISCONNECTED';
     this.isReady = false;
+    this.me = null;
+  }
+
+  getBrowserPath() {
+    const paths = [
+      '/usr/bin/google-chrome',
+      '/usr/bin/google-chrome-stable',
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium'
+    ];
+    for (const p of paths) {
+      if (fs.existsSync(p)) return p;
+    }
+    return null;
   }
 
   async initialize() {
+    if (this.client) {
+      try { await this.client.destroy(); } catch (e) {}
+    }
+
     console.log('[WHATSAPP] Initializing client...');
-    
+    const executablePath = this.getBrowserPath();
+    console.log('[WHATSAPP] Using browser:', executablePath || 'Default (Puppeteer bundled)');
+
+    // Globally unique session ID based on current directory hash or fixed string
+    const clientId = 'appstack-wa-session-' + Buffer.from(__dirname).toString('hex').slice(0, 8);
+
     this.client = new Client({
       authStrategy: new LocalAuth({
+        clientId: clientId,
         dataPath: './.wwebjs_auth'
       }),
       puppeteer: {
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
+        executablePath: executablePath,
+        headless: true,
+        args: [
+          '--no-sandbox', 
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--disable-gpu'
+        ]
       }
     });
 
@@ -37,7 +73,8 @@ class WhatsappService {
       this.qrCode = null;
       this.status = 'CONNECTED';
       this.isReady = true;
-      console.log('[WHATSAPP] Client is ready!');
+      this.me = this.client.info;
+      console.log('[WHATSAPP] Client is ready! Connected as:', this.me.pushname);
       await settingsService.set('whatsapp_status', 'CONNECTED');
       await settingsService.set('whatsapp_qr', '');
     });
@@ -56,6 +93,7 @@ class WhatsappService {
       console.log('[WHATSAPP] Disconnected', reason);
       this.status = 'DISCONNECTED';
       this.isReady = false;
+      this.me = null;
       await settingsService.set('whatsapp_status', 'DISCONNECTED');
     });
 
@@ -70,8 +108,19 @@ class WhatsappService {
     return {
       status: this.status,
       ready: this.isReady,
-      qr: this.qrCode
+      qr: this.qrCode,
+      me: this.me
     };
+  }
+
+  async getChats() {
+    if (!this.isReady) return [];
+    return await this.client.getChats();
+  }
+
+  async getContacts() {
+    if (!this.isReady) return [];
+    return await this.client.getContacts();
   }
 
   formatJid(number) {
@@ -88,11 +137,19 @@ class WhatsappService {
     return await this.client.sendMessage(jid, message);
   }
 
+  async sendMedia(number, url, caption = '') {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    const media = await MessageMedia.fromUrl(url);
+    const jid = this.formatJid(number);
+    return await this.client.sendMessage(jid, media, { caption });
+  }
+
   async logout() {
     if (this.client) {
       await this.client.logout();
       this.status = 'DISCONNECTED';
       this.isReady = false;
+      this.me = null;
       await settingsService.set('whatsapp_status', 'DISCONNECTED');
     }
   }

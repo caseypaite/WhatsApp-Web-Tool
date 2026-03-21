@@ -31,6 +31,26 @@ const whatsappController = {
     }
   },
 
+  // Get Chats
+  getChats: async (req, res) => {
+    try {
+      const chats = await whatsappService.getChats();
+      res.json(chats);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch chats' });
+    }
+  },
+
+  // Get Contacts
+  getContacts: async (req, res) => {
+    try {
+      const contacts = await whatsappService.getContacts();
+      res.json(contacts);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch contacts' });
+    }
+  },
+
   // Test message
   sendTestMessage: async (req, res) => {
     const { number, message } = req.body;
