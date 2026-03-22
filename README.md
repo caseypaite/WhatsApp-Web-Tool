@@ -1,74 +1,45 @@
-# AppStack - Integrated Identity & Communication Platform
+# WhatsApp Web Tool
+### Advanced Identity Management, Automated Messaging, and Community Governance Hub
 
-AppStack is a robust, full-stack application designed for organisational identity management and integrated WhatsApp communication. It provides a centralized portal for user authentication, profile management, and powerful WhatsApp automation features including group and channel management.
+WhatsApp Web Tool is a comprehensive full-stack platform designed for secure identity management, automated WhatsApp communication, and advanced community polling. It combines the power of W3C-compliant verifiable identity concepts with a robust WhatsApp automation engine.
 
 ## 🚀 Key Features
 
-### 🔐 Authentication & Identity
-- **Local JWT Authentication:** Secure, independent session management without external dependencies (removed Auth0).
-- **Multi-Mode Login:** Support for traditional Email/Password login and modern Phone/OTP login.
-- **Secure Signup:** Phone number verification via WhatsApp OTP during registration.
-- **User Life-cycle:** Multi-stage user status (Pending Verification, Pending Approval, Active, Inactive) for strict organisational control.
+### 🔐 Secure Identity & RBAC
+- **Identity Proofing**: Bind digital accounts to physical WhatsApp identities via 6-digit OTP verification.
+- **Granular Access**: Full Role-Based Access Control (RBAC) supporting Admins, Editors, and Users.
+- **Two-Step Activation**: Automated registration followed by mandatory administrative approval.
 
-### 📱 WhatsApp Integration
-- **Instance Management:** Real-time connection status monitoring and QR code authentication.
-- **Managed Entities:** Dashboard view of all WhatsApp Groups and Channels where the account has administrator privileges.
-- **Entity Management:** Create and delete WhatsApp groups and broadcast channels directly from the portal.
-- **Secure Deletion:** WhatsApp entity deletion is protected by a secondary WhatsApp OTP confirmation.
-- **Message Logging:** Full audit trail of all messages sent through the system with delivery status (Success/Failed).
+### 💬 WhatsApp Automation Engine
+- **Broadcasting**: Bulk message transmission to multiple groups, channels, and newsletters simultaneously.
+- **Message Templates**: Create and manage reusable templates with support for media (Images, PDF, Video, Audio).
+- **Auto-Responders**: Keyword-based automated replies with Exact and Contains match logic.
+- **Scheduled Messaging**: Queue transmissions for future delivery with automated retry logic.
 
-### 🖥️ Admin Dashboard
-- **User Management:** Full CRUD operations on users, including status approval and role assignment.
-- **Landing Page CMS:** Real-time configuration of the public landing page (Hero text, CTA, and background imagery).
-- **System Settings:** Centralized control over system-wide configurations (Domain, OTP expiration, etc.).
-- **Group Management:** Creation and management of internal organisational groups.
+### 🗳️ Advanced Polling Module
+- **Dual Formats**: Support for General (Option-based) and Election (Candidate-based with manifestos and photos) polls.
+- **Verified Voting**: Secure, one-vote-per-number logic enforced via WhatsApp OTP verification.
+- **Public & Closed Access**: Host global public polls or restrict voting to specific organizational groups.
+- **Real-time Results**: Live vote tracking and results visualization for administrators.
 
-### 👤 User Dashboard
-- **Tabbed Full-Page Layout:** Modern, clean interface with a collapsible icons-only sidebar.
-- **Profile Management:** Comprehensive profile editing including address, location, and verified phone number.
-- **Security Portal:** On-demand password changes secured by WhatsApp OTP.
-- **Activity History:** Private view of all messages received/sent to the user's registered number.
+### 📋 Governance & Audit
+- **Group Management**: Full oversight of system groups, including member messaging and role promotion.
+- **Audit Trail**: Global message history tracking every transmission, including success/failure status and error logs.
+- **CMS Integration**: Dynamically manage landing page content and hero sections directly from the Admin Dashboard.
 
-## 🛠️ Technical Stack
+## 🛠️ Tech Stack
+- **Frontend**: React (Vite), Tailwind CSS, Lucide Icons, React Router (HashRouter).
+- **Backend**: Node.js, Express, PostgreSQL.
+- **Engine**: WhatsApp-Web.js (Puppeteer-driven).
+- **Security**: JWT Authentication, Bcrypt Password Hashing, TLS/SSL.
 
-- **Frontend:** React (Vite), Tailwind CSS, Lucide Icons, Axios.
-- **Backend:** Node.js (Express), PostgreSQL (pg), JWT.
-- **Automation:** WhatsApp-Web.js (Headless Chromium).
-- **Deployment:** Systemd service management.
+## 📦 Installation
 
-## ⚙️ Setup & Installation
+Refer to the [USER_GUIDE.md](./USER_GUIDE.md) for detailed installation and deployment instructions.
 
-### Prerequisites
-- Node.js (v20+)
-- PostgreSQL
-- Chromium Browser (for WhatsApp automation)
+## 🛡️ Security
 
-### Automated Fresh Installation
-For a new server setup, AppStack provides a comprehensive installation script that initializes the database, seeds data, and optionally sets up systemd services:
-
-1. Create your `backend/.env` and `frontend/.env` files.
-2. Run the installation script:
-```bash
-./scripts/fresh-install.sh
-```
-3. Follow the prompts to optionally install the application as a **systemd service** for automated startup and background execution.
-
-### Manual Backend Setup
-1. Navigate to `backend/`.
-2. Install dependencies: `npm install`.
-3. Configure `.env` (use `.env.example` as a template).
-4. Seed the database: `node src/db/seeder.js`.
-5. Start the server: `npm start`.
-
-### Frontend Setup
-1. Navigate to `frontend/`.
-2. Install dependencies: `npm install`.
-3. Configure `.env` with `VITE_API_BASE_URL`.
-4. Start the development server: `npm run dev`.
-
-## 📜 Version History
-- **v1.0.0:** Initial stable release with WhatsApp core and CMS.
-- **v1.1.0:** Dashboard UI overhaul, icons-only sidebar, and advanced WhatsApp entity management (Create/Delete).
+Refer to the [SECURITY.md](./SECURITY.md) for details on authentication protocols, API protection, and data security measures.
 
 ---
-© 2026 AppStack Team. All rights reserved.
+© 2026 WhatsApp Web Tool. All rights reserved.
