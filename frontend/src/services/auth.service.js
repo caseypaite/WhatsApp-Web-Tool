@@ -265,6 +265,16 @@ const updateAdvancedPoll = async (id, data) => {
   return response.data;
 };
 
+const publishPollResults = async (id, published) => {
+  const response = await api.post(`/polls/${id}/publish`, { published });
+  return response.data;
+};
+
+const getAdvancedPollResults = async (id) => {
+  const response = await api.get(`/polls/${id}/results`);
+  return response.data;
+};
+
 const getPollDetails = async (id) => {
   const response = await api.get(`/polls/${id}`);
   return response.data;
@@ -280,8 +290,8 @@ const getPollResultsAdvanced = async (id) => {
   return response.data;
 };
 
-const requestVoteOtp = async (pollId, phone_number) => {
-  const response = await api.post('/polls/vote/request-otp', { pollId, phone_number });
+const requestVoteOtp = async (pollId, phone_number, confirmView = false) => {
+  const response = await api.post('/polls/vote/request-otp', { pollId, phone_number, confirmView });
   return response.data;
 };
 
@@ -442,5 +452,7 @@ export default {
   cancelScheduledMessage,
   deleteScheduledMessage,
   getAuditLogs,
-  getPollResults
+  getPollResults,
+  publishPollResults,
+  getAdvancedPollResults
 };

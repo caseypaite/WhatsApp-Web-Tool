@@ -1,92 +1,99 @@
-# AppStack User Guide
+# WhatsApp Web Tool User Guide
 
-Welcome to the AppStack User Guide. This document provides step-by-step instructions for deployment, administration, and standard usage.
+Welcome to the **WhatsApp Web Tool** User Guide. This document provides step-by-step instructions for deployment, administration, and advanced usage.
 
 ---
 
 ## 🏗️ 1. Server Deployment
 
 ### Automated Installation
-AppStack includes an automated script to handle database creation, schema initialization, and service setup.
+The platform includes an automated script to handle database creation, schema initialization, and service setup.
 
 1. **Environment Setup:** Copy `.env.example` to `.env` in both `backend/` and `frontend/` folders and fill in your details.
 2. **Run Installer:**
    ```bash
    ./scripts/fresh-install.sh
    ```
-3. **Systemd Integration:** During installation, the script will ask if you want to install the services as systemd units. This is highly recommended for production environments to ensure the app restarts automatically if the server reboots.
+3. **Systemd Integration:** During installation, the script will configure services as systemd units. This ensures automatic restarts and high availability.
 
-### Manual Service Control
-If you installed via systemd, use these commands:
+### Service Control
+Use these commands for manual management:
 - **Restart All:** `sudo systemctl restart appstack-backend appstack-frontend`
 - **Check Status:** `sudo systemctl status appstack-backend`
 - **View Logs:** `sudo journalctl -u appstack-backend -f`
 
 ---
 
-## 🔑 2. Getting Started
+## 🔑 2. Getting Started & Security
 
-### Registration
+### Registration & Password Policy
 1. Go to the **Register** page.
-2. Enter your details: Name, Email, Password, and Phone Number.
-3. Click **Send OTP**. A 6-digit code will be sent to your WhatsApp.
-4. Enter the OTP and complete the form (Address, location details).
-5. Once submitted, your account will be in **Pending Approval** state. An administrator must activate your account before you can log in.
+2. Enter your details. Your password must meet the following **Security Policy**:
+   - Minimum **8 characters**.
+   - At least one **uppercase** and one **lowercase** letter.
+   - At least one **number**.
+   - At least one **special character** (`@$!%*?&#`).
+3. Click **Send OTP** to verify your WhatsApp identity.
+4. Enter the 6-digit code.
+5. Upon submission, your account enters **Pending Approval**. An admin must activate it before you can log in.
 
-### Login
-- **Email/Password:** Traditional login using your registered credentials.
-- **Phone/OTP:** Enter your registered phone number to receive a temporary login code via WhatsApp.
-
----
-
-## 🛠️ 2. Administrator Guide
-
-### User Management
-- Access the **Users** tab.
-- View all registered users and their current status.
-- Use the **Actions** menu to change a user's status (e.g., set to `ACTIVE` to allow login).
-- Assign roles (Admin, Editor, User) to control system access.
-
-### WhatsApp Instance Management
-- Access the **WhatsApp Instance** tab.
-- **Connecting:** If disconnected, a QR code will appear. Scan it using your WhatsApp mobile app (Linked Devices).
-- **Managed Entities:** Once connected, you will see a list of groups and channels where your account is an admin.
-- **Creating Groups:** Click **New Group**, provide a name and comma-separated phone numbers.
-- **Creating Channels:** Click **New Channel** and provide a name and description.
-- **Deleting Entities:** Click the red **Delete** icon next to a group/channel. You must request and enter an OTP sent to your WhatsApp to confirm the deletion.
-
-### Landing Page CMS
-- Access the **Landing Page** tab.
-- Modify the **Hero Headline**, **CTA Button Text**, and **Hero Image URL**.
-- View the **Live Preview** on the right side.
-- Click **Save Changes** to update the public site immediately.
+### Login Options
+- **Identity Credentials:** Standard Email/Password login.
+- **Identity Proofing (OTP):** Login via a temporary code sent to your registered WhatsApp number.
 
 ---
 
-## 👤 3. User Guide
+## 🛠️ 3. Administrator Guide
 
-### Dashboard Overview
-- Use the sidebar on the left to navigate. The sidebar is collapsed by default (icons only). Click the **Menu** icon at the top to expand it.
+### User & Role Management
+- Access the **Users** tab to view the registry.
+- **Activation**: Change a user's status to `ACTIVE` to grant system access.
+- **RBAC**: Assign `SuperAdmin`, `Admin`, `Editor`, or `User` roles.
+  - **SuperAdmin**: Full system access, including management of all community polls and access to the Admin Portal.
+  - **Admin**: Full access to standard administrative tools and user management.
 
-### Profile Management
-- View your account info in the **My Profile** tab.
-- Click **Edit Profile** to update your name, address, or location.
-- **Updating Phone Number:** Click **Change** next to your phone number. You must verify the new number with an OTP to save the change.
+### WhatsApp Instance
+- **Connection**: Scan the QR code in the **WhatsApp** tab to link your server instance.
+- **Entity Directory**: Manage groups and channels where the server account is an administrator.
+- **Broadcast**: Send messages or media to multiple targets simultaneously using the **Broadcast** tool.
+- **Templates**: Create reusable message formats with support for media attachments.
 
-### Security
-- Access the **Security** tab to change your password.
-- You must verify this action with an OTP sent to your registered WhatsApp number for enhanced security.
+### Automation & Intelligence
+- **Auto-Responders**: Define keywords (Exact or Contains) to trigger automated WhatsApp replies.
+- **AI Assistant**: If enabled, the AI handles complex queries that don't match specific keywords. 
+  - **Customization**: Define the AI's "Personality" and instructions in the **Settings > AI** tab.
+  - **Providers**: Supports Google Gemini 2.0 Flash/Pro and Mistral AI.
+- **Scheduling**: Queue messages for future transmission with specific date/time targets.
+- **Heartbeat**: Super Admins receive a daily WhatsApp report at 9:00 AM with server health and activity stats.
 
-### Message History
-- Access the **Messages** tab to see a history of all automated messages (OTP, notifications) sent to your account.
+### Governance Hub
+- **Entrance Lobby (Gatekeeper)**: When enabled for a group, new members are private messaged a verification link. Failure to verify identity using an Identity Packet results in automated removal.
+- **Membership Sync**: Deactivating a user in the portal automatically triggers their removal from all managed WhatsApp groups.
+- **Admin Dashboard Performance**: The dashboard is optimized for speed, eagerly loading all configuration and state data on initialization to provide an instant, reactive experience.
+
+---
+
+## 👤 4. User Guide
+
+### Profile & Identity
+- **Verifiable Identity**: Your profile is anchored to your physical WhatsApp number.
+- **Updates**: Modify your name, address, and location. Phone updates require fresh OTP verification.
+
+### Community Decisions (Polling)
+- Browse active public polls on the **Landing Page** or in your **Polls** tab.
+- **Verified Voting**: Cast your vote by requesting a unique Identity Packet (OTP) via WhatsApp. This ensures "One Person, One Vote" integrity.
+- **Vote Privacy**: If you have already cast a vote, you can request a fresh OTP to **View Your Vote**. Your choice remains hidden from the UI until your identity is cryptographically re-verified.
+
+### Activity Audit
+- View your personalized **Message History** to track all OTPs and notifications sent to your device.
 
 ---
 
 ## ❓ Troubleshooting
 
-- **QR Code Not Loading:** Ensure the backend service is running and has internet access. Try restarting the service if it hangs on "Initializing".
-- **OTP Not Received:** Verify that the WhatsApp account used by the server is connected and has a "READY" status in the Admin Dashboard.
-- **Blank Page:** Clear your browser cache or perform a hard refresh (Ctrl+F5).
+- **QR Code Connectivity:** Ensure the backend has internet access and the WhatsApp account is active on a mobile device.
+- **OTP Latency:** Check the "Gateway Log" in your dashboard for real-time API response data.
+- **Service Stability:** The frontend is hardened against initialization errors. If a "Blank Page" occurs, clear your browser cache and ensure the backend service is responding.
 
 ---
-© 2026 AppStack Team. All rights reserved.
+© 2026 WhatsApp Web Tool Team. All rights reserved.
