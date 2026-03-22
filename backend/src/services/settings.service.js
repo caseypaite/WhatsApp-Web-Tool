@@ -1,4 +1,4 @@
-const { Client } = require('pg');
+const db = require('../config/db');
 
 class SettingsService {
   constructor() {
@@ -9,10 +9,8 @@ class SettingsService {
    * Retrieves a setting value. Priority: Database > Process Env.
    */
   async get(key) {
-    const client = new Client({ connectionString: process.env.DATABASE_URL });
     try {
-      await client.connect();
-      const res = await client.query('SELECT value FROM system_settings WHERE key = $1', [key]);
+      const res = await db.query('SELECT value FROM system_settings WHERE key = $1', [key]);
       
       if (res.rows.length > 0) {
         return res.rows[0].value;
@@ -23,8 +21,6 @@ class SettingsService {
     } catch (err) {
       console.error(`Error fetching setting ${key}:`, err.message);
       return process.env[key.toUpperCase()];
-    } finally {
-      await client.end();
     }
   }
 
@@ -42,10 +38,8 @@ class SettingsService {
       'vite_api_base_url'
     ];
 
-    const client = new Client({ connectionString: process.env.DATABASE_URL });
     try {
-      await client.connect();
-      const res = await client.query('SELECT key, value FROM system_settings');
+      const res = await db.query('SELECT key, value FROM system_settings');
       const dbSettings = {};
       res.rows.forEach(row => {
         dbSettings[row.key] = row.value;
@@ -59,8 +53,6 @@ class SettingsService {
     } catch (err) {
       console.error('Error fetching all settings:', err.message);
       throw err;
-    } finally {
-      await client.end();
     }
   }
 
@@ -68,18 +60,14 @@ class SettingsService {
    * Updates or creates a setting in the database.
    */
   async set(key, value) {
-    const client = new Client({ connectionString: process.env.DATABASE_URL });
     try {
-      await client.connect();
-      await client.query(
+      await db.query(
         'INSERT INTO system_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP',
         [key, value]
       );
     } catch (err) {
       console.error(`Error setting ${key}:`, err.message);
       throw err;
-    } finally {
-      await client.end();
     }
   }
 }

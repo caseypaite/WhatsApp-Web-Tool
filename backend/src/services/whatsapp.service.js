@@ -1,7 +1,7 @@
-const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
+const { Client, LocalAuth, MessageMedia, Poll } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const settingsService = require('./settings.service');
-const { Client: PgClient } = require('pg');
+const db = require('../config/db');
 const fs = require('fs');
 const path = require('path');
 
@@ -28,9 +28,10 @@ class WhatsappService {
   }
 
   async initialize() {
-    if (this.client) {
-      try { await this.client.destroy(); } catch (e) {}
-    }
+    try {
+      if (this.client) {
+        try { await this.client.destroy(); } catch (e) {}
+      }
 
     console.log('[WHATSAPP] Initializing client...');
     const executablePath = this.getBrowserPath();
@@ -99,8 +100,51 @@ class WhatsappService {
       await settingsService.set('whatsapp_status', 'DISCONNECTED');
     });
 
-    try {
-      await this.client.initialize();
+    this.client.on('message', async (msg) => {
+      // Auto-Responder Logic
+      try {
+        const cleanMsg = msg.body.trim().toUpperCase();
+        const res = await db.query(
+          "SELECT response FROM auto_responders WHERE is_active = true AND ((match_type = 'EXACT' AND UPPER(keyword) = $1) OR (match_type = 'CONTAINS' AND $1 LIKE '%' || UPPER(keyword) || '%')) LIMIT 1",
+          [cleanMsg]
+        );
+
+        if (res.rows.length > 0) {
+          await msg.reply(res.rows[0].response);
+        }
+      } catch (err) {
+        console.error('[WHATSAPP] Auto-responder error:', err.message);
+      }
+    });
+
+    this.client.on('vote', async (vote) => {
+      // Poll Tracking Logic
+      console.log('[WHATSAPP] Poll vote received:', vote);
+      try {
+        // WhatsApp web.js vote object has: parentMessage, selectedOptions, sender, timestamp
+        const pollId = vote.parentMessage.id._serialized;
+        const pollMessage = vote.parentMessage;
+        const question = pollMessage.pollName || 'Unknown Question';
+        
+        // This is a simplified approach: we store the question and current options/votes
+        const res = await db.query('SELECT options FROM poll_results WHERE poll_id = $1', [pollId]);
+        let currentOptions = res.rows.length > 0 ? res.rows[0].options : {};
+        
+        for (const opt of vote.selectedOptions) {
+          const optName = opt.name || opt;
+          currentOptions[optName] = (currentOptions[optName] || 0) + 1;
+        }
+
+        await db.query(
+          'INSERT INTO poll_results (poll_id, question, options, chat_id) VALUES ($1, $2, $3, $4) ON CONFLICT (poll_id) DO UPDATE SET options = EXCLUDED.options',
+          [pollId, question, JSON.stringify(currentOptions), vote.parentMessage.to]
+        );
+      } catch (err) {
+        console.error('[WHATSAPP] Poll tracking error:', err.message);
+      }
+    });
+
+    this.client.initialize();
     } catch (err) {
       console.error('[WHATSAPP] Initialization error:', err.message);
     }
@@ -260,6 +304,59 @@ class WhatsappService {
     }, channelId);
   }
 
+  // Advanced Group Management
+  async getGroupMetadata(groupId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    const chat = await this.client.getChatById(groupId);
+    if (!chat.isGroup) throw new Error('Not a group');
+    return chat.groupMetadata;
+  }
+
+  async promoteAdmin(groupId, participantId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    const chat = await this.client.getChatById(groupId);
+    return await chat.promoteParticipants([participantId]);
+  }
+
+  async demoteAdmin(groupId, participantId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    const chat = await this.client.getChatById(groupId);
+    return await chat.demoteParticipants([participantId]);
+  }
+
+  async removeParticipant(groupId, participantId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    const chat = await this.client.getChatById(groupId);
+    return await chat.removeParticipants([participantId]);
+  }
+
+  async addParticipant(groupId, participantId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    const chat = await this.client.getChatById(groupId);
+    return await chat.addParticipants([participantId]);
+  }
+
+  async getPendingJoinRequests(groupId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    return await this.client.getGroupMembershipRequests(groupId);
+  }
+
+  async approveJoinRequest(groupId, participantId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    return await this.client.approveGroupMembershipRequests(groupId, { userIds: [participantId] });
+  }
+
+  async rejectJoinRequest(groupId, participantId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    return await this.client.rejectGroupMembershipRequests(groupId, { userIds: [participantId] });
+  }
+
+  async sendPoll(chatId, question, options, allowMultiple = false) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    const poll = new Poll(question, options, { allowMultiple });
+    return await this.client.sendMessage(chatId, poll);
+  }
+
   formatJid(number) {
     if (!number) return number;
     const str = number.toString();
@@ -270,17 +367,18 @@ class WhatsappService {
 
   async sendMessage(number, message, mediaOptions = null) {
     if (!this.isReady) throw new Error('WhatsApp client not ready');
-    const cleanNumber = number.toString().replace(/\D/g, '');
-    const jid = this.formatJid(cleanNumber);
     
-    console.log(`[WHATSAPP] Attempting to send message to: ${cleanNumber}`);
+    let finalJid = number.toString();
+    // If it doesn't already have a server suffix, assume it's a phone number
+    if (!finalJid.includes('@')) {
+      const cleanNumber = finalJid.replace(/\D/g, '');
+      const numberId = await this.client.getNumberId(cleanNumber);
+      finalJid = numberId ? numberId._serialized : `${cleanNumber}@c.us`;
+    }
+    
+    console.log(`[WHATSAPP] Attempting to send message to JID: ${finalJid}`);
     
     try {
-      // Try to get the registered WhatsApp ID
-      const numberId = await this.client.getNumberId(cleanNumber);
-      const finalJid = numberId ? numberId._serialized : jid;
-      
-      console.log(`[WHATSAPP] Sending to JID: ${finalJid}`);
       let result;
 
       if (mediaOptions && mediaOptions.url) {
@@ -296,18 +394,18 @@ class WhatsappService {
       
       // Log success to DB
       await this.logMessage({
-        phoneNumber: cleanNumber,
+        phoneNumber: finalJid,
         message: message,
         status: 'SUCCESS'
       });
       
       return result;
     } catch (err) {
-      console.error(`[WHATSAPP] Send error to ${cleanNumber}:`, err.message);
+      console.error(`[WHATSAPP] Send error to ${finalJid}:`, err.message);
       
       // Log failure to DB
       await this.logMessage({
-        phoneNumber: cleanNumber,
+        phoneNumber: finalJid,
         message: message,
         status: 'FAILED',
         errorMessage: err.message
@@ -336,17 +434,13 @@ class WhatsappService {
 
   // DB Logging helper
   async logMessage({ userId, phoneNumber, message, status, errorMessage }) {
-    const pg = new PgClient({ connectionString: process.env.DATABASE_URL });
     try {
-      await pg.connect();
-      await pg.query(
+      await db.query(
         'INSERT INTO message_history (user_id, phone_number, message, status, error_message) VALUES ($1, $2, $3, $4, $5)',
         [userId || null, phoneNumber, message, status, errorMessage || null]
       );
     } catch (err) {
       console.error('[WHATSAPP] Log error:', err.message);
-    } finally {
-      await pg.end();
     }
   }
 }
