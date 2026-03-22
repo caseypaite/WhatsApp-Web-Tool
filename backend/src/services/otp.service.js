@@ -1,4 +1,4 @@
-const { Client } = require('pg');
+const db = require('../config/db');
 const settingsService = require('./settings.service');
 
 /**
@@ -22,19 +22,16 @@ class OtpService {
     const expiresAt = new Date(Date.now() + expMinutes * 60 * 1000);
     const code = Math.floor(100000 + Math.random() * 900000).toString();
 
-    const client = new Client({ connectionString: process.env.DATABASE_URL });
     try {
-      await client.connect();
-      
       // Mark previous PENDING OTPs as EXPIRED for this phone or user
       if (userId) {
-        await client.query("UPDATE otp_verification SET status = 'EXPIRED' WHERE user_id = $1 AND status = 'PENDING'", [userId]);
+        await db.query("UPDATE otp_verification SET status = 'EXPIRED' WHERE user_id = $1 AND status = 'PENDING'", [userId]);
       } else {
-        await client.query("UPDATE otp_verification SET status = 'EXPIRED' WHERE phone_number = $1 AND status = 'PENDING'", [phoneNumber]);
+        await db.query("UPDATE otp_verification SET status = 'EXPIRED' WHERE phone_number = $1 AND status = 'PENDING'", [phoneNumber]);
       }
 
       // Store new OTP
-      await client.query(
+      await db.query(
         'INSERT INTO otp_verification (user_id, phone_number, code, expires_at) VALUES ($1, $2, $3, $4)',
         [userId || null, phoneNumber, code, expiresAt]
       );
@@ -53,8 +50,6 @@ class OtpService {
     } catch (err) {
       console.error('Error in generateAndSendOtp:', err.message);
       throw err;
-    } finally {
-      await client.end();
     }
   }
 
@@ -81,10 +76,7 @@ class OtpService {
    * Verifies the provided OTP code.
    */
   async verifyOtp(userIdOrPhone, providedCode) {
-    const client = new Client({ connectionString: process.env.DATABASE_URL });
     try {
-      await client.connect();
-      
       let query, params;
       const isNumeric = (val) => /^\d+$/.test(val.toString());
 
@@ -96,33 +88,31 @@ class OtpService {
         params = [userIdOrPhone.toString()];
       }
 
-      const result = await client.query(query, params);
+      const result = await db.query(query, params);
       const otpRecord = result.rows[0];
       if (!otpRecord) return false;
 
       if (new Date() > new Date(otpRecord.expires_at)) {
-        await client.query("UPDATE otp_verification SET status = 'EXPIRED' WHERE id = $1", [otpRecord.id]);
+        await db.query("UPDATE otp_verification SET status = 'EXPIRED' WHERE id = $1", [otpRecord.id]);
         throw new Error('OTP has expired.');
       }
 
       const maxRetries = parseInt(await settingsService.get('otp_max_retries')) || 3;
       if (otpRecord.retry_count >= maxRetries) {
-        await client.query("UPDATE otp_verification SET status = 'FAILED' WHERE id = $1", [otpRecord.id]);
+        await db.query("UPDATE otp_verification SET status = 'FAILED' WHERE id = $1", [otpRecord.id]);
         throw new Error('Too many failed attempts.');
       }
 
       if (providedCode !== otpRecord.code) {
-        await client.query('UPDATE otp_verification SET retry_count = retry_count + 1 WHERE id = $1', [otpRecord.id]);
+        await db.query('UPDATE otp_verification SET retry_count = retry_count + 1 WHERE id = $1', [otpRecord.id]);
         return false;
       }
 
-      await client.query("UPDATE otp_verification SET status = 'VERIFIED' WHERE id = $1", [otpRecord.id]);
+      await db.query("UPDATE otp_verification SET status = 'VERIFIED' WHERE id = $1", [otpRecord.id]);
       return true;
     } catch (err) {
       console.error('Error in verifyOtp:', err.message);
       throw err;
-    } finally {
-      await client.end();
     }
   }
 

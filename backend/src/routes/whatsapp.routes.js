@@ -20,4 +20,17 @@ router.post('/channels', authenticate, checkRole(['Admin']), whatsappController.
 router.post('/request-delete-otp', authenticate, checkRole(['Admin']), whatsappController.requestDeletionOtp);
 router.post('/confirm-delete', authenticate, checkRole(['Admin']), whatsappController.confirmDelete);
 
+// Advanced Group Management Routes
+router.get('/groups/:id/metadata', authenticate, checkRole(['Admin']), whatsappController.getGroupMetadata);
+router.post('/groups/:id/promote', authenticate, checkRole(['Admin']), whatsappController.promoteAdmin);
+router.post('/groups/:id/demote', authenticate, checkRole(['Admin']), whatsappController.demoteAdmin);
+router.post('/groups/:id/remove', authenticate, checkRole(['Admin']), whatsappController.removeParticipant);
+router.post('/groups/:id/add', authenticate, checkRole(['Admin']), whatsappController.addParticipant);
+router.get('/groups/:id/join-requests', authenticate, checkRole(['Admin']), whatsappController.getJoinRequests);
+router.post('/groups/:id/approve', authenticate, checkRole(['Admin']), whatsappController.approveJoinRequest);
+router.post('/groups/:id/reject', authenticate, checkRole(['Admin']), whatsappController.rejectJoinRequest);
+
+// Interaction Routes
+router.post('/poll', authenticate, checkRole(['Admin']), whatsappController.sendPoll);
+
 module.exports = router;

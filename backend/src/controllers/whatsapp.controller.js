@@ -184,6 +184,104 @@ const whatsappController = {
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
+  },
+
+  // Advanced Group Management
+  getGroupMetadata: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const metadata = await whatsappService.getGroupMetadata(id);
+      res.json(metadata);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  promoteAdmin: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { participantId } = req.body;
+      await whatsappService.promoteAdmin(id, participantId);
+      res.json({ success: true, message: 'Participant promoted to admin' });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  demoteAdmin: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { participantId } = req.body;
+      await whatsappService.demoteAdmin(id, participantId);
+      res.json({ success: true, message: 'Participant demoted' });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  removeParticipant: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { participantId } = req.body;
+      await whatsappService.removeParticipant(id, participantId);
+      res.json({ success: true, message: 'Participant removed' });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  addParticipant: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { participantId } = req.body;
+      await whatsappService.addParticipant(id, participantId);
+      res.json({ success: true, message: 'Participant added' });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  getJoinRequests: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const requests = await whatsappService.getPendingJoinRequests(id);
+      res.json(requests);
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  approveJoinRequest: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { participantId } = req.body;
+      await whatsappService.approveJoinRequest(id, participantId);
+      res.json({ success: true, message: 'Join request approved' });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  rejectJoinRequest: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { participantId } = req.body;
+      await whatsappService.rejectJoinRequest(id, participantId);
+      res.json({ success: true, message: 'Join request rejected' });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  sendPoll: async (req, res) => {
+    try {
+      const { chatId, question, options, allowMultiple } = req.body;
+      if (!chatId || !question || !options) return res.status(400).json({ error: 'Missing parameters' });
+      const result = await whatsappService.sendPoll(chatId, question, options, allowMultiple);
+      res.json({ success: true, messageId: result.id });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
   }
 };
 

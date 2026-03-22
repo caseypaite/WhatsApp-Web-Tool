@@ -1,17 +1,25 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const cmsRoutes = require('./routes/cms.routes');
 const userRoutes = require('./routes/user.routes');
 const settingsRoutes = require('./routes/settings.routes');
 const whatsappRoutes = require('./routes/whatsapp.routes');
 const templateRoutes = require('./routes/template.routes');
+const responderRoutes = require('./routes/responder.routes');
+const scheduledRoutes = require('./routes/scheduled.routes');
+const auditRoutes = require('./routes/audit.routes');
+const pollRoutes = require('./routes/poll.routes');
 const whatsappService = require('./services/whatsapp.service');
+const schedulerService = require('./services/scheduler.service');
 const multer = require('multer');
 const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+app.use(compression());
 
 // Multer Setup for file uploads
 const storage = multer.diskStorage({
@@ -27,16 +35,33 @@ const upload = multer({ storage: storage });
 
 // Initialize WhatsApp
 whatsappService.initialize();
+// Start Scheduler
+schedulerService.start();
 
 // Middleware
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',') 
-  : ['https://app.kcdev.qzz.io', 'http://localhost:3081', 'http://localhost:3001', 'http://localhost:3085'];
+  : [];
 
 app.use(cors({
-  origin: allowedOrigins,
+  origin: (origin, callback) => {
+    // Allow if no origin (like mobile apps or curl) or if origin is in the allowed list
+    // In development, if no ALLOWED_ORIGINS is set, allow all
+    if (!origin || allowedOrigins.includes(origin) || (process.env.NODE_ENV === 'development' && allowedOrigins.length === 0)) {
+      callback(null, true);
+    } else {
+      console.warn(`[CORS] Rejected origin: ${origin}`);
+      // Instead of failing, let's allow it but log it if in dev
+      if (process.env.NODE_ENV === 'development') {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-simple-auth']
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-simple-auth'],
+  credentials: true
 }));
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
@@ -53,6 +78,10 @@ app.use('/api/user', userRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/whatsapp', whatsappRoutes);
 app.use('/api/templates', templateRoutes);
+app.use('/api/responders', responderRoutes);
+app.use('/api/scheduled', scheduledRoutes);
+app.use('/api/audit', auditRoutes);
+app.use('/api/polls', pollRoutes);
 
 // Upload Endpoint
 const { authenticate, checkRole } = require('./middleware/auth.middleware');

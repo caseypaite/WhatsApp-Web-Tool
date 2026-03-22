@@ -65,6 +65,11 @@ const getProfile = async () => {
   return response.data;
 };
 
+const getAllUsers = async (params) => {
+  const response = await api.get('/user/all', { params });
+  return response.data;
+};
+
 // Group Management
 const createGroup = async (groupData) => {
   const response = await api.post('/user/groups/create', groupData);
@@ -101,8 +106,8 @@ const updateMemberRole = async (groupId, userId, role) => {
   return response.data;
 };
 
-const sendMessage = async (userId, phoneNumber, message) => {
-  const response = await api.post('/user/groups/send-message', { userId, phoneNumber, message });
+const sendMessage = async (userId, phoneNumber, message, mediaOptions = null) => {
+  const response = await api.post('/user/groups/send-message', { userId, phoneNumber, message, mediaOptions });
   return response.data;
 };
 
@@ -203,6 +208,151 @@ const deleteTemplate = async (id) => {
   return response.data;
 };
 
+// Advanced Group Management
+const getGroupMetadata = async (groupId) => {
+  const response = await api.get(`/whatsapp/groups/${groupId}/metadata`);
+  return response.data;
+};
+
+const promoteAdmin = async (groupId, participantId) => {
+  const response = await api.post(`/whatsapp/groups/${groupId}/promote`, { participantId });
+  return response.data;
+};
+
+const demoteAdmin = async (groupId, participantId) => {
+  const response = await api.post(`/whatsapp/groups/${groupId}/demote`, { participantId });
+  return response.data;
+};
+
+const removeParticipant = async (groupId, participantId) => {
+  const response = await api.post(`/whatsapp/groups/${groupId}/remove`, { participantId });
+  return response.data;
+};
+
+const addParticipant = async (groupId, participantId) => {
+  const response = await api.post(`/whatsapp/groups/${groupId}/add`, { participantId });
+  return response.data;
+};
+
+const getJoinRequests = async (groupId) => {
+  const response = await api.get(`/whatsapp/groups/${groupId}/join-requests`);
+  return response.data;
+};
+
+const approveJoinRequest = async (groupId, participantId) => {
+  const response = await api.post(`/whatsapp/groups/${groupId}/approve`, { participantId });
+  return response.data;
+};
+
+const rejectJoinRequest = async (groupId, participantId) => {
+  const response = await api.post(`/whatsapp/groups/${groupId}/reject`, { participantId });
+  return response.data;
+};
+
+const sendPoll = async (chatId, question, options, allowMultiple) => {
+  const response = await api.post('/whatsapp/poll', { chatId, question, options, allowMultiple });
+  return response.data;
+};
+
+// Advanced Poll Module
+const createAdvancedPoll = async (data) => {
+  const response = await api.post('/polls/create', data);
+  return response.data;
+};
+
+const updateAdvancedPoll = async (id, data) => {
+  const response = await api.put(`/polls/${id}`, data);
+  return response.data;
+};
+
+const getPollDetails = async (id) => {
+  const response = await api.get(`/polls/${id}`);
+  return response.data;
+};
+
+const getPublicLatestPolls = async () => {
+  const response = await api.get('/polls/public/latest');
+  return response.data;
+};
+
+const getPollResultsAdvanced = async (id) => {
+  const response = await api.get(`/polls/${id}/results`);
+  return response.data;
+};
+
+const requestVoteOtp = async (pollId, phone_number) => {
+  const response = await api.post('/polls/vote/request-otp', { pollId, phone_number });
+  return response.data;
+};
+
+const verifyAndVote = async (data) => {
+  const response = await api.post('/polls/vote/verify', data);
+  return response.data;
+};
+
+const deleteAdvancedPoll = async (id) => {
+  const response = await api.delete(`/polls/${id}`);
+  return response.data;
+};
+
+// Auto-Responder Management
+const getResponders = async () => {
+  const response = await api.get('/responders');
+  return response.data;
+};
+
+const createResponder = async (data) => {
+  const response = await api.post('/responders', data);
+  return response.data;
+};
+
+const updateResponder = async (id, data) => {
+  const response = await api.put(`/responders/${id}`, data);
+  return response.data;
+};
+
+const deleteResponder = async (id) => {
+  const response = await api.delete(`/responders/${id}`);
+  return response.data;
+};
+
+const toggleResponder = async (id) => {
+  const response = await api.post(`/responders/${id}/toggle`);
+  return response.data;
+};
+
+// Scheduled Message Management
+const getScheduledMessages = async () => {
+  const response = await api.get('/scheduled');
+  return response.data;
+};
+
+const createScheduledMessage = async (data) => {
+  const response = await api.post('/scheduled', data);
+  return response.data;
+};
+
+const cancelScheduledMessage = async (id) => {
+  const response = await api.post(`/scheduled/${id}/cancel`);
+  return response.data;
+};
+
+const deleteScheduledMessage = async (id) => {
+  const response = await api.delete(`/scheduled/${id}`);
+  return response.data;
+};
+
+// Audit & Polls
+const getAuditLogs = async (params) => {
+  const response = await api.get('/audit/messages', { params });
+  return response.data;
+};
+
+const getPollResults = async () => {
+  const response = await api.get('/polls');
+  return response.data;
+};
+
 const uploadFile = async (file) => {
   const formData = new FormData();
   formData.append('file', file);
@@ -234,6 +384,7 @@ export default {
   logout,
   getCurrentUser,
   getProfile,
+  getAllUsers,
   createGroup,
   deleteGroup,
   getAllGroups,
@@ -263,5 +414,33 @@ export default {
   getTemplates,
   createTemplate,
   deleteTemplate,
-  uploadFile
+  uploadFile,
+  getGroupMetadata,
+  promoteAdmin,
+  demoteAdmin,
+  removeParticipant,
+  addParticipant,
+  getJoinRequests,
+  approveJoinRequest,
+  rejectJoinRequest,
+  sendPoll,
+  createAdvancedPoll,
+  updateAdvancedPoll,
+  getPollDetails,
+  getPublicLatestPolls,
+  getPollResultsAdvanced,
+  requestVoteOtp,
+  verifyAndVote,
+  deleteAdvancedPoll,
+  getResponders,
+  createResponder,
+  updateResponder,
+  deleteResponder,
+  toggleResponder,
+  getScheduledMessages,
+  createScheduledMessage,
+  cancelScheduledMessage,
+  deleteScheduledMessage,
+  getAuditLogs,
+  getPollResults
 };
