@@ -432,7 +432,7 @@ const UserDashboard = () => {
             </div>
             {!isSidebarCollapsed && (
               <div>
-                <h1 className="text-lg font-bold text-white tracking-tight">AppStack</h1>
+                <h1 className="text-lg font-bold text-white tracking-tight">WA Web Tool</h1>
                 <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Portal</p>
               </div>
             )}

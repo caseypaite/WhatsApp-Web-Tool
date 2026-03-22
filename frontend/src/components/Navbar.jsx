@@ -7,7 +7,7 @@ import { LogOut, User, Shield } from 'lucide-react';
 const Navbar = () => {
   const { user, logout, isAdmin } = useAuth();
   const navigate = useNavigate();
-  const [siteName, setSiteName] = useState('AppStack');
+  const [siteName, setSiteName] = useState('WhatsApp Web Tool');
 
   useEffect(() => {
     const fetchSiteName = async () => {
