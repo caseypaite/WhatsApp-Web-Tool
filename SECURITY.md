@@ -18,40 +18,43 @@ For automation, administrative scripts, or legacy integration, the platform supp
 
 ### Role-Based Access Control (RBAC)
 The system enforces granular access control at the route level.
-- **Roles**: Supported roles include `Admin`, `Editor`, and `User`.
-- **Enforcement**: Middleware (`checkRole`) verifies that the authenticated user possesses the necessary privileges for the requested endpoint. Administrative routes (e.g., system settings, global user lists) are strictly restricted to the `Admin` role.
+- **Roles**: Supported roles include `SuperAdmin`, `Admin`, `Editor`, and `User`.
+- **SuperAdmin Sovereignty**: Users with the `SuperAdmin` role have unrestricted access to all organizational units, including the ability to manage or delete community polls regardless of ownership.
+- **Enforcement**: Middleware (`checkRole`) verifies that the authenticated user possesses the necessary privileges for the requested endpoint.
 
 ## 2. Communication Security
 
 ### TLS/SSL Encryption
 All communication between the frontend and backend is encrypted using **Transport Layer Security (TLS)**.
-- Public endpoints (e.g., `https://app.kcdev.qzz.io` and `https://backend.kcdev.qzz.io`) utilize HTTPS to prevent eavesdropping and Man-in-the-Middle (MITM) attacks.
+- Public endpoints utilize HTTPS to prevent eavesdropping and Man-in-the-Middle (MITM) attacks.
 
 ### Cross-Origin Resource Sharing (CORS)
 Strict CORS policies are enforced to prevent unauthorized cross-site requests.
-- **Whitelisting**: The backend only accepts requests from explicitly defined origins (configured via `ALLOWED_ORIGINS` in `.env`).
+- **Whitelisting**: The backend only accepts requests from explicitly defined origins.
 - **CSRF Protection**: By restricting origins and requiring custom headers (Authorization/x-simple-auth), the risk of Cross-Site Request Forgery is significantly mitigated.
 
 ## 3. Data Protection
 
 ### Password Security
 - **Hashing**: User passwords are never stored in plain text.
-- **Algorithm**: The system uses **bcryptjs** with a salt factor of 10. This ensures that even in the event of a database breach, original passwords remain cryptographically secure.
+- **Algorithm**: The system uses **bcryptjs** with a salt factor of 10.
+- **Complexity Policy**: A strict password policy is enforced:
+  - Minimum **8 characters**.
+  - Requirement for **Uppercase**, **Lowercase**, **Numeric**, and **Special** characters.
 
 ### Identity Proofing (WhatsApp OTP)
 Critical or sensitive operations utilize **Multi-Factor Authentication (MFA)** via WhatsApp.
-- **Verified Packets**: Registration, profile phone updates, and entity deletions require a 6-digit OTP sent to the user's registered WhatsApp number.
-- **Cryptographic Anchor**: This binds the digital portal account to a physical mobile identity.
+- **Verified Packets**: Registration, profile phone updates, and poll voting require a 6-digit OTP sent to the user's registered WhatsApp number.
+- **Vote Privacy**: Cast votes are hidden from the user interface. Accessing a previously cast vote requires a fresh MFA challenge (OTP) to prove identity before the choice is revealed.
 
 ## 4. Infrastructure & Environment
 
 ### Database Integrity
-- **Connection Pooling**: Implemented to prevent resource exhaustion and protect against certain types of Denial of Service (DoS) attacks related to database connections.
+- **Connection Pooling**: Implemented to prevent resource exhaustion and protect against DoS attacks.
 - **Input Sanitization**: All database interactions use parameterized queries to prevent SQL Injection.
 
 ### Environment Isolation
-- Sensitive configuration (API keys, DB credentials, JWT secrets) is stored in protected `.env` files.
-- These secrets are never exposed to the client-side code and are excluded from version control.
+- Sensitive configuration (API keys, DB credentials, JWT secrets) is stored in protected `.env` files and excluded from version control.
 
 ---
 *Last Updated: March 22, 2026*

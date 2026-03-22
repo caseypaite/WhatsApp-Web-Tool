@@ -202,6 +202,7 @@ const AdminDashboard = () => {
         authService.getWhatsappChats(),
         authService.getWhatsappContacts()
       ]);
+      console.log('[DEBUG] Fetched WA Chats:', chats);
       setWaChats(chats || []);
       setWaContacts(contacts || []);
     } catch (err) {
@@ -301,10 +302,19 @@ const AdminDashboard = () => {
 
   const loadData = async () => {
     setLoading(true);
-    // Initial load: only minimal essential status info
+    // Fetch ALL data for all tabs in parallel on load
     try {
       await Promise.all([
-        fetchWaStatus()
+        fetchWaStatus(),
+        fetchUsers(),
+        fetchSettings(),
+        fetchGroups(),
+        fetchLandingContent(),
+        fetchTemplates(),
+        fetchResponders(),
+        fetchScheduledMessages(),
+        fetchAuditLogs(),
+        fetchPollResults()
       ]);
     } finally {
       setLoading(false);
@@ -318,18 +328,11 @@ const AdminDashboard = () => {
   }, []);
 
   useEffect(() => {
-    // Fetch data only when tab becomes active and if not already loaded (or refresh)
-    if (activeTab === 'users' && users.length === 0) fetchUsers();
-    if (activeTab === 'settings' && settings.length === 0) fetchSettings();
-    if (activeTab === 'groups' && groups.length === 0) fetchGroups();
-    if (activeTab === 'whatsapp' && waStatus.ready && waChats.length === 0) fetchWaData();
-    if (activeTab === 'cms' && !landingContent.hero_text) fetchLandingContent();
-    if (activeTab === 'templates' && templates.length === 0) fetchTemplates();
-    if (activeTab === 'responders' && responders.length === 0) fetchResponders();
-    if (activeTab === 'scheduled' && scheduledMessages.length === 0) fetchScheduledMessages();
-    if (activeTab === 'history' && auditLogs.length === 0) fetchAuditLogs();
-    if (activeTab === 'polls' && pollResults.length === 0) fetchPollResults();
-  }, [activeTab, waStatus.ready]);
+    // Specifically for WhatsApp data which requires the engine to be ready
+    if (waStatus.ready && waChats.length === 0) {
+      fetchWaData();
+    }
+  }, [waStatus.ready]);
 
   useEffect(() => {
     if (selectedGroup) {
@@ -1075,7 +1078,7 @@ const AdminDashboard = () => {
                     <div className="flex flex-col h-full animate-in fade-in">
                       <div className="flex items-center justify-between mb-10 pb-6 border-b border-slate-50">
                         <div>
-                          <h3 className="text-xl font-black text-slate-900 tracking-tight">Managed Entities</h3>
+                          <h3 className="text-xl font-black text-slate-900 tracking-tight">Managed Entities ({waChats.filter(c => c?.isAdmin).length})</h3>
                           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Administered Groups & Channels</p>
                         </div>
                         <div className="flex gap-2">
@@ -1083,41 +1086,94 @@ const AdminDashboard = () => {
                           <button onClick={() => setShowCreateChannel(true)} className="p-2.5 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition shadow-sm"><Send className="w-5 h-5" /></button>
                         </div>
                       </div>
-                      <div className="flex-1 space-y-3 overflow-y-auto pr-2 custom-scrollbar">
-                        {waChats.filter(c => c?.isAdmin).map(chat => (
-                          <div key={chat?.id?._serialized} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between group hover:bg-white hover:shadow-lg transition-all border border-transparent hover:border-slate-100">
-                            <div className="flex items-center gap-4">
-                              {chat?.iconUrl ? <img src={chat.iconUrl} className="w-11 h-11 rounded-xl object-cover shadow-sm" alt="" /> : <div className="w-11 h-11 bg-slate-200 rounded-xl flex items-center justify-center font-black text-slate-400 shadow-inner">{chat?.name?.[0]}</div>}
-                              <div>
-                                <p className="text-sm font-black text-slate-800 leading-none mb-1">{chat?.name}</p>
-                                <p className="text-[9px] font-mono text-slate-400 uppercase tracking-tighter">{chat?.id?._serialized}</p>
-                              </div>
+                      <div className="flex-1 space-y-8 overflow-y-auto pr-2 custom-scrollbar">
+                        {/* GROUPS CATEGORY */}
+                        {waChats.filter(c => c?.isAdmin && c?.isGroup).length > 0 && (
+                          <div className="space-y-4">
+                            <div className="flex items-center gap-3 px-2">
+                              <div className="w-1.5 h-1.5 bg-primary-500 rounded-full"></div>
+                              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Verified Groups ({waChats.filter(c => c?.isAdmin && c?.isGroup).length})</h4>
                             </div>
-                            <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {chat?.isGroup && (
-                                <button 
-                                  onClick={() => openGroupManage(chat.id?._serialized, chat.name)}
-                                  className="p-2.5 text-primary-600 hover:bg-primary-50 rounded-xl transition-all shadow-sm"
-                                  title="Administer Group"
-                                >
-                                  <Shield className="w-4 h-4" />
-                                </button>
-                              )}
-                              <button 
-                                onClick={() => {
-                                  setDirectMessageTarget({ id: chat.id?._serialized, name: chat.name, type: chat.isGroup ? 'group' : 'channel' });
-                                  setShowPollModal(true);
-                                }}
-                                className="p-2.5 text-amber-600 hover:bg-amber-50 rounded-xl transition-all shadow-sm"
-                                title="Send Poll"
-                              >
-                                <BarChart2 className="w-4 h-4" />
-                              </button>
-                              <button onClick={() => { setDirectMessageTarget({ id: chat.id?._serialized, name: chat.name, type: chat.isGroup ? 'group' : 'channel' }); setShowDirectMessage(true); }} className="p-2 text-primary-600 hover:bg-primary-50 rounded-xl transition-all shadow-sm"><MessageSquare className="w-4 h-4" /></button>
-                              <button onClick={() => initiateDelete(chat.id?._serialized, chat.name, chat.isGroup ? 'group' : 'channel')} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 className="w-4 h-4" /></button>
+                            <div className="space-y-3">
+                              {waChats.filter(c => c?.isAdmin && c?.isGroup).map(chat => (
+                                <div key={chat?.id?._serialized} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between group hover:bg-white hover:shadow-lg transition-all border border-transparent hover:border-slate-100">
+                                  <div className="flex items-center gap-4">
+                                    {chat?.iconUrl ? <img src={chat.iconUrl} className="w-11 h-11 rounded-xl object-cover shadow-sm" alt="" /> : <div className="w-11 h-11 bg-slate-200 rounded-xl flex items-center justify-center font-black text-slate-400 shadow-inner">{chat?.name?.[0]}</div>}
+                                    <div>
+                                      <p className="text-sm font-black text-slate-800 leading-none mb-1">{chat?.name}</p>
+                                      <p className="text-[9px] font-mono text-slate-400 uppercase tracking-tighter">{chat?.id?._serialized}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button 
+                                      onClick={() => openGroupManage(chat.id?._serialized, chat.name)}
+                                      className="p-2.5 text-primary-600 hover:bg-primary-50 rounded-xl transition-all shadow-sm"
+                                      title="Administer Group"
+                                    >
+                                      <Shield className="w-4 h-4" />
+                                    </button>
+                                    <button 
+                                      onClick={() => {
+                                        setDirectMessageTarget({ id: chat.id?._serialized, name: chat.name, type: 'group' });
+                                        setShowPollModal(true);
+                                      }}
+                                      className="p-2.5 text-amber-600 hover:bg-amber-50 rounded-xl transition-all shadow-sm"
+                                      title="Send Poll"
+                                    >
+                                      <BarChart2 className="w-4 h-4" />
+                                    </button>
+                                    <button onClick={() => { setDirectMessageTarget({ id: chat.id?._serialized, name: chat.name, type: 'group' }); setShowDirectMessage(true); }} className="p-2 text-primary-600 hover:bg-primary-50 rounded-xl transition-all shadow-sm"><MessageSquare className="w-4 h-4" /></button>
+                                    <button onClick={() => initiateDelete(chat.id?._serialized, chat.name, 'group')} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 className="w-4 h-4" /></button>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           </div>
-                        ))}
+                        )}
+
+                        {/* CHANNELS CATEGORY */}
+                        {waChats.filter(c => c?.isAdmin && !c?.isGroup).length > 0 && (
+                          <div className="space-y-4">
+                            <div className="flex items-center gap-3 px-2">
+                              <div className="w-1.5 h-1.5 bg-amber-500 rounded-full"></div>
+                              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Broadcast Channels ({waChats.filter(c => c?.isAdmin && !c?.isGroup).length})</h4>
+                            </div>
+                            <div className="space-y-3">
+                              {waChats.filter(c => c?.isAdmin && !c?.isGroup).map(chat => (
+                                <div key={chat?.id?._serialized} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between group hover:bg-white hover:shadow-lg transition-all border border-transparent hover:border-slate-100">
+                                  <div className="flex items-center gap-4">
+                                    {chat?.iconUrl ? <img src={chat.iconUrl} className="w-11 h-11 rounded-xl object-cover shadow-sm" alt="" /> : <div className="w-11 h-11 bg-slate-200 rounded-xl flex items-center justify-center font-black text-slate-400 shadow-inner">{chat?.name?.[0]}</div>}
+                                    <div>
+                                      <p className="text-sm font-black text-slate-800 leading-none mb-1">{chat?.name}</p>
+                                      <p className="text-[9px] font-mono text-slate-400 uppercase tracking-tighter">{chat?.id?._serialized}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button 
+                                      onClick={() => {
+                                        setDirectMessageTarget({ id: chat.id?._serialized, name: chat.name, type: 'channel' });
+                                        setShowPollModal(true);
+                                      }}
+                                      className="p-2.5 text-amber-600 hover:bg-amber-50 rounded-xl transition-all shadow-sm"
+                                      title="Send Poll"
+                                    >
+                                      <BarChart2 className="w-4 h-4" />
+                                    </button>
+                                    <button onClick={() => { setDirectMessageTarget({ id: chat.id?._serialized, name: chat.name, type: 'channel' }); setShowDirectMessage(true); }} className="p-2 text-primary-600 hover:bg-primary-50 rounded-xl transition-all shadow-sm"><MessageSquare className="w-4 h-4" /></button>
+                                    <button onClick={() => initiateDelete(chat.id?._serialized, chat.name, 'channel')} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 className="w-4 h-4" /></button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {waChats.filter(c => c?.isAdmin).length === 0 && (
+                          <div className="py-20 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                            <Activity className="w-10 h-10 text-slate-200 mx-auto mb-4" />
+                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">No Managed Entities Detected</p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ) : waStatus.qr ? (
@@ -1458,7 +1514,7 @@ const AdminDashboard = () => {
             {activeTab === 'settings' && (
               <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden max-w-4xl animate-in fade-in">
                 <div className="flex border-b border-slate-100 bg-slate-50/30">
-                  {['general', 'security', 'otp'].map(t => (
+                  {['general', 'ai', 'security', 'otp'].map(t => (
                     <button key={t} onClick={() => setActiveSettingsTab(t)} className={`px-10 py-5 text-[10px] font-black uppercase tracking-[0.2em] border-b-2 transition-all ${activeSettingsTab === t ? 'border-primary-600 text-primary-600 bg-white' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>{t}</button>
                   ))}
                 </div>
@@ -1483,6 +1539,93 @@ const AdminDashboard = () => {
                       </div>
                     </div>
                   )}
+
+                  {activeSettingsTab === 'ai' && (
+                    <div className="space-y-10 animate-in fade-in">
+                      <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 flex items-center justify-between shadow-inner">
+                        <div>
+                          <p className="text-base font-black text-slate-800 uppercase tracking-tighter">Enable AI Assistant</p>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Autonomous LLM Query Resolution</p>
+                        </div>
+                        <button onClick={() => handleUpdateSetting('ai_enabled', settings.find(s => s.key === 'ai_enabled')?.value === 'true' ? 'false' : 'true')} className={`w-16 h-10 rounded-full transition-all relative ${settings.find(s => s.key === 'ai_enabled')?.value === 'true' ? 'bg-primary-600 shadow-lg shadow-primary-900/30' : 'bg-slate-300'}`}>
+                          <div className={`absolute top-1.5 w-7 h-7 bg-white rounded-full transition-all shadow-md ${settings.find(s => s.key === 'ai_enabled')?.value === 'true' ? 'left-7.5 ml-0.5' : 'left-1.5'}`} />
+                        </button>
+                      </div>
+
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-2 gap-6">
+                          <div className="space-y-3">
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">AI Provider</label>
+                            <select 
+                              className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-black appearance-none outline-none focus:ring-4 focus:ring-primary-100 shadow-inner" 
+                              value={settings.find(s => s.key === 'ai_provider')?.value || 'gemini'} 
+                              onChange={(e) => {
+                                handleUpdateSetting('ai_provider', e.target.value);
+                                // Set a default model when provider changes
+                                const defaultModel = e.target.value === 'mistral' ? 'mistral-tiny' : 'gemini-1.5-flash';
+                                handleUpdateSetting('ai_model', defaultModel);
+                              }}
+                            >
+                              <option value="gemini">Google Gemini</option>
+                              <option value="mistral">Mistral AI</option>
+                            </select>
+                          </div>
+
+                          <div className="space-y-3">
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Model Selection</label>
+                            <select 
+                              className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-black appearance-none outline-none focus:ring-4 focus:ring-primary-100 shadow-inner" 
+                              value={settings.find(s => s.key === 'ai_model')?.value || (settings.find(s => s.key === 'ai_provider')?.value === 'mistral' ? 'mistral-tiny' : 'gemini-1.5-flash')} 
+                              onChange={(e) => handleUpdateSetting('ai_model', e.target.value)}
+                            >
+                              {settings.find(s => s.key === 'ai_provider')?.value === 'mistral' ? (
+                                <>
+                                  <option value="mistral-tiny">Mistral Tiny</option>
+                                  <option value="mistral-small">Mistral Small</option>
+                                  <option value="mistral-medium">Mistral Medium</option>
+                                  <option value="mistral-large-latest">Mistral Large (Latest)</option>
+                                  <option value="open-mistral-7b">Open Mistral 7B</option>
+                                  <option value="open-mixtral-8x7b">Open Mixtral 8x7B</option>
+                                </>
+                              ) : (
+                                <>
+                                  <option value="gemini-2.0-flash">Gemini 2.0 Flash (Next Gen)</option>
+                                  <option value="gemini-2.0-pro-exp-02-05">Gemini 2.0 Pro (Experimental)</option>
+                                  <option value="gemini-1.5-flash">Gemini 1.5 Flash (Balanced)</option>
+                                  <option value="gemini-1.5-pro">Gemini 1.5 Pro (Capable)</option>
+                                </>
+                              )}
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Gemini API Key</label>
+                          <div className="flex gap-3">
+                            <input type="password" placeholder="AIza..." className="flex-1 px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-mono text-sm outline-none focus:ring-4 focus:ring-primary-100 shadow-inner" value={settings.find(s => s.key === 'gemini_api_key')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'gemini_api_key' ? {...s, value: e.target.value} : s))} />
+                            <button onClick={() => handleUpdateSetting('gemini_api_key', settings.find(s => s.key === 'gemini_api_key')?.value)} className="px-10 bg-slate-900 text-white text-[10px] font-black rounded-2xl uppercase tracking-widest hover:bg-slate-800 transition-all">Save</button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Mistral API Key</label>
+                          <div className="flex gap-3">
+                            <input type="password" placeholder="mistral-..." className="flex-1 px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-mono text-sm outline-none focus:ring-4 focus:ring-primary-100 shadow-inner" value={settings.find(s => s.key === 'mistral_api_key')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'mistral_api_key' ? {...s, value: e.target.value} : s))} />
+                            <button onClick={() => handleUpdateSetting('mistral_api_key', settings.find(s => s.key === 'mistral_api_key')?.value)} className="px-10 bg-slate-900 text-white text-[10px] font-black rounded-2xl uppercase tracking-widest hover:bg-slate-800 transition-all">Save</button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Custom Instruction Prompt</label>
+                          <div className="space-y-3">
+                            <textarea rows="4" className="w-full px-6 py-5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium outline-none focus:ring-4 focus:ring-primary-100 resize-none shadow-inner" placeholder="You are a helpful community assistant..." value={settings.find(s => s.key === 'ai_custom_prompt')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'ai_custom_prompt' ? {...s, value: e.target.value} : s))} />
+                            <button onClick={() => handleUpdateSetting('ai_custom_prompt', settings.find(s => s.key === 'ai_custom_prompt')?.value)} className="w-full py-4 bg-slate-900 text-white text-[10px] font-black rounded-xl uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg">Save System Prompt</button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {activeSettingsTab === 'security' && (
                     <div className="space-y-8 animate-in fade-in">
                       <div className="p-8 bg-slate-900 rounded-[2rem] shadow-2xl relative overflow-hidden border border-slate-800">
@@ -1499,6 +1642,7 @@ const AdminDashboard = () => {
                       </div>
                     </div>
                   )}
+
                   {activeSettingsTab === 'otp' && (
                     <div className="space-y-8 animate-in fade-in">
                       <form onSubmit={handleSendTest} className="space-y-8">
@@ -1816,7 +1960,7 @@ const AdminDashboard = () => {
               required 
               rows="5" 
               className="w-full px-6 py-5 bg-slate-50 border border-slate-200 rounded-2xl text-base font-medium outline-none focus:ring-4 focus:ring-primary-100 resize-none shadow-inner" 
-              placeholder="Synthesize message payload..." 
+              placeholder="Synthesize message payload" 
               value={memberMessageContent} 
               onChange={(e) => setMemberMessageContent(e.target.value)} 
             />

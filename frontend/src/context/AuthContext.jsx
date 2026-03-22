@@ -45,7 +45,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const isAdmin = () => {
-    return user?.roles?.includes('Admin');
+    return user?.roles?.includes('Admin') || user?.roles?.includes('SuperAdmin');
   };
 
   return (

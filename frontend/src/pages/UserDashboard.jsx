@@ -9,6 +9,7 @@ import {
   Lock, Key, MapPin, Globe, Home, Users, MessageSquare, 
   History, Settings, LogOut, Menu, Zap, Fingerprint, Activity, BarChart2, Link, Trash2, RefreshCw
 } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
 const Modal = ({ isOpen, onClose, title, subtitle, children, maxWidth = 'max-w-2xl', error, successMessage }) => {
   if (!isOpen) return null;
@@ -96,16 +97,42 @@ const UserDashboard = () => {
   const [selectedPoll, setSelectedPoll] = useState(null);
   const [newPoll, setNewPoll] = useState({ 
     title: '', description: '', type: 'GENERAL', access_type: 'PUBLIC', 
-    options: ['', ''], group_id: '', candidates: [{ name: '', photo_url: '', manifesto: '', biography: '' }] 
+    options: ['', ''], group_id: '', candidates: [{ name: '', photo_url: '', manifesto: '', biography: '' }],
+    starts_at: '', ends_at: ''
   });
+  const [viewingResultsId, setViewingResultsId] = useState(null);
+  const [advancedResults, setAdvancedResults] = useState(null);
   const [votingData, setVotingData] = useState({ pollId: null, phone_number: '', otp: '', option_selected: '', candidate_id: null });
   const [voteOtpSent, setVoteOtpSent] = useState(false);
+  const [voteNeedsConfirmation, setVoteNeedsConfirmation] = useState(false);
+  const [isViewingVote, setIsViewingVote] = useState(false);
   const [pollResults, setPollResults] = useState(null);
 
   const [actionLoading, setActionLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [gatewayResponse, setGatewayResponse] = useState(null);
   const [isDebugExpanded, setIsDebugExpanded] = useState(false);
+
+  const handlePublishPoll = async (id, currentStatus) => {
+    try {
+      await authService.publishPollResults(id, !currentStatus);
+      setSuccessMessage(`Results ${!currentStatus ? 'published' : 'hidden'}.`);
+      fetchData();
+    } catch (err) {
+      setError('Failed to publish results.');
+    }
+  };
+
+  const handleViewAdvancedResults = async (id) => {
+    try {
+      const data = await authService.getAdvancedPollResults(id);
+      setAdvancedResults(data);
+      setViewingResultsId(id);
+    } catch (err) {
+      setError('Failed to load results.');
+    }
+  };
+
   const handleUpdatePoll = async (e) => {
     e.preventDefault();
     setActionLoading(true);
@@ -312,8 +339,9 @@ const UserDashboard = () => {
       setError('Passwords do not match.');
       return;
     }
-    if (passwords.new.length < 6) {
-      setError('Password must be at least 6 characters.');
+    
+    if (passwords.new.length < 8 || !/[A-Z]/.test(passwords.new) || !/[a-z]/.test(passwords.new) || !/\d/.test(passwords.new) || !/[@$!%*?&#]/.test(passwords.new)) {
+      setError('Password must be 8+ chars with uppercase, lowercase, number and special char.');
       return;
     }
     
@@ -367,12 +395,19 @@ const UserDashboard = () => {
     }
   };
 
-  const handleRequestVoteOtp = async () => {
+  const handleRequestVoteOtp = async (confirmView = false) => {
     if (!votingData.phone_number) return;
     setActionLoading(true);
     try {
-      await authService.requestVoteOtp(votingData.pollId, votingData.phone_number);
+      const res = await authService.requestVoteOtp(votingData.pollId, votingData.phone_number, confirmView);
+      if (res.already_voted && !confirmView) {
+        setVoteNeedsConfirmation(true);
+        setSuccessMessage(res.message);
+        return;
+      }
       setVoteOtpSent(true);
+      setVoteNeedsConfirmation(false);
+      setIsViewingVote(confirmView || res.already_voted);
       setSuccessMessage('OTP sent for verification.');
     } catch (err) {
       setError('Failed to send voting OTP.');
@@ -387,14 +422,15 @@ const UserDashboard = () => {
       const res = await authService.verifyAndVote(votingData);
       if (res.already_voted) {
         setSuccessMessage(res.message);
-        // Don't close immediately so they can see the message/vote
+        setIsViewingVote(true);
       } else {
         setSuccessMessage('Vote cast successfully!');
         setTimeout(() => {
           setSelectedPoll(null);
           setVoteOtpSent(false);
+          setIsViewingVote(false);
           setSuccessMessage('');
-        }, 2000);
+        }, 3000);
       }
       fetchData();
     } catch (err) {
@@ -767,7 +803,7 @@ const UserDashboard = () => {
                   <h3 className="text-2xl font-black text-slate-900 tracking-tight">Polls & Elections</h3>
                   <p className="text-xs text-slate-500 font-medium">Create or participate in community decisions</p>
                 </div>
-                {(userData?.roles?.includes('Admin') || myGroups.some(g => g.my_role === 'ADMIN')) && (
+                {(userData?.roles?.includes('Admin') || userData?.roles?.includes('SuperAdmin') || myGroups.some(g => g.my_role === 'ADMIN')) && (
                   <button 
                     onClick={() => setShowCreatePoll(true)}
                     className="px-6 py-3 bg-primary-600 text-white font-black rounded-2xl hover:bg-primary-700 transition shadow-lg shadow-primary-100 uppercase text-xs tracking-widest"
@@ -802,7 +838,26 @@ const UserDashboard = () => {
                         View & Vote
                       </button>
 
-                      {(userData?.id === poll.creator_id || userData?.roles?.includes('Admin')) && (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Starts At (Optional)</label>
+                          <input type="datetime-local" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none font-bold text-sm" value={newPoll.starts_at} onChange={(e) => setNewPoll({...newPoll, starts_at: e.target.value})} />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Ends At (Optional)</label>
+                          <input type="datetime-local" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none font-bold text-sm" value={newPoll.ends_at} onChange={(e) => setNewPoll({...newPoll, ends_at: e.target.value})} />
+                        </div>
+                      </div>
+                                <button onClick={() => handleViewAdvancedResults(poll.id)} className="flex items-center gap-1 px-3 py-1.5 bg-primary-50 text-primary-600 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-primary-600 hover:text-white transition-all">
+                                  <BarChart2 className="w-3 h-3" /> Results
+                                </button>
+                                {(userData?.id === poll.creator_id || userData?.roles?.includes('Admin') || userData?.roles?.includes('SuperAdmin')) && (
+                                  <button onClick={() => handlePublishPoll(poll.id, poll.results_published)} className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${poll.results_published ? 'bg-amber-50 text-amber-600 hover:bg-amber-600' : 'bg-green-50 text-green-600 hover:bg-green-600'} hover:text-white`}>
+                                    {poll.results_published ? <X className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />} {poll.results_published ? 'Hide' : 'Publish'}
+                                  </button>
+                                )}
+                                {(userData?.id === poll.creator_id || userData?.roles?.includes('Admin') || userData?.roles?.includes('SuperAdmin')) && (
+
                         <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100">
                           <button 
                             onClick={() => copyPollLink(poll.id)}
@@ -837,6 +892,111 @@ const UserDashboard = () => {
             </div>
           )}
 
+          {/* POLL RESULTS DETAIL MODAL */}
+          <Modal
+            isOpen={!!viewingResultsId}
+            onClose={() => { setViewingResultsId(null); setAdvancedResults(null); }}
+            title="Poll Intelligence"
+            subtitle={advancedResults?.poll?.title || 'Interaction Data'}
+            maxWidth="max-w-4xl"
+          >
+            {advancedResults && (
+              <div className="space-y-12 pb-10">
+                <div className="flex flex-col md:flex-row gap-10 items-center justify-between bg-slate-50 p-8 rounded-[2rem] border border-slate-100 shadow-inner">
+                  <div className="flex-1 space-y-4">
+                    <div>
+                      <h4 className="text-4xl font-black text-slate-900 tracking-tighter">{advancedResults.totalVotes}</h4>
+                      <p className="text-[10px] font-black text-primary-600 uppercase tracking-[0.2em]">Total Packets Cast</p>
+                    </div>
+                    <div className="pt-4 border-t border-slate-200">
+                      <p className="text-xs text-slate-500 font-medium leading-relaxed">{advancedResults.poll?.description}</p>
+                    </div>
+                  </div>
+                  <div className="w-full md:w-[300px] h-[300px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={advancedResults.results.map(r => ({ name: r.name || r.option_selected, value: parseInt(r.votes) }))}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={60}
+                          outerRadius={80}
+                          paddingAngle={5}
+                          dataKey="value"
+                        >
+                          {advancedResults.results.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'][index % 5]} />
+                          ))}
+                        </Pie>
+                        <Tooltip 
+                          contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                        />
+                        <Legend />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {advancedResults.poll?.type === 'ELECTION' ? (
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {advancedResults.results.map(cand => (
+                      <div key={cand.id} className="p-6 bg-white border border-slate-100 rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-500 group flex flex-col h-full">
+                        <div className="flex items-center gap-4 mb-6">
+                          <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-md group-hover:scale-105 transition-transform border-2 border-primary-50">
+                            {cand.photo_url ? (
+                              <img src={cand.photo_url} alt={cand.name} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-300">
+                                <User className="w-8 h-8" />
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <h4 className="text-lg font-black text-slate-900 leading-none">{cand.name}</h4>
+                            <div className="mt-2 flex items-center gap-2">
+                              <span className="text-[10px] font-black text-primary-600 bg-primary-50 px-2 py-0.5 rounded uppercase tracking-widest">{cand.votes} Votes</span>
+                              <span className="text-[10px] font-bold text-slate-400">
+                                {advancedResults.totalVotes > 0 ? ((parseInt(cand.votes) / advancedResults.totalVotes) * 100).toFixed(1) : 0}%
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-4 flex-1">
+                          <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><Shield className="w-3 h-3 text-primary-500" /> Manifesto</p>
+                            <p className="text-xs text-slate-600 font-medium leading-relaxed italic line-clamp-3">"{cand.manifesto}"</p>
+                          </div>
+                          <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><User className="w-3 h-3 text-amber-500" /> Biography</p>
+                            <p className="text-xs text-slate-500 font-medium leading-relaxed line-clamp-3">{cand.biography}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid gap-4">
+                    {advancedResults.results.map((res, i) => (
+                      <div key={i} className="p-5 bg-white border border-slate-100 rounded-2xl flex items-center justify-between shadow-sm">
+                        <span className="text-sm font-black text-slate-800 uppercase tracking-tight">{res.option_selected}</span>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <p className="text-sm font-black text-primary-600">{res.votes}</p>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase">Packets</p>
+                          </div>
+                          <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 shadow-inner">
+                            <CheckCircle className="w-5 h-5 text-green-500" />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </Modal>
+
           {/* CREATE POLL MODAL */}
           <Modal
             isOpen={showCreatePoll}
@@ -861,7 +1021,7 @@ const UserDashboard = () => {
                     required={!userData?.roles?.includes('Admin')}
                   >
                     <option value="">Global / No Group</option>
-                    {myGroups.filter(g => g.my_role === 'ADMIN' || userData?.roles?.includes('Admin')).map(g => (
+                    {myGroups.filter(g => g.my_role === 'ADMIN' || userData?.roles?.includes('Admin') || userData?.roles?.includes('SuperAdmin')).map(g => (
                       <option key={g.id} value={g.id}>{g.name}</option>
                     ))}
                   </select>
@@ -966,17 +1126,44 @@ const UserDashboard = () => {
                 <div className="space-y-6">
                   <div className="space-y-4">
                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Verification Required</label>
-                    <div className="flex gap-2">
-                      <input type="tel" className="flex-1 px-6 py-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black focus:ring-2 focus:ring-primary-500 outline-none shadow-inner" placeholder="Mobile Number (e.g. 91...)" value={votingData.phone_number} onChange={(e) => setVotingData({...votingData, phone_number: e.target.value})} />
-                      <button onClick={handleRequestVoteOtp} disabled={actionLoading || !votingData.phone_number} className="px-8 bg-primary-600 text-white text-[10px] font-black rounded-xl uppercase tracking-widest hover:bg-primary-700 transition shadow-lg">Get OTP</button>
+                    <div className="flex flex-col gap-3">
+                      <div className="flex gap-2">
+                        <input type="tel" disabled={voteNeedsConfirmation} className="flex-1 px-6 py-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black focus:ring-2 focus:ring-primary-500 outline-none shadow-inner disabled:opacity-50" placeholder="Mobile Number (e.g. 91...)" value={votingData.phone_number} onChange={(e) => setVotingData({...votingData, phone_number: e.target.value})} />
+                        {!voteNeedsConfirmation && (
+                          <button onClick={() => handleRequestVoteOtp(false)} disabled={actionLoading || !votingData.phone_number} className="px-8 bg-primary-600 text-white text-[10px] font-black rounded-xl uppercase tracking-widest hover:bg-primary-700 transition shadow-lg">Get OTP</button>
+                        )}
+                      </div>
+                      
+                      {voteNeedsConfirmation && (
+                        <div className="flex gap-2 animate-in fade-in slide-in-from-top-2">
+                          <button 
+                            onClick={() => handleRequestVoteOtp(true)} 
+                            disabled={actionLoading}
+                            className="flex-1 py-4 bg-primary-600 text-white text-[10px] font-black rounded-xl uppercase tracking-widest shadow-lg active:scale-95 transform transition-all"
+                          >
+                            Send OTP to View My Vote
+                          </button>
+                          <button 
+                            onClick={() => { setVoteNeedsConfirmation(false); setSuccessMessage(''); }} 
+                            disabled={actionLoading}
+                            className="px-6 py-4 bg-slate-100 text-slate-500 text-[10px] font-black rounded-xl uppercase tracking-widest hover:bg-slate-200"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-8 animate-in slide-in-from-bottom-4">
                   <div className="space-y-6">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 text-center">Cast Your Identity Unit</label>
-                    <div className="grid gap-4">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 text-center">
+                      {isViewingVote ? 'Identity Verification' : 'Cast Your Identity Unit'}
+                    </label>
+                    
+                    {!isViewingVote && (
+                      <div className="grid gap-4">
                       {selectedPoll?.type === 'GENERAL' ? (
                         selectedPoll.options.map(opt => (
                           <button key={opt} onClick={() => setVotingData({...votingData, option_selected: opt, candidate_id: null})} className={`p-5 rounded-2xl border-2 text-left transition-all ${votingData.option_selected === opt ? 'border-primary-600 bg-primary-50 shadow-md ring-4 ring-primary-50' : 'border-slate-100 bg-white hover:border-slate-200'}`}>
@@ -1009,14 +1196,23 @@ const UserDashboard = () => {
                         </div>
                       )}
                     </div>
-                  </div>
+                  )}
+                </div>
 
-                  <div className="pt-8 border-t border-slate-100 space-y-6">
+                <div className="pt-8 border-t border-slate-100 space-y-6">
                     <div className="flex gap-2 max-w-sm mx-auto">
                       <input type="text" maxLength="6" className="flex-1 px-6 py-4 bg-slate-50 border border-slate-200 rounded-xl text-center font-black tracking-[0.8em] text-xl focus:ring-2 focus:ring-primary-500 outline-none shadow-inner" placeholder="000000" value={votingData.otp} onChange={(e) => setVotingData({...votingData, otp: e.target.value})} />
-                      <button onClick={handleVerifyAndVote} disabled={actionLoading || votingData.otp.length !== 6 || (!votingData.option_selected && !votingData.candidate_id)} className="px-8 bg-green-600 text-white text-[10px] font-black rounded-xl uppercase tracking-widest shadow-xl hover:bg-green-700 transition-all">Verify & Cast</button>
+                      <button 
+                        onClick={handleVerifyAndVote} 
+                        disabled={actionLoading || votingData.otp.length !== 6 || (!isViewingVote && !votingData.option_selected && !votingData.candidate_id)} 
+                        className="px-8 bg-green-600 text-white text-[10px] font-black rounded-xl uppercase tracking-widest shadow-xl hover:bg-green-700 transition-all active:scale-95 transform"
+                      >
+                        {isViewingVote ? 'Verify & View' : 'Verify & Cast'}
+                      </button>
                     </div>
-                    <p className="text-[9px] text-slate-400 font-black uppercase text-center tracking-[0.2em]">One vote per mobile unit • Finalized on submission</p>
+                    <p className="text-[9px] text-slate-400 font-black uppercase text-center tracking-[0.2em]">
+                      {isViewingVote ? 'Identity confirmation required to reveal cast unit' : 'One vote per mobile unit - Finalized on submission'}
+                    </p>
                   </div>
                 </div>
               )}
@@ -1140,7 +1336,7 @@ const UserDashboard = () => {
                 <div className="space-y-4">
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">New Mobile Number</label>
                   <div className="flex gap-2">
-                    <input type="tel" className="flex-1 px-6 py-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black focus:ring-2 focus:ring-primary-500 outline-none shadow-inner" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="91..." />
+                    <input type="tel" className="flex-1 px-6 py-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black focus:ring-2 focus:ring-primary-500 outline-none shadow-inner" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="91" />
                     <button onClick={handleRequestPhoneOtp} disabled={actionLoading || !newPhone} className="px-6 bg-slate-900 text-white text-[10px] font-black rounded-xl uppercase tracking-widest hover:bg-slate-800 transition shadow-lg">Get OTP</button>
                   </div>
                 </div>

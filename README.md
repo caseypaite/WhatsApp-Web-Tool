@@ -7,7 +7,8 @@ WhatsApp Web Tool is a comprehensive full-stack platform designed for secure ide
 
 ### 🔐 Secure Identity & RBAC
 - **Identity Proofing**: Bind digital accounts to physical WhatsApp identities via 6-digit OTP verification.
-- **Granular Access**: Full Role-Based Access Control (RBAC) supporting Admins, Editors, and Users.
+- **Hierarchical Access**: Multi-tier Role-Based Access Control (RBAC) supporting **SuperAdmins**, Admins, Editors, and Users.
+- **Administrative Sovereignty**: SuperAdmins and Admins can manage or delete any community poll, regardless of ownership.
 - **Two-Step Activation**: Automated registration followed by mandatory administrative approval.
 
 ### 💬 WhatsApp Automation Engine
@@ -19,13 +20,18 @@ WhatsApp Web Tool is a comprehensive full-stack platform designed for secure ide
 ### 🗳️ Advanced Polling Module
 - **Dual Formats**: Support for General (Option-based) and Election (Candidate-based with manifestos and photos) polls.
 - **Verified Voting**: Secure, one-vote-per-number logic enforced via WhatsApp OTP verification.
+- **Identity Privacy**: Returning voters must verify identity via OTP to "View My Vote," ensuring privacy even if a device is shared.
 - **Public & Closed Access**: Host global public polls or restrict voting to specific organizational groups.
-- **Real-time Results**: Live vote tracking and results visualization for administrators.
+- **Real-time Results**: Live vote tracking and results visualization for administrators with optimized eager-loading dashboards.
 
-### 📋 Governance & Audit
-- **Group Management**: Full oversight of system groups, including member messaging and role promotion.
-- **Audit Trail**: Global message history tracking every transmission, including success/failure status and error logs.
-- **CMS Integration**: Dynamically manage landing page content and hero sections directly from the Admin Dashboard.
+### 🤖 Intelligence & Governance
+- **Multi-Provider AI Assistant**: Integrated support for **Google Gemini 2.0** and Mistral AI for autonomous community query resolution.
+- **Custom AI Personality**: Tailor the AI's behavior, tone, and instructions via a centralized system prompt setting.
+- **WhatsApp Admin Commands**: Manage system status and AI configurations directly via WhatsApp (e.g., `/status`, `/ai enable`, `/ai model`).
+- **Membership Sync**: Automated removal of deactivated portal users from all managed WhatsApp groups.
+- **Group Gatekeeper**: Automated "Entrance Lobby" requiring identity verification from new group members.
+- **Command-Based Reporting**: On-demand system status and poll results via WhatsApp commands (e.g., `/status`, `/report polls`).
+- **Daily Heartbeat**: Automated daily system health reports (CPU, Memory, Msg volume) sent to Super Admins.
 
 ## 🛠️ Tech Stack
 - **Frontend**: React (Vite), Tailwind CSS, Lucide Icons, React Router (HashRouter).

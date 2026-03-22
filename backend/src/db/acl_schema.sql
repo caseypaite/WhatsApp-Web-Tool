@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS roles (
 
 -- Seed initial roles
 INSERT INTO roles (name, description) VALUES 
+('SuperAdmin', 'Unrestricted administrative access to all systems.'),
 ('Admin', 'Full access to the system, including user management and CMS.'),
 ('Editor', 'Access to CMS and content updates.'),
 ('User', 'Standard user access to application features.')
