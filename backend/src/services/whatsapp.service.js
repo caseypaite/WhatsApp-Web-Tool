@@ -2,6 +2,8 @@ const { Client, LocalAuth, MessageMedia, Poll } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const settingsService = require('./settings.service');
 const db = require('../config/db');
+const aiService = require('../utils/ai.service');
+const reportService = require('../utils/report.service');
 const fs = require('fs');
 const path = require('path');
 
@@ -37,7 +39,6 @@ class WhatsappService {
     const executablePath = this.getBrowserPath();
     console.log('[WHATSAPP] Using browser:', executablePath || 'Default (Puppeteer bundled)');
 
-    // Globally unique session ID based on current directory hash or fixed string
     const clientId = 'appstack-wa-session-' + Buffer.from(__dirname).toString('hex').slice(0, 8);
 
     this.client = new Client({
@@ -101,7 +102,92 @@ class WhatsappService {
     });
 
     this.client.on('message', async (msg) => {
-      // Auto-Responder Logic
+      // 1. Handle Commands (Admins Only)
+      if (msg.body.startsWith('/')) {
+        try {
+          const [cmd, ...args] = msg.body.slice(1).split(' ');
+          const sender = msg.from;
+          const userRes = await db.query(
+            'SELECT u.id, array_agg(r.name) as roles FROM users u JOIN user_roles ur ON u.id = ur.user_id JOIN roles r ON ur.role_id = r.id WHERE u.phone_number = $1 GROUP BY u.id', 
+            [sender.replace('@c.us', '')]
+          );
+          const isAdmin = userRes.rows[0]?.roles?.includes('Admin');
+
+          if (isAdmin) {
+            if (cmd === 'status') {
+              const stats = await reportService.getSystemHeartbeat();
+              return msg.reply(`✅ *System Status*\n\n🖥️ CPU: ${stats.cpu_usage}%\n🧠 MEM: ${stats.memory_usage}%\n📨 Msg (24h): ${stats.messages_sent_24h}\n⏳ Pending: ${stats.pending_approvals}`);
+            }
+            if (cmd === 'report' && args[0] === 'polls') {
+              msg.reply('🔄 Generating latest poll report...');
+              const polls = await db.query('SELECT id FROM polls WHERE status = \'OPEN\' ORDER BY created_at DESC LIMIT 1');
+              if (polls.rows[0]) {
+                const report = await reportService.generatePollReport(polls.rows[0].id);
+                const media = await MessageMedia.fromUrl(report.url);
+                return this.client.sendMessage(msg.from, media, { caption: '📊 Open Poll Detailed Report' });
+              } else {
+                return msg.reply('❌ No active polls found.');
+              }
+            }
+
+            if (cmd === 'ai') {
+              const sub = args[0];
+              const val = args.slice(1).join(' ');
+
+              if (sub === 'enable') {
+                await settingsService.set('ai_enabled', 'true');
+                return msg.reply('🤖 AI Assistant enabled.');
+              }
+              if (sub === 'disable') {
+                await settingsService.set('ai_enabled', 'false');
+                return msg.reply('🤖 AI Assistant disabled.');
+              }
+              if (sub === 'provider' && (val === 'gemini' || val === 'mistral')) {
+                await settingsService.set('ai_provider', val);
+                const model = val === 'mistral' ? 'mistral-tiny' : 'gemini-2.0-flash';
+                await settingsService.set('ai_model', model);
+                return msg.reply(`🤖 AI Provider set to ${val}. Default model ${model} selected.`);
+              }
+              if (sub === 'model' && val) {
+                await settingsService.set('ai_model', val);
+                return msg.reply(`🤖 AI Model updated to ${val}.`);
+              }
+              if (sub === 'prompt' && val) {
+                await settingsService.set('ai_custom_prompt', val);
+                return msg.reply('🤖 System prompt updated successfully.');
+              }
+              
+              return msg.reply('❓ *AI Command Usage*\n/ai enable\n/ai disable\n/ai provider [gemini|mistral]\n/ai model [name]\n/ai prompt [text]');
+            }
+          }
+        } catch (err) {
+          console.error('[WHATSAPP] Command error:', err.message);
+        }
+      }
+
+      // 2. Gatekeeper Logic (Handle Identity Packets)
+      if (/^\d{6}$/.test(msg.body)) {
+        try {
+          const sender = msg.from;
+          const pending = await db.query(
+            "SELECT * FROM group_gatekeeper_logs WHERE participant_id = $1 AND status = 'PENDING' AND expires_at > NOW()",
+            [sender]
+          );
+          
+          if (pending.rows.length > 0) {
+            const otpService = require('./otp.service');
+            const isValid = await otpService.verifyOtp(sender.replace('@c.us', ''), msg.body);
+            if (isValid) {
+              await db.query("UPDATE group_gatekeeper_logs SET status = 'VERIFIED' WHERE participant_id = $1", [sender]);
+              return msg.reply('✅ *Identity Verified!* Your access to the group has been permanently anchored.');
+            }
+          }
+        } catch (err) {
+          console.error('[WHATSAPP] Gatekeeper verify error:', err.message);
+        }
+      }
+
+      // 3. Auto-Responder & AI Logic
       try {
         const cleanMsg = msg.body.trim().toUpperCase();
         const res = await db.query(
@@ -111,30 +197,48 @@ class WhatsappService {
 
         if (res.rows.length > 0) {
           await msg.reply(res.rows[0].response);
+        } else if (!msg.from.includes('@g.us')) {
+          const aiRes = await aiService.generateResponse(msg.body);
+          if (aiRes) await msg.reply(`🤖 *AI Assistant*\n\n${aiRes}`);
         }
       } catch (err) {
-        console.error('[WHATSAPP] Auto-responder error:', err.message);
+        console.error('[WHATSAPP] Responder/AI error:', err.message);
+      }
+    });
+
+    this.client.on('group_join', async (notification) => {
+      // 4. Gatekeeper Activation (Entrance Lobby)
+      console.log('[WHATSAPP] New group participant:', notification.recipientIds);
+      try {
+        const groupId = notification.chatId;
+        for (const participantId of notification.recipientIds) {
+          const welcomeMsg = `👋 *Welcome to the group!*\n\nThis is a secure community.\n\nTo remain in this group, please verify your identity within 10 minutes:\n1. Visit: ${process.env.WEBSITE_DOMAIN || 'app.kcdev.qzz.io'}\n2. Sign in or Register\n3. Reply to this message with your *Verification Packet Code*.`;
+          
+          await this.client.sendMessage(participantId, welcomeMsg);
+          
+          const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+          await db.query(
+            'INSERT INTO group_gatekeeper_logs (group_id, participant_id, expires_at) VALUES ($1, $2, $3)',
+            [groupId, participantId, expiresAt]
+          );
+        }
+      } catch (err) {
+        console.error('[WHATSAPP] Gatekeeper join error:', err.message);
       }
     });
 
     this.client.on('vote', async (vote) => {
       // Poll Tracking Logic
-      console.log('[WHATSAPP] Poll vote received:', vote);
       try {
-        // WhatsApp web.js vote object has: parentMessage, selectedOptions, sender, timestamp
         const pollId = vote.parentMessage.id._serialized;
         const pollMessage = vote.parentMessage;
         const question = pollMessage.pollName || 'Unknown Question';
-        
-        // This is a simplified approach: we store the question and current options/votes
         const res = await db.query('SELECT options FROM poll_results WHERE poll_id = $1', [pollId]);
         let currentOptions = res.rows.length > 0 ? res.rows[0].options : {};
-        
         for (const opt of vote.selectedOptions) {
           const optName = opt.name || opt;
           currentOptions[optName] = (currentOptions[optName] || 0) + 1;
         }
-
         await db.query(
           'INSERT INTO poll_results (poll_id, question, options, chat_id) VALUES ($1, $2, $3, $4) ON CONFLICT (poll_id) DO UPDATE SET options = EXCLUDED.options',
           [pollId, question, JSON.stringify(currentOptions), vote.parentMessage.to]
@@ -161,91 +265,81 @@ class WhatsappService {
 
   async getChats() {
     if (!this.isReady) return [];
-    
-    // Fetch regular chats
     let chats = [];
-    try {
-      chats = await this.client.getChats();
-    } catch (err) {
-      console.error('[WHATSAPP] Error fetching chats:', err.message);
-    }
-
-    // Fetch channels/newsletters via internal store (more reliable for admin/creator roles)
+    try { chats = await this.client.getChats(); } catch (err) {}
+    
     let channels = [];
     try {
       const internalChannels = await this.client.pupPage.evaluate(async () => {
-        const coll = window.Store?.NewsletterMetadataCollection || window.Store?.WAWebNewsletterMetadataCollection;
-        if (!coll) return [];
-        return coll.getModelsArray().map(m => {
-          const data = {};
-          const source = m.attributes || m;
-          for (const key in source) {
-            if (typeof source[key] !== 'function' && typeof source[key] !== 'object') {
-              data[key] = source[key];
-            }
-          }
-          data.id = m.id?._serialized || m.id || source.id;
-          data.name = m.name || m.newsletterName || source.name || source.newsletterName;
-          data.isCreator = m.isCreator === true || source.isCreator === true;
-          data.viewerRole = m.viewerRole || source.viewerRole;
-          return data;
-        });
+        const collections = [
+          window.Store?.NewsletterMetadataCollection,
+          window.Store?.WAWebNewsletterMetadataCollection,
+          window.Store?.NewsletterCollection
+        ];
+        
+        const allMetadata = [];
+        const seenIds = new Set();
+
+        for (const coll of collections) {
+          if (!coll) continue;
+          try {
+            const models = coll.getModelsArray ? coll.getModelsArray() : (coll.models || []);
+            models.forEach(m => {
+              const source = m.attributes || m;
+              const id = m.id?._serialized || m.id || source.id;
+              if (id && id.endsWith('@newsletter') && !seenIds.has(id)) {
+                allMetadata.push({
+                  id: id,
+                  name: m.name || m.newsletterName || source.name || source.newsletterName || 'Unnamed Channel',
+                  isCreator: m.isCreator === true || source.isCreator === true,
+                  viewerRole: m.viewerRole || source.viewerRole || m.role || source.role,
+                  membershipType: m.membershipType || source.membershipType,
+                  isLid: !!m.lid || !!source.lid,
+                  icon: source.icon || source.picture || m.icon || m.picture
+                });
+                seenIds.add(id);
+              }
+            });
+          } catch (e) {}
+        }
+        return allMetadata;
       });
-      
-      if (internalChannels && internalChannels.length > 0) {
+
+      if (internalChannels) {
         channels = internalChannels.map(c => {
-          // Broadest possible admin/creator check - case insensitive
-          const role = (c.viewerRole || c.role || c.membershipType || c.membership || '').toUpperCase();
-          const isAdmin = role === 'ADMIN' || 
-                          role === 'OWNER' || 
-                          c.isCreator === true;
-          
+          const role = (c.viewerRole || c.membershipType || '').toUpperCase();
+          const isAdmin = role === 'ADMIN' || role === 'OWNER' || c.isCreator === true;
           return {
             id: { _serialized: c.id, server: 'newsletter' },
-            name: c.name || 'Unnamed Channel',
+            name: c.name,
             isGroup: false,
             isAdmin: isAdmin,
-            unreadCount: 0
+            unreadCount: 0,
+            storedIcon: c.icon
           };
         });
       }
-    } catch (err) {
-      console.error('[WHATSAPP] Newsletter internal fetch error:', err.message);
-    }
+    } catch (err) {}
 
-    // Combine them
     const allChats = [...chats, ...channels];
     const myId = this.me.wid._serialized;
 
-    const enrichedChats = await Promise.all(allChats.map(async (chat) => {
-      // If it's already an enriched object from internal store (newsletter), we still need to try getting icon
-      let iconUrl = null;
-      try {
-        // Try to get icon from the chat instance or by ID
-        if (chat.getContact) {
-          const contact = await chat.getContact();
-          iconUrl = await contact.getProfilePicUrl();
-        } else {
-          iconUrl = await this.client.getProfilePicUrl(chat.id._serialized || chat.id);
-        }
-      } catch (err) {
-        // Ignore icon fetch errors
+    return await Promise.all(allChats.map(async (chat) => {
+      let iconUrl = chat.storedIcon || null;
+      if (!iconUrl) {
+        try { 
+          iconUrl = await Promise.race([
+            this.client.getProfilePicUrl(chat.id._serialized || chat.id),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
+          ]);
+        } catch (e) {}
       }
 
-      if (chat.isAdmin !== undefined && chat.id.server === 'newsletter') {
-        return { ...chat, iconUrl };
-      }
-
-      let isAdmin = false;
-      
+      let isAdmin = chat.isAdmin || false;
       if (chat.isGroup) {
         const participants = chat.groupMetadata?.participants || [];
         const me = participants.find(p => p.id._serialized === myId);
         isAdmin = me ? (me.isAdmin || me.isSuperAdmin) : false;
-      } else if (chat.id.server === 'newsletter') {
-        // Fallback for newsletter admin check
-        const role = (chat.viewerRole || chat.role || chat.membershipType || '').toUpperCase();
-        isAdmin = role === 'ADMIN' || role === 'OWNER' || chat.isCreator === true;
       }
 
       return {
@@ -255,12 +349,9 @@ class WhatsappService {
         unreadCount: chat.unreadCount,
         timestamp: chat.timestamp,
         isAdmin: isAdmin,
-        viewerRole: chat.viewerRole || null,
         iconUrl: iconUrl
       };
     }));
-
-    return enrichedChats;
   }
 
   async getContacts() {
@@ -273,175 +364,43 @@ class WhatsappService {
     return await this.client.createGroup(name, participants);
   }
 
-  async deleteGroup(groupId) {
-    if (!this.isReady) throw new Error('WhatsApp client not ready');
-    const chat = await this.client.getChatById(groupId);
-    if (!chat.isGroup) throw new Error('Chat is not a group');
-    return await chat.delete();
-  }
-
-  async createChannel(name, description) {
-    if (!this.isReady) throw new Error('WhatsApp client not ready');
-    return await this.client.pupPage.evaluate(async (name, description) => {
-      if (!window.Store || !window.Store.ChannelUtils) throw new Error('Channel utilities not found');
-      const response = await window.Store.ChannelUtils.createNewsletterQuery({
-        name,
-        description
-      });
-      return response;
-    }, name, description);
-  }
-
-  async deleteChannel(channelId) {
-    if (!this.isReady) throw new Error('WhatsApp client not ready');
-    return await this.client.pupPage.evaluate(async (id) => {
-      const coll = window.Store?.NewsletterMetadataCollection || window.Store?.WAWebNewsletterMetadataCollection;
-      if (!coll) throw new Error('Newsletter collection not found');
-      const newsletter = coll.get(id);
-      if (!newsletter) throw new Error('Newsletter not found in store');
-      await window.Store.ChannelUtils.deleteNewsletterAction(newsletter);
-      return { success: true };
-    }, channelId);
-  }
-
-  // Advanced Group Management
-  async getGroupMetadata(groupId) {
-    if (!this.isReady) throw new Error('WhatsApp client not ready');
-    const chat = await this.client.getChatById(groupId);
-    if (!chat.isGroup) throw new Error('Not a group');
-    return chat.groupMetadata;
-  }
-
-  async promoteAdmin(groupId, participantId) {
-    if (!this.isReady) throw new Error('WhatsApp client not ready');
-    const chat = await this.client.getChatById(groupId);
-    return await chat.promoteParticipants([participantId]);
-  }
-
-  async demoteAdmin(groupId, participantId) {
-    if (!this.isReady) throw new Error('WhatsApp client not ready');
-    const chat = await this.client.getChatById(groupId);
-    return await chat.demoteParticipants([participantId]);
-  }
-
-  async removeParticipant(groupId, participantId) {
-    if (!this.isReady) throw new Error('WhatsApp client not ready');
-    const chat = await this.client.getChatById(groupId);
-    return await chat.removeParticipants([participantId]);
-  }
-
-  async addParticipant(groupId, participantId) {
-    if (!this.isReady) throw new Error('WhatsApp client not ready');
-    const chat = await this.client.getChatById(groupId);
-    return await chat.addParticipants([participantId]);
-  }
-
-  async getPendingJoinRequests(groupId) {
-    if (!this.isReady) throw new Error('WhatsApp client not ready');
-    return await this.client.getGroupMembershipRequests(groupId);
-  }
-
-  async approveJoinRequest(groupId, participantId) {
-    if (!this.isReady) throw new Error('WhatsApp client not ready');
-    return await this.client.approveGroupMembershipRequests(groupId, { userIds: [participantId] });
-  }
-
-  async rejectJoinRequest(groupId, participantId) {
-    if (!this.isReady) throw new Error('WhatsApp client not ready');
-    return await this.client.rejectGroupMembershipRequests(groupId, { userIds: [participantId] });
-  }
-
-  async sendPoll(chatId, question, options, allowMultiple = false) {
-    if (!this.isReady) throw new Error('WhatsApp client not ready');
-    const poll = new Poll(question, options, { allowMultiple });
-    return await this.client.sendMessage(chatId, poll);
-  }
-
-  formatJid(number) {
-    if (!number) return number;
-    const str = number.toString();
-    if (str.includes('@')) return str;
-    const cleaned = str.replace(/\D/g, '');
-    return `${cleaned}@c.us`;
-  }
-
   async sendMessage(number, message, mediaOptions = null) {
     if (!this.isReady) throw new Error('WhatsApp client not ready');
-    
     let finalJid = number.toString();
-    // If it doesn't already have a server suffix, assume it's a phone number
     if (!finalJid.includes('@')) {
       const cleanNumber = finalJid.replace(/\D/g, '');
       const numberId = await this.client.getNumberId(cleanNumber);
       finalJid = numberId ? numberId._serialized : `${cleanNumber}@c.us`;
     }
-    
-    console.log(`[WHATSAPP] Attempting to send message to JID: ${finalJid}`);
-    
     try {
       let result;
-
       if (mediaOptions && mediaOptions.url) {
-        // Try to determine filename if possible for documents
         const media = await MessageMedia.fromUrl(mediaOptions.url, { unsafeMime: true });
-        result = await this.client.sendMessage(finalJid, media, { 
-          caption: message,
-          sendMediaAsDocument: mediaOptions.type === 'document' 
-        });
+        result = await this.client.sendMessage(finalJid, media, { caption: message, sendMediaAsDocument: mediaOptions.type === 'document' });
       } else {
         result = await this.client.sendMessage(finalJid, message);
       }
-      
-      // Log success to DB
-      await this.logMessage({
-        phoneNumber: finalJid,
-        message: message,
-        status: 'SUCCESS'
-      });
-      
+      await this.logMessage({ phoneNumber: finalJid, message: message, status: 'SUCCESS' });
       return result;
     } catch (err) {
-      console.error(`[WHATSAPP] Send error to ${finalJid}:`, err.message);
-      
-      // Log failure to DB
-      await this.logMessage({
-        phoneNumber: finalJid,
-        message: message,
-        status: 'FAILED',
-        errorMessage: err.message
-      });
-      
+      await this.logMessage({ phoneNumber: finalJid, message: message, status: 'FAILED', errorMessage: err.message });
       throw err;
     }
   }
 
-  async sendMedia(number, url, caption = '') {
-    if (!this.isReady) throw new Error('WhatsApp client not ready');
-    const media = await MessageMedia.fromUrl(url);
-    const jid = this.formatJid(number);
-    return await this.client.sendMessage(jid, media, { caption });
-  }
-
-  async logout() {
-    if (this.client) {
-      await this.client.logout();
-      this.status = 'DISCONNECTED';
-      this.isReady = false;
-      this.me = null;
-      await settingsService.set('whatsapp_status', 'DISCONNECTED');
-    }
-  }
-
-  // DB Logging helper
   async logMessage({ userId, phoneNumber, message, status, errorMessage }) {
     try {
       await db.query(
         'INSERT INTO message_history (user_id, phone_number, message, status, error_message) VALUES ($1, $2, $3, $4, $5)',
         [userId || null, phoneNumber, message, status, errorMessage || null]
       );
-    } catch (err) {
-      console.error('[WHATSAPP] Log error:', err.message);
-    }
+    } catch (err) {}
+  }
+
+  async removeParticipant(groupId, participantId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    const chat = await this.client.getChatById(groupId);
+    return await chat.removeParticipants([participantId]);
   }
 }
 

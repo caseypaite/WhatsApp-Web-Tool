@@ -108,9 +108,23 @@ const RegisterPage = () => {
     }
   };
 
+  const validatePassword = (pass) => {
+    if (pass.length < 8) return 'Password must be at least 8 characters.';
+    if (!/[A-Z]/.test(pass)) return 'Include at least one uppercase letter.';
+    if (!/[a-z]/.test(pass)) return 'Include at least one lowercase letter.';
+    if (!/\d/.test(pass)) return 'Include at least one number.';
+    if (!/[@$!%*?&#]/.test(pass)) return 'Include one special character (@$!%*?&#).';
+    return null;
+  };
+
   const handleFinalRegister = async (e) => {
     e.preventDefault();
     setError('');
+    const pwdError = validatePassword(formData.password);
+    if (pwdError) {
+      setError(pwdError);
+      return;
+    }
     setLoading(true);
     try {
       await register(formData);
@@ -163,7 +177,7 @@ const RegisterPage = () => {
                 <form onSubmit={otpSent ? handleVerifyOtp : handleSendOtp} className="space-y-6">
                   <div className="relative">
                     <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                    <input name="phone_number" required type="tel" className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-primary-600 focus:bg-white outline-none transition-all text-sm font-bold shadow-inner" placeholder="WhatsApp (e.g. 91...)" value={formData.phone_number} onChange={handleChange} disabled={otpSent} />
+                    <input name="phone_number" required type="tel" className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-primary-600 focus:bg-white outline-none transition-all text-sm font-bold shadow-inner" placeholder="WhatsApp (e.g. 91)" value={formData.phone_number} onChange={handleChange} disabled={otpSent} />
                   </div>
                   {otpSent && (
                     <div className="relative animate-in slide-in-from-top-4 duration-300">

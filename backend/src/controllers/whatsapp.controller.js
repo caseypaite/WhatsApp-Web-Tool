@@ -9,7 +9,15 @@ const whatsappController = {
       const { name, participants } = req.body;
       if (!name) return res.status(400).json({ error: 'Group name is required' });
       const result = await whatsappService.createGroup(name, participants || []);
-      res.json({ success: true, gid: result.gid?._serialized || result.gid });
+      const gid = result.gid?._serialized || result.gid;
+      
+      // Sync WA JID back to system groups if name matches
+      if (gid) {
+        const db = require('../config/db');
+        await db.query('UPDATE groups SET wa_jid = $1 WHERE name = $2', [gid, name]);
+      }
+
+      res.json({ success: true, gid });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
