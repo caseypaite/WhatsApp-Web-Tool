@@ -12,6 +12,7 @@ router.get('/:id/results', pollController.getResults);
 
 // Authenticated User routes (Any group member can create)
 router.post('/create', authenticate, pollController.create);
+router.post('/:id/publish', authenticate, pollController.publishResults);
 router.put('/:id', authenticate, pollController.update);
 router.delete('/:id', authenticate, pollController.delete);
 

@@ -55,9 +55,15 @@ const seedAdmin = async () => {
     // 5. Initialize Site Name
     await client.query(
       `INSERT INTO system_settings (key, value)
-       VALUES ($1, $2)
+       VALUES ($1, $2), ($3, $4), ($5, $6), ($7, $8), ($9, $10)
        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-      ['site_name', 'WhatsApp Web Tool']
+      [
+        'site_name', 'WhatsApp Web Tool', 
+        'ai_enabled', 'false', 
+        'ai_provider', 'gemini',
+        'ai_custom_prompt', 'You are a helpful community assistant for WhatsApp Web Tool. Keep responses concise and professional.',
+        'ai_model', 'gemini-1.5-flash'
+      ]
     );
 
     console.log(`Super Admin seeded successfully: ${adminEmail}`);

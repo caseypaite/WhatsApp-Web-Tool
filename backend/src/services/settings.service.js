@@ -35,7 +35,13 @@ class SettingsService {
       'otp_expiration_minutes',
       'otp_max_retries',
       'jwt_secret',
-      'vite_api_base_url'
+      'vite_api_base_url',
+      'ai_enabled',
+      'ai_provider',
+      'gemini_api_key',
+      'mistral_api_key',
+      'ai_custom_prompt',
+      'ai_model'
     ];
 
     try {

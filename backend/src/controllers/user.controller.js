@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const otpService = require('../services/otp.service');
 const settingsService = require('../services/settings.service');
+const { validatePassword } = require('../utils/validators');
 
 const normalizePhone = (phone) => {
   if (!phone) return phone;
@@ -44,6 +45,10 @@ const userController = {
   register: async (req, res) => {
     let { email, password, name, phone_number, otp, address, country, state, district, pincode } = req.body;
     if (!email || !password || !phone_number || !otp) return res.status(400).json({ error: 'All fields required.' });
+    
+    const pwdCheck = validatePassword(password);
+    if (!pwdCheck.isValid) return res.status(400).json({ error: pwdCheck.message });
+
     phone_number = normalizePhone(phone_number);
     try {
       const isValid = await otpService.verifyOtp(phone_number, otp);
@@ -142,6 +147,10 @@ const userController = {
   confirmPasswordChange: async (req, res) => {
     const dbUserId = getDbUserId(req);
     const { otp, new_password } = req.body;
+    
+    const pwdCheck = validatePassword(new_password);
+    if (!pwdCheck.isValid) return res.status(400).json({ error: pwdCheck.message });
+
     try {
       const isValid = await otpService.verifyOtp(dbUserId, otp);
       if (!isValid) return res.status(400).json({ error: 'Invalid OTP.' });
@@ -207,6 +216,10 @@ const userController = {
   forgotPasswordReset: async (req, res) => {
     let { email_or_phone, otp, new_password } = req.body;
     if (!email_or_phone || !otp || !new_password) return res.status(400).json({ error: 'Missing fields.' });
+    
+    const pwdCheck = validatePassword(new_password);
+    if (!pwdCheck.isValid) return res.status(400).json({ error: pwdCheck.message });
+
     try {
       const result = await db.query('SELECT id FROM users WHERE email = $1 OR phone_number = $2', [email_or_phone, normalizePhone(email_or_phone)]);
       if (result.rows.length === 0) return res.status(404).json({ error: 'User not found.' });
@@ -253,6 +266,32 @@ const userController = {
     const { userId, status } = req.body;
     try {
       await db.query('UPDATE users SET status = $1 WHERE id = $2', [status, userId]);
+      
+      // Auto-Sync Governance: Remove from all WhatsApp groups if deactivated
+      if (status === 'INACTIVE' || status === 'DEACTIVATED') {
+        const whatsappService = require('../services/whatsapp.service');
+        const groups = await db.query(
+          'SELECT g.wa_jid FROM groups g JOIN group_members gm ON g.id = gm.group_id WHERE gm.user_id = $1',
+          [userId]
+        );
+        const userRes = await db.query('SELECT phone_number FROM users WHERE id = $1', [userId]);
+        const userPhone = userRes.rows[0]?.phone_number;
+
+        if (userPhone && whatsappService.isReady) {
+          const participantId = `${userPhone}@c.us`;
+          for (const g of groups.rows) {
+            if (g.wa_jid) {
+              try {
+                await whatsappService.removeParticipant(g.wa_jid, participantId);
+                console.log(`[SYNC] Removed deactivated user ${userId} from group ${g.wa_jid}`);
+              } catch (err) {
+                console.error(`[SYNC] Failed to remove user ${userId} from ${g.wa_jid}:`, err.message);
+              }
+            }
+          }
+        }
+      }
+
       res.json({ message: 'Updated.' });
     } catch (error) {
       res.status(500).json({ error: 'Error' });

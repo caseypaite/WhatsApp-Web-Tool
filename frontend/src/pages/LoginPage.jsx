@@ -86,6 +86,12 @@ const LoginPage = () => {
   const handleForgotReset = async (e) => {
     e.preventDefault();
     setError('');
+    
+    if (newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/\d/.test(newPassword) || !/[@$!%*?&#]/.test(newPassword)) {
+      setError('Password must be 8+ chars with uppercase, lowercase, number and special char.');
+      return;
+    }
+
     setLoading(true);
     try {
       const emailOrPhone = email || phone;
