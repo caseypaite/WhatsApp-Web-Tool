@@ -8,3 +8,4 @@ production/
 temp_release/
 temp_repackage/
 *.tar.gz
+backend/uploads/
