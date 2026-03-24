@@ -58,7 +58,9 @@ Configuration is managed via `.env` files. **NEVER** commit `.env` files to sour
 - **Frontend**: `npm run dev` (development) or `npm run build` (production build).
 
 ### Deployment (Production)
-- The `production/` directory contains the deployment-ready code.
+- **Isolation Mandate**: **NEVER** modify files directly within the `production/` directory during development. All code changes must be performed in the root `backend/` and `frontend/` directories.
+- **Release Ready**: The `production/` directory is reserved exclusively for minified, bundled, and release-ready code generated through the build process.
+- **Update Process**: Production code is updated only via the official release deployment or update scripts.
 - **Exclusion Mandate**: When creating production releases in the `production/` directory, **DO NOT** copy the `.wwebjs_auth` folder. This ensures that session-specific data is not leaked or reused across environments.
 - **Minification**: Always minify JavaScript code for production and releases to optimize performance and reduce file size.
 - The `production/frontend/server.js` uses `express.static` and a wildcard route `app.use((req, res) => ...)` to serve the SPA `index.html`.
