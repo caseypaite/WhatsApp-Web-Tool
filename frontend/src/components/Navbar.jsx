@@ -34,6 +34,9 @@ const Navbar = () => {
                 <Link to="/dashboard" className="text-sm font-semibold text-slate-600 hover:text-primary-600 transition-colors">
                   Dashboard
                 </Link>
+                <Link to="/about" className="text-sm font-semibold text-slate-600 hover:text-primary-600 transition-colors">
+                  About
+                </Link>
                 <div className="h-6 w-px bg-slate-200"></div>
                 <div className="flex items-center gap-3">
                   <div className="text-right hidden sm:block">
@@ -53,6 +56,9 @@ const Navbar = () => {
               <>
                 <Link to="/login" className="text-sm font-semibold text-slate-600 hover:text-primary-600 transition-colors">
                   Sign In
+                </Link>
+                <Link to="/about" className="text-sm font-semibold text-slate-600 hover:text-primary-600 transition-colors">
+                  About
                 </Link>
                 <Link 
                   to="/register" 

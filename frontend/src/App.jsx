@@ -8,6 +8,7 @@ import LoginPage from './pages/LoginPage.jsx';
 import RegisterPage from './pages/RegisterPage.jsx';
 import VerifyPage from './pages/VerifyPage.jsx';
 import PollVotingPage from './pages/PollVotingPage.jsx';
+import AboutPage from './pages/AboutPage.jsx';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import './index.css';
 
@@ -34,6 +35,7 @@ function AppRoutes() {
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/verify" element={<VerifyPage />} />
         <Route path="/poll/:id" element={<PollVotingPage />} />
+        <Route path="/about" element={<AboutPage />} />
         <Route path="/admin" element={
           <ProtectedRoute roles={['Admin']}>
             <AdminDashboard />
