@@ -162,6 +162,11 @@ const reinitializeWhatsapp = async () => {
   return response.data;
 };
 
+const requestWaPairingCode = async (phoneNumber) => {
+  const response = await api.post('/whatsapp/request-pairing-code', { phoneNumber });
+  return response.data;
+};
+
 const sendWhatsappTest = async (number, message) => {
   const response = await api.post('/whatsapp/send-test', { number, message });
   return response.data;
@@ -421,6 +426,7 @@ export default {
   getWhatsappContacts,
   logoutWhatsapp,
   reinitializeWhatsapp,
+  requestWaPairingCode,
   sendWhatsappTest,
   getLandingPage,
   updateLandingPage,

@@ -114,6 +114,17 @@ const whatsappController = {
     }
   },
 
+  requestPairingCode: async (req, res) => {
+    try {
+      const { phoneNumber } = req.body;
+      if (!phoneNumber) return res.status(400).json({ error: 'Phone number is required' });
+      const code = await whatsappService.requestPairingCode(phoneNumber);
+      res.json({ success: true, code });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
   // Get Chats
   getChats: async (req, res) => {
     try {

@@ -174,9 +174,12 @@ const AdminDashboard = () => {
   };
 
   // WhatsApp Runtime State
-  const [waStatus, setWaStatus] = useState({ status: 'DISCONNECTED', ready: false, qr: null, me: null });
+  const [waStatus, setWaStatus] = useState({ status: 'DISCONNECTED', ready: false, qr: null, pairingCode: null, me: null });
   const [waChats, setWaChats] = useState([]);
   const [waContacts, setWaContacts] = useState([]);
+  const [showPairingForm, setShowPairingForm] = useState(false);
+  const [pairingPhone, setPairingPhone] = useState('');
+  const [pairingCode, setPairingCode] = useState('');
 
   const showFlash = (message, type = 'success') => {
     setFlash({ message, type });
@@ -311,6 +314,7 @@ const AdminDashboard = () => {
     try {
       await Promise.all([
         fetchWaStatus(),
+        fetchWaData(),
         fetchUsers(),
         fetchSettings(),
         fetchGroups(),
@@ -602,13 +606,18 @@ const AdminDashboard = () => {
   const openGroupManage = async (id, name) => {
     setWaActionLoading(true);
     try {
-      const [metadata, requests] = await Promise.all([
-        authService.getGroupMetadata(id),
-        authService.getJoinRequests(id)
-      ]);
+      const metadata = await authService.getGroupMetadata(id);
       setManagingGroup({ id, name, metadata });
-      setJoinRequests(requests);
       setShowGroupManage(true);
+      
+      // Fetch join requests separately as it might fail if not admin or not supported
+      try {
+        const requests = await authService.getJoinRequests(id);
+        setJoinRequests(requests || []);
+      } catch (e) {
+        console.warn('Failed to load join requests:', e.message);
+        setJoinRequests([]);
+      }
     } catch (err) {
       showFlash('Failed to load group metadata', 'error');
     } finally {
@@ -850,6 +859,20 @@ const AdminDashboard = () => {
       fetchWaStatus();
     } catch (err) {
       showFlash('Logout failed', 'error');
+    }
+  };
+
+  const handleRequestPairingCode = async (e) => {
+    e.preventDefault();
+    setWaActionLoading(true);
+    try {
+      const res = await authService.requestWaPairingCode(pairingPhone);
+      setPairingCode(res.code);
+      showFlash('Pairing code generated');
+    } catch (err) {
+      showFlash(err.response?.data?.error || 'Failed to generate code', 'error');
+    } finally {
+      setWaActionLoading(false);
     }
   };
 
@@ -1158,6 +1181,74 @@ const AdminDashboard = () => {
                       <button onClick={handleWaReinit} className="py-4 bg-slate-900 text-white text-[10px] font-black rounded-xl uppercase tracking-[0.2em] hover:bg-slate-800 transition shadow-xl">Reconnect</button>
                       <button onClick={handleWaLogout} className="py-4 bg-red-50 text-red-600 text-[10px] font-black rounded-xl uppercase tracking-[0.2em] hover:bg-red-100 transition border border-red-100">Logout</button>
                     </div>
+                  </div>
+
+                  <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
+                    <div className="flex items-center justify-between mb-8">
+                      <h3 className="text-lg font-black text-slate-900 tracking-tight">Linking Method</h3>
+                      <div className="flex bg-slate-100 p-1 rounded-xl">
+                        <button onClick={() => setShowPairingForm(false)} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${!showPairingForm ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-400'}`}>QR Code</button>
+                        <button onClick={() => setShowPairingForm(true)} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${showPairingForm ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-400'}`}>Phone Number</button>
+                      </div>
+                    </div>
+
+                    {showPairingForm ? (
+                      <div className="space-y-6 animate-in slide-in-from-right-4">
+                        <p className="text-xs text-slate-500 font-medium leading-relaxed italic">Link your account by entering your phone number and receiving an 8-character pairing code to enter on your mobile device.</p>
+                        {!pairingCode ? (
+                          <form onSubmit={handleRequestPairingCode} className="space-y-4">
+                            <div className="space-y-2">
+                              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Phone Number (International Format)</label>
+                              <input 
+                                type="text" 
+                                required 
+                                className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-sm outline-none focus:ring-4 focus:ring-primary-100 shadow-inner" 
+                                placeholder="919876543210" 
+                                value={pairingPhone} 
+                                onChange={(e) => setPairingPhone(e.target.value)} 
+                              />
+                            </div>
+                            <button type="submit" disabled={waActionLoading} className="w-full py-5 bg-primary-600 text-white text-[11px] font-black rounded-2xl uppercase tracking-[0.2em] shadow-xl hover:bg-primary-700 transition-all flex items-center justify-center gap-3">
+                              {waActionLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Smartphone className="w-5 h-5" />}
+                              Generate Code
+                            </button>
+                          </form>
+                        ) : (
+                          <div className="text-center space-y-8 py-6">
+                            <div className="flex flex-wrap justify-center gap-3">
+                              {pairingCode.split('').map((char, i) => (
+                                <div key={i} className="w-10 h-14 bg-slate-900 text-white rounded-xl flex items-center justify-center text-2xl font-black shadow-2xl border border-primary-500/20">{char}</div>
+                              ))}
+                            </div>
+                            <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100 text-left">
+                              <h4 className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-3">Next Steps:</h4>
+                              <ol className="text-[11px] text-amber-800 font-bold space-y-2 list-decimal ml-4">
+                                <li>Open WhatsApp on your mobile phone</li>
+                                <li>Go to Linked Devices {'>'} Link a Device</li>
+                                <li>Tap "Link with phone number instead"</li>
+                                <li>Enter the 8-character code displayed above</li>
+                              </ol>
+                            </div>
+                            <button onClick={() => setPairingCode('')} className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-900 transition-all underline">Reset Linking Request</button>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center">
+                        <p className="text-xs text-slate-500 font-medium leading-relaxed italic mb-8">Standard QR protocol. Scan the dynamic packet using your mobile device's built-in WhatsApp scanner.</p>
+                        {waStatus.qr ? (
+                          <div className="bg-white p-6 rounded-3xl shadow-2xl border border-slate-100 relative group inline-block">
+                            <div className="absolute inset-0 bg-primary-600/5 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity blur-xl"></div>
+                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(waStatus.qr)}`} className="w-[200px] h-[200px] relative z-10" alt="Link" />
+                          </div>
+                        ) : (
+                          <div className="py-20 animate-pulse">
+                            <RefreshCw className="w-12 h-12 text-slate-200 animate-spin mx-auto mb-4" />
+                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Generating QR Vector...</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -2268,6 +2359,87 @@ const AdminDashboard = () => {
             </div>
           </div>
           <button onClick={() => setShowGroupManage(false)} className="w-full py-4 bg-slate-900 text-white text-[10px] font-black rounded-2xl uppercase tracking-widest">Close Panel</button>
+        </div>
+      </Modal>
+
+      {/* GROUP MANAGEMENT MODAL */}
+      <Modal
+        isOpen={showGroupManage}
+        onClose={() => setShowGroupManage(false)}
+        title="Group Administration"
+        subtitle={managingGroup?.name}
+        maxWidth="max-w-4xl"
+        flash={flash}
+      >
+        <div className="space-y-10">
+          <div className="grid md:grid-cols-2 gap-8">
+            <div className="space-y-6">
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-2">Participants ({managingGroup?.metadata?.participants?.length || 0})</h4>
+              <div className="max-h-[500px] overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+                {managingGroup?.metadata?.participants?.map(p => (
+                  <div key={p.id._serialized} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between group border border-slate-100 hover:bg-white hover:shadow-lg transition-all">
+                    <div className="flex items-center gap-3">
+                      {p.profilePic ? (
+                        <img src={p.profilePic} className="w-10 h-10 rounded-xl object-cover shadow-sm" alt="" />
+                      ) : (
+                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center font-black text-slate-300 border border-slate-100 shadow-inner">{p.name?.[0]}</div>
+                      )}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-black text-slate-800 leading-none">{p.name}</p>
+                          {(p.isAdmin || p.isSuperAdmin) && (
+                            <Shield className={`w-3.5 h-3.5 ${p.isSuperAdmin ? 'text-amber-500' : 'text-primary-500'}`} />
+                          )}
+                        </div>
+                        <p className="text-[9px] font-mono text-slate-400 uppercase tracking-tighter mt-1">+{p.number}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button 
+                        onClick={() => {
+                          setDirectMessageTarget({ id: p.id._serialized, name: p.name, type: 'contact' });
+                          setShowDirectMessage(true);
+                        }}
+                        className="p-2.5 text-primary-600 hover:bg-primary-50 rounded-xl transition-all"
+                        title="Direct Message"
+                      >
+                        <MessageSquare className="w-4 h-4" />
+                      </button>
+                      {p.isAdmin ? (
+                        <button onClick={() => handleDemoteAdmin(p.id._serialized)} title="Demote" className="p-2.5 text-amber-600 hover:bg-amber-50 rounded-xl transition-all"><ChevronDown className="w-4 h-4" /></button>
+                      ) : (
+                        <button onClick={() => handlePromoteAdmin(p.id._serialized)} title="Promote" className="p-2.5 text-primary-600 hover:bg-primary-50 rounded-xl transition-all"><ChevronUp className="w-4 h-4" /></button>
+                      )}
+                      <button onClick={() => handleRemoveParticipant(p.id._serialized)} title="Remove" className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl transition-all"><X className="w-4 h-4" /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-6">
+              <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-2">Join Requests ({joinRequests.length})</h4>
+              <div className="max-h-[500px] overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+                {joinRequests.length > 0 ? joinRequests.map(r => (
+                  <div key={r.id._serialized} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between border border-slate-100 hover:bg-white hover:shadow-lg transition-all">
+                    <div>
+                      <p className="text-xs font-black text-slate-800">{r.name || r.id.user}</p>
+                      <p className="text-[9px] font-mono text-slate-400">+{r.id.user}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => handleApproveJoin(r.id._serialized)} className="p-2.5 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 shadow-sm transition-all"><Check className="w-4 h-4" /></button>
+                      <button onClick={() => handleRejectJoin(r.id._serialized)} className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 shadow-sm transition-all"><X className="w-4 h-4" /></button>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="py-20 text-center bg-slate-50 rounded-[2rem] border border-dashed border-slate-200">
+                    <Users className="w-10 h-10 text-slate-200 mx-auto mb-4" />
+                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">No Pending Requests</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          <button onClick={() => setShowGroupManage(false)} className="w-full py-5 bg-slate-900 text-white text-[11px] font-black rounded-2xl uppercase tracking-[0.2em] shadow-xl hover:bg-slate-800 transition-all">Close Administration Panel</button>
         </div>
       </Modal>
 

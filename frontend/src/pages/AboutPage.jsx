@@ -2,8 +2,9 @@ import React from 'react';
 import { Github, BookOpen, Shield, Code, History } from 'lucide-react';
 
 const AboutPage = () => {
-  const version = "1.4.3";
+  const version = "1.4.4";
   const versionHistory = [
+    { tag: "v1.4.4", message: "Alpha release with phone number linking and group management", date: "2026-03-24" },
     { tag: "v1.4.3", message: "Stable production release with update script", date: "2026-03-24" },
     { tag: "v1.4.2", message: "Production package release and version updates", date: "2026-03-24" },
     { tag: "v1.4.1", message: "Maintenance release with performance fixes", date: "2026-03-23" },

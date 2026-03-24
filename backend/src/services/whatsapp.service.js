@@ -14,6 +14,7 @@ class WhatsappService {
     this.status = 'DISCONNECTED';
     this.isReady = false;
     this.me = null;
+    this.pairingCode = null;
   }
 
   getBrowserPath() {
@@ -63,6 +64,7 @@ class WhatsappService {
 
     this.client.on('qr', async (qr) => {
       this.qrCode = qr;
+      this.pairingCode = null;
       this.status = 'DISCONNECTED';
       this.isReady = false;
       console.log('[WHATSAPP] QR RECEIVED');
@@ -73,6 +75,7 @@ class WhatsappService {
 
     this.client.on('ready', async () => {
       this.qrCode = null;
+      this.pairingCode = null;
       this.status = 'CONNECTED';
       this.isReady = true;
       this.me = this.client.info;
@@ -259,8 +262,56 @@ class WhatsappService {
       status: this.status,
       ready: this.isReady,
       qr: this.qrCode,
+      pairingCode: this.pairingCode,
       me: this.me
     };
+  }
+
+  async requestPairingCode(phoneNumber) {
+    if (!this.client) throw new Error('WhatsApp client not initialized');
+    try {
+      // Clean number: must be in international format without + or spaces
+      const cleanNumber = phoneNumber.replace(/\D/g, '');
+      const code = await this.client.requestPairingCode(cleanNumber);
+      this.pairingCode = code;
+      this.qrCode = null; // Clear QR as we are using pairing code
+      return code;
+    } catch (err) {
+      console.error('[WHATSAPP] Pairing code error:', err.message);
+      throw err;
+    }
+  }
+
+  async getChats() {
+
+    if (!this.client) return;
+    try {
+      await this.client.logout();
+      this.status = 'DISCONNECTED';
+      this.isReady = false;
+      this.me = null;
+      await settingsService.set('whatsapp_status', 'DISCONNECTED');
+    } catch (err) {
+      console.error('[WHATSAPP] Logout error:', err.message);
+      throw err;
+    }
+  }
+
+  async deleteGroup(groupId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    const chat = await this.client.getChatById(groupId);
+    if (!chat.isGroup) throw new Error('Not a group');
+    // For groups, we might want to leave and archive or just leave
+    return await chat.leave();
+  }
+
+  async deleteChannel(channelId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    // Newsletter/Channel deletion might not be directly supported by current wwebjs version
+    // but we can try to find and unfollow or delete if owner
+    const chat = await this.client.getChatById(channelId);
+    if (chat.delete) return await chat.delete();
+    throw new Error('Deletion not supported for this chat type');
   }
 
   async getChats() {
@@ -356,7 +407,40 @@ class WhatsappService {
 
   async getContacts() {
     if (!this.isReady) return [];
-    return await this.client.getContacts();
+    const contacts = await this.client.getContacts();
+    return contacts.filter(c => c.isMyContact && !c.isGroup && !c.isNewsletter);
+  }
+
+  async getGroupMetadata(groupId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    try {
+      const chat = await this.client.getChatById(groupId);
+      if (!chat.isGroup) throw new Error('Chat is not a group');
+      
+      const participants = await Promise.all(chat.groupMetadata.participants.map(async (p) => {
+        const contact = await this.client.getContactById(p.id._serialized);
+        return {
+          id: p.id,
+          isAdmin: p.isAdmin,
+          isSuperAdmin: p.isSuperAdmin,
+          name: contact.name || contact.pushname || p.id.user,
+          number: p.id.user,
+          profilePic: await this.client.getProfilePicUrl(p.id._serialized).catch(() => null)
+        };
+      }));
+
+      return {
+        id: chat.id,
+        name: chat.name,
+        description: chat.description,
+        participants: participants,
+        owner: chat.groupMetadata.owner,
+        creation: chat.groupMetadata.creation
+      };
+    } catch (err) {
+      console.error('[WHATSAPP] Error fetching group metadata:', err.message);
+      throw err;
+    }
   }
 
   async createGroup(name, participants) {
@@ -366,6 +450,11 @@ class WhatsappService {
 
   async sendMessage(number, message, mediaOptions = null) {
     if (!this.isReady) throw new Error('WhatsApp client not ready');
+    
+    // Format message with Site Name and Admin Message prefix
+    const siteName = process.env.SITE_NAME || 'AppStack';
+    const formattedMessage = `*${siteName}*\nAdmin Message:\n${message}`;
+
     let finalJid = number.toString();
     if (!finalJid.includes('@')) {
       const cleanNumber = finalJid.replace(/\D/g, '');
@@ -376,14 +465,14 @@ class WhatsappService {
       let result;
       if (mediaOptions && mediaOptions.url) {
         const media = await MessageMedia.fromUrl(mediaOptions.url, { unsafeMime: true });
-        result = await this.client.sendMessage(finalJid, media, { caption: message, sendMediaAsDocument: mediaOptions.type === 'document' });
+        result = await this.client.sendMessage(finalJid, media, { caption: formattedMessage, sendMediaAsDocument: mediaOptions.type === 'document' });
       } else {
-        result = await this.client.sendMessage(finalJid, message);
+        result = await this.client.sendMessage(finalJid, formattedMessage);
       }
-      await this.logMessage({ phoneNumber: finalJid, message: message, status: 'SUCCESS' });
+      await this.logMessage({ phoneNumber: finalJid, message: formattedMessage, status: 'SUCCESS' });
       return result;
     } catch (err) {
-      await this.logMessage({ phoneNumber: finalJid, message: message, status: 'FAILED', errorMessage: err.message });
+      await this.logMessage({ phoneNumber: finalJid, message: formattedMessage, status: 'FAILED', errorMessage: err.message });
       throw err;
     }
   }
@@ -401,6 +490,49 @@ class WhatsappService {
     if (!this.isReady) throw new Error('WhatsApp client not ready');
     const chat = await this.client.getChatById(groupId);
     return await chat.removeParticipants([participantId]);
+  }
+
+  async promoteAdmin(groupId, participantId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    const chat = await this.client.getChatById(groupId);
+    return await chat.promoteParticipants([participantId]);
+  }
+
+  async demoteAdmin(groupId, participantId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    const chat = await this.client.getChatById(groupId);
+    return await chat.demoteParticipants([participantId]);
+  }
+
+  async addParticipant(groupId, participantId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    const chat = await this.client.getChatById(groupId);
+    return await chat.addParticipants([participantId]);
+  }
+
+  async getPendingJoinRequests(groupId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    const chat = await this.client.getChatById(groupId);
+    if (!chat.isGroup) throw new Error('Not a group');
+    return await chat.getGroupJoinRequests();
+  }
+
+  async approveJoinRequest(groupId, participantId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    const chat = await this.client.getChatById(groupId);
+    return await chat.approveGroupJoinRequest(participantId);
+  }
+
+  async rejectJoinRequest(groupId, participantId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    const chat = await this.client.getChatById(groupId);
+    return await chat.rejectGroupJoinRequest(participantId);
+  }
+
+  async sendPoll(chatId, question, options, allowMultiple = false) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    const poll = new Poll(question, options, { allowNullOptions: false, multiAnswers: allowMultiple });
+    return await this.client.sendMessage(chatId, poll);
   }
 }
 

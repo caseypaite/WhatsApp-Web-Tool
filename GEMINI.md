@@ -80,6 +80,8 @@ Configuration is managed via `.env` files. **NEVER** commit `.env` files to sour
 - **Error Handling**: Use centralized error-handling middleware in the backend.
 
 ## 6. Maintenance Tasks
+- **Release Naming**: **NEVER** tag a release as "Stable". All releases must be tagged as "Alpha" (e.g., "Alpha v1.4.4").
+- **Versioning Policy**: Always increment the version number by the smallest possible value (e.g., v1.4.3 -> v1.4.4).
 - **WhatsApp Session**: Managed via `.wwebjs_auth`. Do not delete this folder unless a fresh login is required.
 - **Daily Heartbeat**: Monitor the daily system health reports sent to Super Admins.
 - **Repackaging**: When creating releases, exclude `node_modules`, `.env`, and session files.

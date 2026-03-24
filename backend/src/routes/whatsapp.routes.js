@@ -11,6 +11,7 @@ router.get('/chats', authenticate, checkRole(['Admin']), whatsappController.getC
 router.get('/contacts', authenticate, checkRole(['Admin']), whatsappController.getContacts);
 router.post('/logout', authenticate, checkRole(['Admin']), whatsappController.logout);
 router.post('/reinitialize', authenticate, checkRole(['Admin']), whatsappController.reinitialize);
+router.post('/request-pairing-code', authenticate, checkRole(['Admin']), whatsappController.requestPairingCode);
 router.post('/send-test', authenticate, checkRole(['Admin']), whatsappController.sendTestMessage);
 router.post('/broadcast', authenticate, checkRole(['Admin']), whatsappController.broadcast);
 
