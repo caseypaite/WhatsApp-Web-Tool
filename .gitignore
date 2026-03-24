@@ -7,3 +7,4 @@ backend/.wwebjs_cache/
 production/
 temp_release/
 temp_repackage/
+*.tar.gz
