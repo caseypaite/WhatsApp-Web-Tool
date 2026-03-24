@@ -24,7 +24,7 @@ app.use(compression());
 // Multer Setup for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, '/home/ubuntu/AppStack/backend/uploads/');
+    cb(null, path.join(__dirname, '../uploads/'));
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -117,17 +117,31 @@ app.post('/api/register', async (req, res) => {
   const otpService = require('./services/otp.service');
   
   try {
-    await otpService.generateAndSendOtp(userId, phoneNumber);
+    await otpService.generateAndSendOtp(userId, phoneNumber, 'registration');
     res.json({ message: 'User registered and OTP sent.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 404 Handler
-app.use((req, res, next) => {
-  console.log(`[404] Unhandled request: ${req.method} ${req.url}`);
+// 404 Handler for API
+app.use('/api', (req, res) => {
+  console.log(`[404] Unhandled API request: ${req.method} ${req.url}`);
   res.status(404).json({ error: 'Not Found', url: req.url });
+});
+
+// Serve static frontend files from the 'frontend' directory
+// In production, the 'frontend' folder contains the built assets
+const frontendPath = path.join(__dirname, '../../frontend');
+app.use(express.static(frontendPath));
+
+// Handle SPAs - any route that doesn't match an API route or a static file should return index.html
+app.get(/^(?!\/api).*/, (req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'), (err) => {
+    if (err) {
+      res.status(404).json({ error: 'Frontend not built or index.html missing', url: req.url });
+    }
+  });
 });
 
 // Error handling

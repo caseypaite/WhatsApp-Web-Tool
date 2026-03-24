@@ -43,7 +43,19 @@ class ScheduledController {
 
   async delete(req, res) {
     const { id } = req.params;
+    const { otp } = req.body;
+    if (!otp) return res.status(400).json({ error: 'OTP is required for this action' });
+
     try {
+      const whatsappService = require('../services/whatsapp.service');
+      const otpService = require('../services/otp.service');
+
+      if (!whatsappService.me) return res.status(400).json({ error: 'WhatsApp account not connected' });
+      const phone = whatsappService.me.wid.user;
+
+      const isValid = await otpService.verifyOtp(phone, otp);
+      if (!isValid) return res.status(400).json({ error: 'Invalid or expired OTP' });
+
       await db.query('DELETE FROM scheduled_messages WHERE id = $1', [id]);
       res.json({ success: true, message: 'Scheduled message deleted' });
     } catch (error) {

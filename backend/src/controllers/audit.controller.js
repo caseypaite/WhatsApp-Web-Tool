@@ -40,7 +40,19 @@ class AuditController {
   }
 
   async clearHistory(req, res) {
+    const { otp } = req.body;
+    if (!otp) return res.status(400).json({ error: 'OTP is required for this action' });
+
     try {
+      const whatsappService = require('../services/whatsapp.service');
+      const otpService = require('../services/otp.service');
+
+      if (!whatsappService.me) return res.status(400).json({ error: 'WhatsApp account not connected' });
+      const phone = whatsappService.me.wid.user;
+
+      const isValid = await otpService.verifyOtp(phone, otp);
+      if (!isValid) return res.status(400).json({ error: 'Invalid or expired OTP' });
+
       await db.query('DELETE FROM message_history');
       res.json({ success: true, message: 'Message history cleared' });
     } catch (error) {

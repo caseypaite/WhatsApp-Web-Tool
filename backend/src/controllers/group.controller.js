@@ -19,12 +19,22 @@ const groupController = {
 
   deleteGroup: async (req, res) => {
     const { groupId } = req.params;
+    const { otp } = req.body;
+    if (!otp) return res.status(400).json({ error: 'OTP is required for this action' });
+
     try {
+      const otpService = require('../services/otp.service');
+      if (!whatsappService.me) return res.status(400).json({ error: 'WhatsApp account not connected' });
+      const phone = whatsappService.me.wid.user;
+
+      const isValid = await otpService.verifyOtp(phone, otp);
+      if (!isValid) return res.status(400).json({ error: 'Invalid or expired OTP' });
+
       const result = await db.query('DELETE FROM groups WHERE id = $1 RETURNING *', [groupId]);
       if (result.rowCount === 0) return res.status(404).json({ error: 'Group not found.' });
       res.json({ message: 'Group deleted successfully.' });
     } catch (error) {
-      res.status(500).json({ error: 'Database error' });
+      res.status(500).json({ error: 'Database error: ' + error.message });
     }
   },
 

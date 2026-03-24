@@ -5,13 +5,23 @@
 
 set -e
 
+# Configuration
+INSTALL_SERVICES=${INSTALL_SERVICES:-true}
+
 echo "🚀 Starting AppStack Fresh Installation..."
+
+# Determine base directory
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+BASE_DIR="$( dirname "$SCRIPT_DIR" )"
+cd "$BASE_DIR"
 
 # Load environment variables
 if [ -f backend/.env ]; then
     export $(grep -v '^#' backend/.env | xargs)
+elif [ -f .env ]; then
+    export $(grep -v '^#' .env | xargs)
 else
-    echo "❌ Error: backend/.env file not found. Please create it from .env.example first."
+    echo "❌ Error: .env file not found. Please create one from .env.example first."
     exit 1
 fi
 
@@ -41,15 +51,11 @@ cd backend && node src/db/seeder.js && cd ..
 echo "✅ Database installation completed successfully!"
 
 # Systemd Service Setup
-echo ""
-read -p "❓ Do you want to install AppStack as systemd services? (y/N): " install_service
-
-if [[ "$install_service" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+if [ "$INSTALL_SERVICES" = "true" ]; then
     echo "⚙️  Generating systemd service configurations..."
     
     CUR_DIR=$(pwd)
     NODE_PATH=$(which node)
-    NPM_PATH=$(which npm)
     USER_NAME=$(whoami)
 
     # Backend Service
@@ -78,9 +84,10 @@ After=network.target
 Type=simple
 User=$USER_NAME
 WorkingDirectory=$CUR_DIR/frontend
-ExecStart=$NPM_PATH run dev
+ExecStart=$NODE_PATH server.js
 Restart=always
 RestartSec=10
+Environment=NODE_ENV=production
 
 [Install]
 WantedBy=multi-user.target"
@@ -94,8 +101,12 @@ WantedBy=multi-user.target"
     sudo mv appstack-backend.service /etc/systemd/system/
     sudo mv appstack-frontend.service /etc/systemd/system/
     sudo systemctl daemon-reload
-    sudo systemctl enable appstack-backend appstack-frontend
-    sudo systemctl start appstack-backend appstack-frontend
+    sudo systemctl enable appstack-backend
+    sudo systemctl enable appstack-frontend
+    
+    # Restart to ensure clean state
+    sudo systemctl restart appstack-backend
+    sudo systemctl restart appstack-frontend
     
     echo "🚀 Services installed and started successfully!"
 fi

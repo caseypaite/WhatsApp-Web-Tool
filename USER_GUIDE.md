@@ -9,7 +9,7 @@ Welcome to the **WhatsApp Web Tool** User Guide. This document provides step-by-
 ### Automated Installation
 The platform includes an automated script to handle database creation, schema initialization, and service setup.
 
-1. **Environment Setup:** Copy `.env.example` to `.env` in both `backend/` and `frontend/` folders and fill in your details.
+1. **Environment Setup:** Copy `.env.example` to `.env` in the `backend/` folder and fill in your details.
 2. **Run Installer:**
    ```bash
    ./scripts/fresh-install.sh
@@ -18,7 +18,7 @@ The platform includes an automated script to handle database creation, schema in
 
 ### Service Control
 Use these commands for manual management:
-- **Restart All:** `sudo systemctl restart appstack-backend appstack-frontend`
+- **Restart Server:** `sudo systemctl restart appstack-backend`
 - **Check Status:** `sudo systemctl status appstack-backend`
 - **View Logs:** `sudo journalctl -u appstack-backend -f`
 

@@ -6,14 +6,6 @@ CREATE TABLE IF NOT EXISTS roles (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Seed initial roles
-INSERT INTO roles (name, description) VALUES 
-('SuperAdmin', 'Unrestricted administrative access to all systems.'),
-('Admin', 'Full access to the system, including user management and CMS.'),
-('Editor', 'Access to CMS and content updates.'),
-('User', 'Standard user access to application features.')
-ON CONFLICT (name) DO NOTHING;
-
 -- Create Users table
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
@@ -139,9 +131,21 @@ CREATE TABLE IF NOT EXISTS polls (
     title VARCHAR(255) NOT NULL,
     description TEXT,
     options JSONB, -- For general polls: ["Option A", "Option B"]
-    status VARCHAR(20) DEFAULT 'OPEN', -- OPEN, CLOSED
+    status VARCHAR(20) DEFAULT 'OPEN', -- OPEN, CLOSED, PENDING
+    results_published BOOLEAN DEFAULT false,
+    starts_at TIMESTAMP,
+    ends_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS system_heartbeat_logs (
+    id SERIAL PRIMARY KEY,
+    cpu_usage NUMERIC(5,2),
+    memory_usage NUMERIC(5,2),
+    messages_sent_24h INTEGER,
+    pending_approvals INTEGER,
+    logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS poll_candidates (
@@ -181,9 +185,3 @@ CREATE INDEX IF NOT EXISTS idx_poll_votes_poll_id ON poll_votes(poll_id);
 CREATE INDEX IF NOT EXISTS idx_poll_votes_phone ON poll_votes(phone_number);
 CREATE INDEX IF NOT EXISTS idx_message_history_phone ON message_history(phone_number);
 CREATE INDEX IF NOT EXISTS idx_message_history_user ON message_history(user_id);
-
--- Seed default settings
-INSERT INTO system_settings (key, value) VALUES 
-('website_domain', 'localhost:3000'),
-('otp_enabled', 'true')
-ON CONFLICT (key) DO NOTHING;

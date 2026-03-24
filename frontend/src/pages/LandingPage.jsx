@@ -6,7 +6,7 @@ import authService from '../services/auth.service';
 import { ArrowRight, Shield, Zap, Layout as LayoutIcon, Cpu, User, BarChart2 } from 'lucide-react';
 
 const LandingPage = () => {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, siteName } = useAuth();
   const navigate = useNavigate();
   const [content, setContent] = useState({
     hero_text: 'Building the Future of Identity',
@@ -103,8 +103,8 @@ const LandingPage = () => {
                       <Shield className="w-6 h-6" />
                     </div>
                     <div>
-                      <p className="font-bold text-slate-900">Verified Identity</p>
-                      <p className="text-sm text-slate-500">W3C Compliant VC</p>
+                      <p className="font-bold text-slate-900">{siteName}</p>
+                      <p className="text-sm text-slate-500">Verified Platform</p>
                     </div>
                   </div>
                 </div>

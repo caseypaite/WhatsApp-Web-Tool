@@ -11,22 +11,31 @@ const seedAdmin = async () => {
     await client.connect();
     console.log('Connected to database for seeding...');
 
+    // 1. Seed Roles (Essential for system to function)
+    console.log('Seeding roles...');
+    await client.query(`
+      INSERT INTO roles (name, description) VALUES 
+      ('SuperAdmin', 'Unrestricted administrative access to all systems.'),
+      ('Admin', 'Full access to the system, including user management and CMS.'),
+      ('Editor', 'Access to CMS and content updates.'),
+      ('User', 'Standard user access to application features.')
+      ON CONFLICT (name) DO NOTHING
+    `);
+
+    // 2. Seed Admin User from .env
     const adminEmail = process.env.INITIAL_ADMIN_EMAIL;
     const adminPassword = process.env.INITIAL_ADMIN_PASSWORD;
-    const hashedPassword = await bcrypt.hash(adminPassword, 10);
 
     if (!adminEmail || !adminPassword) {
       throw new Error('INITIAL_ADMIN_EMAIL or INITIAL_ADMIN_PASSWORD not set in .env');
     }
 
-    // 1. Ensure Admin role exists
+    const hashedPassword = await bcrypt.hash(adminPassword, 10);
+
     const roleRes = await client.query("SELECT id FROM roles WHERE name = 'Admin'");
-    if (roleRes.rows.length === 0) {
-      throw new Error('Admin role not found in roles table. Please run the schema script first.');
-    }
     const adminRoleId = roleRes.rows[0].id;
 
-    // 2. Create Super Admin User
+    console.log(`Seeding admin account: ${adminEmail}`);
     const userRes = await client.query(
       `INSERT INTO users (email, password, name, status) 
        VALUES ($1, $2, $3, $4) 
@@ -36,7 +45,6 @@ const seedAdmin = async () => {
     );
     const userId = userRes.rows[0].id;
 
-    // 3. Assign Admin role to user
     await client.query(
       `INSERT INTO user_roles (user_id, role_id) 
        VALUES ($1, $2) 
@@ -44,7 +52,27 @@ const seedAdmin = async () => {
       [userId, adminRoleId]
     );
 
-    // 4. Initialize Landing Page content
+    // 3. Initialize minimum required settings if they don't exist
+    const websiteDomain = process.env.WEBSITE_DOMAIN || 'localhost:3085';
+    const protocol = websiteDomain.includes('localhost') ? 'http' : 'https';
+    const backendUrl = websiteDomain.startsWith('http') 
+      ? (websiteDomain.endsWith('/api') ? websiteDomain : `${websiteDomain}/api`)
+      : `${protocol}://${websiteDomain}/api`;
+
+    console.log(`Seeding initial settings with backend URL: ${backendUrl}`);
+
+    await client.query(
+      `INSERT INTO system_settings (key, value)
+       VALUES ($1, $2), ($3, $4), ($5, $6)
+       ON CONFLICT (key) DO NOTHING`,
+      [
+        'site_name', 'WhatsApp Web Tool',
+        'website_domain', websiteDomain,
+        'vite_api_base_url', backendUrl
+      ]
+    );
+
+    // Initial landing page config
     await client.query(
       `INSERT INTO landing_page_config (hero_text, cta_text, image_url)
        VALUES ($1, $2, $3)
@@ -52,23 +80,9 @@ const seedAdmin = async () => {
       ['Welcome to AppStack', 'Get Started', 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&q=80&w=2832']
     );
 
-    // 5. Initialize Site Name
-    await client.query(
-      `INSERT INTO system_settings (key, value)
-       VALUES ($1, $2), ($3, $4), ($5, $6), ($7, $8), ($9, $10)
-       ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
-      [
-        'site_name', 'WhatsApp Web Tool', 
-        'ai_enabled', 'false', 
-        'ai_provider', 'gemini',
-        'ai_custom_prompt', 'You are a helpful community assistant for WhatsApp Web Tool. Keep responses concise and professional.',
-        'ai_model', 'gemini-1.5-flash'
-      ]
-    );
-
-    console.log(`Super Admin seeded successfully: ${adminEmail}`);
+    console.log('Seeding completed successfully.');
   } catch (err) {
-    console.error('Error seeding admin:', err.message);
+    console.error('Error seeding database:', err.message);
   } finally {
     await client.end();
   }

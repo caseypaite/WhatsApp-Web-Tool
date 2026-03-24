@@ -39,7 +39,7 @@ const whatsappController = {
       // Send OTP to the admin account itself (the one connected to WhatsApp)
       if (!whatsappService.me) return res.status(400).json({ error: 'WhatsApp account not connected' });
       const phone = whatsappService.me.wid.user;
-      const result = await otpService.generateAndSendOtp(null, phone);
+      const result = await otpService.generateAndSendOtp(null, phone, 'deletion');
       res.json({ success: true, message: 'OTP sent to admin WhatsApp' });
     } catch (err) {
       res.status(500).json({ error: err.message });

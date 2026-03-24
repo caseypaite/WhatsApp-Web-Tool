@@ -210,7 +210,7 @@ class PollController {
         });
       }
 
-      await otpService.generateAndSendOtp(null, phone_number);
+      await otpService.generateAndSendOtp(null, phone_number, 'voting');
       res.json({ success: true, message: 'OTP sent successfully.' });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -274,7 +274,19 @@ class PollController {
 
   async delete(req, res) {
     const { id } = req.params;
+    const { otp } = req.body;
+    if (!otp) return res.status(400).json({ error: 'OTP is required for this action' });
+
     try {
+      const whatsappService = require('../services/whatsapp.service');
+      const otpService = require('../services/otp.service');
+
+      if (!whatsappService.me) return res.status(400).json({ error: 'WhatsApp account not connected' });
+      const phone = whatsappService.me.wid.user;
+
+      const isValid = await otpService.verifyOtp(phone, otp);
+      if (!isValid) return res.status(400).json({ error: 'Invalid or expired OTP' });
+
       const pollRes = await db.query('SELECT creator_id FROM polls WHERE id = $1', [id]);
       if (pollRes.rows.length === 0) return res.status(404).json({ error: 'Poll not found' });
       

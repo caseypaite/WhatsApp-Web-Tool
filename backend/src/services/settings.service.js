@@ -11,16 +11,14 @@ class SettingsService {
   async get(key) {
     try {
       const res = await db.query('SELECT value FROM system_settings WHERE key = $1', [key]);
-      
       if (res.rows.length > 0) {
         return res.rows[0].value;
       }
-      
-      // Fallback to .env
-      return process.env[key.toUpperCase()];
+      // Fallback to process.env
+      return process.env[key.toUpperCase()] || null;
     } catch (err) {
       console.error(`Error fetching setting ${key}:`, err.message);
-      return process.env[key.toUpperCase()];
+      return process.env[key.toUpperCase()] || null;
     }
   }
 
@@ -29,10 +27,10 @@ class SettingsService {
    */
   async getAll() {
     const relevantKeys = [
-      'site_name',
-      'website_domain',
-      'otp_enabled',
-      'otp_expiration_minutes',
+      'site_name', 
+      'website_domain', 
+      'otp_enabled', 
+      'otp_expiration_minutes', 
       'otp_max_retries',
       'jwt_secret',
       'vite_api_base_url',
@@ -57,13 +55,13 @@ class SettingsService {
         is_fallback: dbSettings[key] === undefined
       }));
     } catch (err) {
-      console.error('Error fetching all settings:', err.message);
+      console.error('Error in SettingsService.getAll:', err.message);
       throw err;
     }
   }
 
   /**
-   * Updates or creates a setting in the database.
+   * Updates or inserts a system setting.
    */
   async set(key, value) {
     try {

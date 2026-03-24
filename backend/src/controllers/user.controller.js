@@ -22,7 +22,7 @@ const userController = {
     if (!phone_number) return res.status(400).json({ error: 'Phone number is required.' });
     phone_number = normalizePhone(phone_number);
     try {
-      const result = await otpService.generateAndSendOtp(null, phone_number);
+      const result = await otpService.generateAndSendOtp(null, phone_number, 'signup');
       res.json({ message: 'OTP sent.', result });
     } catch (error) {
       res.status(500).json({ error: 'Failed to send OTP.' });
@@ -106,7 +106,7 @@ const userController = {
     if (!dbUserId || !phone_number) return res.status(400).json({ error: 'Missing info.' });
     phone_number = normalizePhone(phone_number);
     try {
-      const result = await otpService.generateAndSendOtp(dbUserId, phone_number);
+      const result = await otpService.generateAndSendOtp(dbUserId, phone_number, 'phone update');
       const isAdmin = (req.user?.roles || []).includes('Admin');
       if (!isAdmin && result.gatewayResponse) delete result.gatewayResponse;
       res.json({ message: 'OTP sent.', result });
@@ -135,7 +135,7 @@ const userController = {
       const resUser = await db.query('SELECT phone_number FROM users WHERE id = $1', [dbUserId]);
       const phone = resUser.rows[0]?.phone_number;
       if (!phone) return res.status(400).json({ error: 'No phone number.' });
-      const result = await otpService.generateAndSendOtp(dbUserId, phone);
+      const result = await otpService.generateAndSendOtp(dbUserId, phone, 'password change');
       const isAdmin = (req.user?.roles || []).includes('Admin');
       if (!isAdmin && result.gatewayResponse) delete result.gatewayResponse;
       res.json({ message: 'OTP sent.', result });
@@ -170,7 +170,7 @@ const userController = {
       const result = await db.query('SELECT id FROM users WHERE phone_number = $1', [phone_number]);
       if (result.rows.length === 0) return res.status(404).json({ error: 'Phone number not registered.' });
       const user = result.rows[0];
-      const otpRes = await otpService.generateAndSendOtp(user.id, phone_number);
+      const otpRes = await otpService.generateAndSendOtp(user.id, phone_number, 'login');
       res.json({ message: 'OTP sent.', success: otpRes.success });
     } catch (error) {
       res.status(500).json({ error: 'Failed to send OTP.' });
@@ -206,7 +206,7 @@ const userController = {
       if (result.rows.length === 0) return res.status(404).json({ error: 'User not found.' });
       const user = result.rows[0];
       if (!user.phone_number) return res.status(400).json({ error: 'No phone number associated with this account for OTP verification.' });
-      const otpRes = await otpService.generateAndSendOtp(user.id, user.phone_number);
+      const otpRes = await otpService.generateAndSendOtp(user.id, user.phone_number, 'password recovery');
       res.json({ message: 'OTP sent to your registered phone number.', success: otpRes.success });
     } catch (error) {
       res.status(500).json({ error: 'Failed to send OTP.' });

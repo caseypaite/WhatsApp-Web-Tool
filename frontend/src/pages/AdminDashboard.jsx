@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 import authService from '../services/auth.service';
+import { useAuth } from '../context/AuthContext';
 import { 
   User, Shield, Check, X, RefreshCw, Settings, Save, AlertCircle, 
   Globe, Lock, Cpu, Send, Plus, Trash2, History, ChevronDown, 
@@ -47,6 +48,7 @@ const Modal = ({ isOpen, onClose, title, subtitle, children, maxWidth = 'max-w-l
 };
 
 const AdminDashboard = () => {
+  const { updateSiteName } = useAuth();
   const [activeTab, setActiveTab] = useState('users');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [activeSettingsTab, setActiveSettingsTab] = useState('general');
@@ -65,8 +67,6 @@ const AdminDashboard = () => {
   const [isDebugExpanded, setIsDebugExpanded] = useState(false);
 
   // WhatsApp Management State
-  const [showCreateGroup, setShowCreateGroup] = useState(false);
-  const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [newEntity, setNewEntity] = useState({ name: '', description: '', participants: '' });
   const [waActionLoading, setWaActionLoading] = useState(false);
 
@@ -91,7 +91,6 @@ const AdminDashboard = () => {
 
   // Template & Broadcast State
   const [templates, setTemplates] = useState([]);
-  const [showCreateTemplate, setShowCreateTemplate] = useState(false);
   const [newTemplate, setNewTemplate] = useState({ name: '', content: '', media_url: '', media_type: 'image' });
   const [selectedTargets, setSelectedTargets] = useState([]); // [{id, name}]
   const [selectedTemplate, setSelectedTemplate] = useState('');
@@ -109,12 +108,18 @@ const AdminDashboard = () => {
 
   // Auto-Responder State
   const [responders, setResponders] = useState([]);
-  const [showCreateResponder, setShowCreateResponder] = useState(false);
   const [newResponder, setNewResponder] = useState({ keyword: '', response: '', match_type: 'EXACT' });
 
   // Scheduled Messages State
   const [scheduledMessages, setScheduledMessages] = useState([]);
-  const [showCreateScheduled, setShowCreateScheduled] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState(null);
+  const [editingResponder, setEditingResponder] = useState(null);
+  const [editingScheduled, setEditingScheduled] = useState(null);
+  const [showTemplateForm, setShowTemplateForm] = useState(false);
+  const [showResponderForm, setShowResponderForm] = useState(false);
+  const [showScheduledForm, setShowScheduledForm] = useState(false);
+  const [showWaEntityForm, setShowWaEntityForm] = useState(false);
+  const [waEntityType, setWaEntityType] = useState('group'); // 'group' or 'channel'
   const [newScheduled, setNewScheduled] = useState({ targets: [], message: '', media_url: '', media_type: 'image', scheduled_for: '' });
 
   // Audit & Poll Results State
@@ -402,7 +407,7 @@ const AdminDashboard = () => {
     try {
       await authService.createTemplate(newTemplate);
       showFlash('Template created successfully');
-      setShowCreateTemplate(false);
+      setShowTemplateForm(false);
       setNewTemplate({ name: '', content: '', media_url: '', media_type: 'image' });
       fetchTemplates();
     } catch (err) {
@@ -412,15 +417,33 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleDeleteTemplate = async (id) => {
-    if (!window.confirm('Delete this template?')) return;
+  const handleUpdateTemplate = async (e) => {
+    e.preventDefault();
+    setWaActionLoading(true);
     try {
-      await authService.deleteTemplate(id);
-      showFlash('Template deleted');
+      await authService.updateTemplate(editingTemplate.id, editingTemplate);
+      showFlash('Template updated successfully');
+      setEditingTemplate(null);
       fetchTemplates();
     } catch (err) {
-      showFlash('Failed to delete template', 'error');
+      showFlash('Failed to update template', 'error');
+    } finally {
+      setWaActionLoading(false);
     }
+  };
+
+  const handleDeleteTemplate = async (id, name) => {
+    setDeleteContext({ id, name, entityType: 'template' });
+    setShowDeleteModal(true);
+    setDeleteOtpSent(false);
+    setDeleteOtp('');
+  };
+
+  const handleDeleteGroup = async (id, name) => {
+    setDeleteContext({ id, name, entityType: 'group' });
+    setShowDeleteModal(true);
+    setDeleteOtpSent(false);
+    setDeleteOtp('');
   };
 
   const handleSendBroadcast = async () => {
@@ -523,11 +546,52 @@ const AdminDashboard = () => {
   const handleConfirmWaDelete = async () => {
     setWaActionLoading(true);
     try {
-      await authService.confirmWaDelete(deleteContext.id, deleteContext.type, deleteOtp);
-      showFlash('Deleted successfully');
+      if (deleteContext.entityType === 'group' || deleteContext.entityType === 'channel') {
+        // These are WhatsApp entities
+        await authService.confirmWaDelete(deleteContext.id, deleteContext.entityType, deleteOtp);
+        showFlash('WhatsApp entity deleted');
+        fetchWaChats();
+      } else {
+        // System entities
+        switch (deleteContext.entityType) {
+          case 'template':
+            await authService.deleteTemplate(deleteContext.id, deleteOtp);
+            showFlash('Template deleted');
+            fetchTemplates();
+            break;
+          case 'responder':
+            await authService.deleteResponder(deleteContext.id, deleteOtp);
+            showFlash('Responder deleted');
+            fetchResponders();
+            break;
+          case 'scheduled':
+            await authService.deleteScheduledMessage(deleteContext.id, deleteOtp);
+            showFlash('Task deleted');
+            fetchScheduledMessages();
+            break;
+          case 'group':
+            await authService.deleteGroup(deleteContext.id, deleteOtp);
+            showFlash('System group deleted');
+            fetchGroups();
+            setSelectedGroup(null);
+            break;
+          case 'poll':
+            await authService.deleteAdvancedPoll(deleteContext.id, deleteOtp);
+            showFlash('Poll deleted');
+            fetchPollResults();
+            break;
+          case 'history':
+            await authService.clearAuditHistory(deleteOtp);
+            showFlash('History cleared');
+            fetchAuditLogs();
+            break;
+          default:
+            throw new Error('Unknown entity type');
+        }
+      }
       setShowDeleteModal(false);
       setDeleteContext(null);
-      fetchWaChats();
+      setDeleteOtp('');
     } catch (err) {
       showFlash(err.response?.data?.error || 'Deletion failed', 'error');
     } finally {
@@ -632,11 +696,26 @@ const AdminDashboard = () => {
     try {
       await authService.createResponder(newResponder);
       showFlash('Responder created');
-      setShowCreateResponder(false);
+      setShowResponderForm(false);
       setNewResponder({ keyword: '', response: '', match_type: 'EXACT' });
       fetchResponders();
     } catch (err) {
       showFlash('Failed to create responder', 'error');
+    } finally {
+      setWaActionLoading(false);
+    }
+  };
+
+  const handleUpdateResponder = async (e) => {
+    e.preventDefault();
+    setWaActionLoading(true);
+    try {
+      await authService.updateResponder(editingResponder.id, editingResponder);
+      showFlash('Responder updated');
+      setEditingResponder(null);
+      fetchResponders();
+    } catch (err) {
+      showFlash('Failed to update responder', 'error');
     } finally {
       setWaActionLoading(false);
     }
@@ -651,15 +730,11 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleDeleteResponder = async (id) => {
-    if (!window.confirm('Delete this responder?')) return;
-    try {
-      await authService.deleteResponder(id);
-      showFlash('Responder deleted');
-      fetchResponders();
-    } catch (err) {
-      showFlash('Failed to delete', 'error');
-    }
+  const handleDeleteResponder = async (id, keyword) => {
+    setDeleteContext({ id, name: keyword, entityType: 'responder' });
+    setShowDeleteModal(true);
+    setDeleteOtpSent(false);
+    setDeleteOtp('');
   };
 
   const handleCreateScheduled = async (e) => {
@@ -690,14 +765,24 @@ const AdminDashboard = () => {
   };
 
   const deleteScheduledMessage = async (id) => {
-    if (!window.confirm('Permanently delete this record?')) return;
-    try {
-      await authService.deleteScheduledMessage(id);
-      showFlash('Record deleted');
-      fetchScheduledMessages();
-    } catch (err) {
-      showFlash('Failed to delete', 'error');
-    }
+    setDeleteContext({ id, name: 'Scheduled Task', entityType: 'scheduled' });
+    setShowDeleteModal(true);
+    setDeleteOtpSent(false);
+    setDeleteOtp('');
+  };
+
+  const handleDeletePoll = async (id, title) => {
+    setDeleteContext({ id, name: title, entityType: 'poll' });
+    setShowDeleteModal(true);
+    setDeleteOtpSent(false);
+    setDeleteOtp('');
+  };
+
+  const handleClearAuditHistory = () => {
+    setDeleteContext({ id: 'all', name: 'Global Message History', entityType: 'history' });
+    setShowDeleteModal(true);
+    setDeleteOtpSent(false);
+    setDeleteOtp('');
   };
 
   const handleUpdateLandingPage = async (e) => {
@@ -729,6 +814,9 @@ const AdminDashboard = () => {
     try {
       await api.put('/settings/update', { key, value });
       showFlash('Setting updated');
+      if (key === 'site_name') {
+        updateSiteName(value);
+      }
       fetchSettings();
     } catch (err) {
       showFlash('Failed to update setting', 'error');
@@ -871,7 +959,7 @@ const AdminDashboard = () => {
           </header>
 
           {/* Flash Messages */}
-          {flash && !showDirectMessage && !showCreateTemplate && !showCreateResponder && !showCreateScheduled && !showCreateGroup && !showCreateChannel && !showDeleteModal && (
+          {flash && !showDirectMessage && !showWaEntityForm && !showTemplateForm && !showResponderForm && !showScheduledForm && !showDeleteModal && (
             <div className={`p-4 mb-8 rounded-xl border flex items-center gap-3 animate-in fade-in duration-300 ${
               flash.type === 'error' ? 'bg-red-50 border-red-100 text-red-800' : 'bg-green-50 border-green-100 text-green-800'
             }`}>
@@ -974,7 +1062,7 @@ const AdminDashboard = () => {
                           <h3 className="text-2xl font-black text-slate-900 tracking-tight">{selectedGroup.name}</h3>
                           <p className="text-xs text-slate-500 mt-1 font-medium uppercase tracking-widest">{selectedGroup.description || 'Organizational Unit'}</p>
                         </div>
-                        <button className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 className="w-5 h-5" /></button>
+                        <button onClick={() => handleDeleteGroup(selectedGroup.id, selectedGroup.name)} className="p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 className="w-5 h-5" /></button>
                       </header>
                       <div className="p-8">
                         <div className="flex items-center gap-3 mb-8">
@@ -1078,16 +1166,44 @@ const AdminDashboard = () => {
                     <div className="flex flex-col h-full animate-in fade-in">
                       <div className="flex items-center justify-between mb-10 pb-6 border-b border-slate-50">
                         <div>
-                          <h3 className="text-xl font-black text-slate-900 tracking-tight">Managed Entities ({waChats.filter(c => c?.isAdmin).length})</h3>
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Administered Groups & Channels</p>
+                          <h3 className="text-xl font-black text-slate-900 tracking-tight">{showWaEntityForm ? `Initialize ${waEntityType}` : `Managed Entities (${waChats.filter(c => c?.isAdmin).length})`}</h3>
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{showWaEntityForm ? 'Direct Engine API Activation' : 'Administered Groups & Channels'}</p>
                         </div>
                         <div className="flex gap-2">
-                          <button onClick={() => setShowCreateGroup(true)} className="p-2.5 bg-primary-50 text-primary-600 rounded-xl hover:bg-primary-100 transition shadow-sm"><Users className="w-5 h-5" /></button>
-                          <button onClick={() => setShowCreateChannel(true)} className="p-2.5 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition shadow-sm"><Send className="w-5 h-5" /></button>
+                          <button onClick={() => { setWaEntityType('group'); setShowWaEntityForm(!showWaEntityForm); }} className={`p-2.5 ${showWaEntityForm && waEntityType === 'group' ? 'bg-primary-600 text-white' : 'bg-primary-50 text-primary-600'} rounded-xl hover:bg-primary-100 transition shadow-sm`} title="New Group"><Users className="w-5 h-5" /></button>
+                          <button onClick={() => { setWaEntityType('channel'); setShowWaEntityForm(!showWaEntityForm); }} className={`p-2.5 ${showWaEntityForm && waEntityType === 'channel' ? 'bg-primary-600 text-white' : 'bg-slate-900 text-white'} rounded-xl hover:bg-slate-800 transition shadow-sm`} title="New Channel"><Send className="w-5 h-5" /></button>
                         </div>
                       </div>
-                      <div className="flex-1 space-y-8 overflow-y-auto pr-2 custom-scrollbar">
-                        {/* GROUPS CATEGORY */}
+
+                      {showWaEntityForm ? (
+                        <div className="flex-1 animate-in slide-in-from-top-4 duration-500">
+                          <form onSubmit={waEntityType === 'group' ? handleCreateWaGroup : handleCreateWaChannel} className="space-y-8 max-w-md mx-auto">
+                            <div className="space-y-2">
+                              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">{waEntityType} Name</label>
+                              <input type="text" required className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-sm outline-none focus:ring-4 focus:ring-primary-100 shadow-inner" placeholder="Enter name..." value={newEntity.name} onChange={(e) => setNewEntity({...newEntity, name: e.target.value})} />
+                            </div>
+                            {waEntityType === 'group' ? (
+                              <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Phone List (Comma-Separated)</label>
+                                <textarea rows="3" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-mono text-[10px] outline-none focus:ring-4 focus:ring-primary-100 resize-none shadow-inner" placeholder="919876543210, 91..." value={newEntity.participants} onChange={(e) => setNewEntity({...newEntity, participants: e.target.value})} />
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Description</label>
+                                <textarea rows="3" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium outline-none focus:ring-4 focus:ring-primary-100 resize-none shadow-inner" placeholder="Channel context..." value={newEntity.description} onChange={(e) => setNewEntity({...newEntity, description: e.target.value})} />
+                              </div>
+                            )}
+                            <div className="flex gap-4 pt-6">
+                              <button type="submit" disabled={waActionLoading} className="flex-1 py-5 bg-primary-600 text-white text-[11px] font-black rounded-2xl uppercase tracking-[0.2em] shadow-xl active:scale-95 transform transition-all">
+                                {waActionLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'Launch Engine'}
+                              </button>
+                              <button type="button" onClick={() => setShowWaEntityForm(false)} className="px-8 py-5 bg-slate-100 text-slate-500 text-[11px] font-black rounded-2xl uppercase tracking-widest hover:bg-slate-200">Cancel</button>
+                            </div>
+                          </form>
+                        </div>
+                      ) : (
+                        <div className="flex-1 space-y-8 overflow-y-auto pr-2 custom-scrollbar">
+                          {/* GROUPS CATEGORY */}
                         {waChats.filter(c => c?.isAdmin && c?.isGroup).length > 0 && (
                           <div className="space-y-4">
                             <div className="flex items-center gap-3 px-2">
@@ -1175,6 +1291,7 @@ const AdminDashboard = () => {
                           </div>
                         )}
                       </div>
+                    )}
                     </div>
                   ) : waStatus.qr ? (
                     <div className="text-center flex flex-col items-center justify-center h-full">
@@ -1270,14 +1387,95 @@ const AdminDashboard = () => {
                     <h3 className="text-2xl font-black text-slate-900 tracking-tight">Response Hub</h3>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Pre-defined Broadcast Content</p>
                   </div>
-                  <button onClick={() => setShowCreateTemplate(true)} className="px-8 py-4 bg-slate-900 text-white text-[10px] font-black rounded-2xl uppercase tracking-widest shadow-xl active:scale-95 transform hover:bg-slate-800 transition-all">Create New Template</button>
+                  <button 
+                    onClick={() => {
+                      setShowTemplateForm(!showTemplateForm);
+                      setEditingTemplate(null);
+                    }} 
+                    className={`px-8 py-4 ${showTemplateForm ? 'bg-slate-200 text-slate-600' : 'bg-slate-900 text-white'} text-[10px] font-black rounded-2xl uppercase tracking-widest shadow-xl active:scale-95 transform transition-all`}
+                  >
+                    {showTemplateForm ? 'Cancel' : 'Create New Template'}
+                  </button>
                 </header>
+
+                {(showTemplateForm || editingTemplate) && (
+                  <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-200 max-w-4xl mx-auto animate-in slide-in-from-top-4 duration-500">
+                    <div className="flex items-center gap-4 mb-8">
+                      <div className="w-12 h-12 bg-primary-50 text-primary-600 rounded-2xl flex items-center justify-center shadow-inner"><Plus className="w-6 h-6" /></div>
+                      <div>
+                        <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight">{editingTemplate ? 'Modify Template' : 'Initialize New Template'}</h4>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{editingTemplate ? 'Updating existing protocol' : 'Standardize your broadcast transmission'}</p>
+                      </div>
+                    </div>
+                    <form onSubmit={editingTemplate ? handleUpdateTemplate : handleCreateTemplate} className="space-y-8">
+                      <div className="grid md:grid-cols-2 gap-8">
+                        <div className="space-y-2">
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Template Identifier</label>
+                          <input type="text" required className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-primary-100 outline-none" placeholder="e.g. Welcome Message" value={editingTemplate ? editingTemplate.name : newTemplate.name} onChange={(e) => editingTemplate ? setEditingTemplate({...editingTemplate, name: e.target.value}) : setNewTemplate({ ...newTemplate, name: e.target.value })} />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Media Protocol</label>
+                          <select className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-primary-100 outline-none appearance-none" value={editingTemplate ? editingTemplate.media_type : newTemplate.media_type} onChange={(e) => editingTemplate ? setEditingTemplate({...editingTemplate, media_type: e.target.value}) : setNewTemplate({ ...newTemplate, media_type: e.target.value })}>
+                            <option value="image">Image Attachment</option>
+                            <option value="video">Video Stream</option>
+                            <option value="document">Document Packet</option>
+                            <option value="audio">Audio Payload</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Transmission Payload (Content)</label>
+                        <textarea required rows="5" className="w-full px-6 py-5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-primary-100 outline-none resize-none" placeholder="Enter message body..." value={editingTemplate ? editingTemplate.content : newTemplate.content} onChange={(e) => editingTemplate ? setEditingTemplate({...editingTemplate, content: e.target.value}) : setNewTemplate({ ...newTemplate, content: e.target.value })} />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Remote Media URL (Optional)</label>
+                        <input type="url" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-mono focus:ring-4 focus:ring-primary-100 outline-none" placeholder="https://external-storage.com/file.jpg" value={editingTemplate ? editingTemplate.media_url || '' : newTemplate.media_url} onChange={(e) => editingTemplate ? setEditingTemplate({...editingTemplate, media_url: e.target.value}) : setNewTemplate({ ...newTemplate, media_url: e.target.value })} />
+                      </div>
+                      <div className="flex gap-4 pt-4">
+                        <button type="submit" disabled={waActionLoading} className="flex-1 py-5 bg-primary-600 text-white text-[11px] font-black rounded-2xl uppercase tracking-[0.3em] shadow-xl shadow-primary-900/20 hover:bg-primary-700 transition-all flex items-center justify-center gap-3 active:scale-95">
+                          {waActionLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                          {editingTemplate ? 'Execute Update' : 'Finalize Template'}
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setShowTemplateForm(false);
+                            setEditingTemplate(null);
+                          }} 
+                          className="px-10 py-5 bg-slate-100 text-slate-500 text-[11px] font-black rounded-2xl uppercase tracking-widest hover:bg-slate-200"
+                        >
+                          Abort
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {templates.map(t => (
-                    <div key={t.id} className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 flex flex-col group hover:shadow-2xl hover:border-primary-100 transition-all duration-500">
+                    <div key={t.id} className={`bg-white p-8 rounded-3xl shadow-sm border ${editingTemplate?.id === t.id ? 'border-primary-600 ring-4 ring-primary-100' : 'border-slate-200'} flex flex-col group hover:shadow-2xl hover:border-primary-100 transition-all duration-500`}>
                       <div className="flex justify-between items-start mb-8">
-                        <div className="w-14 h-14 bg-slate-50 text-primary-600 rounded-2xl flex items-center justify-center border border-slate-100 shadow-inner group-hover:bg-primary-600 group-hover:text-white transition-colors duration-500"><FileText className="w-7 h-7" /></div>
-                        <button onClick={() => handleDeleteTemplate(t.id)} className="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all border border-transparent hover:border-red-100 opacity-0 group-hover:opacity-100"><Trash2 className="w-5 h-5" /></button>
+                        <div className={`w-14 h-14 ${editingTemplate?.id === t.id ? 'bg-primary-600 text-white' : 'bg-slate-50 text-primary-600'} rounded-2xl flex items-center justify-center border border-slate-100 shadow-inner transition-colors duration-500`}>
+                          <FileText className="w-7 h-7" />
+                        </div>
+                        <div className="flex gap-2">
+                          <button 
+                            onClick={() => {
+                              setEditingTemplate(t);
+                              setShowTemplateForm(false);
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }} 
+                            className="p-3 text-slate-300 hover:text-primary-600 hover:bg-primary-50 rounded-2xl transition-all"
+                          >
+                            <Save className="w-5 h-5" />
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteTemplate(t.id, t.name)} 
+                            className="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
                       </div>
                       <h4 className="text-xl font-black text-slate-900 mb-3 tracking-tight">{t.name}</h4>
                       <p className="text-sm text-slate-500 font-medium line-clamp-4 leading-relaxed mb-10">{t.content}</p>
@@ -1299,16 +1497,82 @@ const AdminDashboard = () => {
                     <h3 className="text-2xl font-black text-slate-900 tracking-tight">Auto-Responders</h3>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Keyword-Based Automated Replies</p>
                   </div>
-                  <button onClick={() => setShowCreateResponder(true)} className="px-8 py-4 bg-slate-900 text-white text-[10px] font-black rounded-2xl uppercase tracking-widest shadow-xl active:scale-95 transform hover:bg-slate-800 transition-all">New Responder</button>
+                  <button 
+                    onClick={() => {
+                      setShowResponderForm(!showResponderForm);
+                      setEditingResponder(null);
+                    }} 
+                    className={`px-8 py-4 ${showResponderForm ? 'bg-slate-200 text-slate-600' : 'bg-slate-900 text-white'} text-[10px] font-black rounded-2xl uppercase tracking-widest shadow-xl active:scale-95 transform transition-all`}
+                  >
+                    {showResponderForm ? 'Cancel' : 'New Responder'}
+                  </button>
                 </header>
+
+                {(showResponderForm || editingResponder) && (
+                  <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-200 max-w-4xl mx-auto animate-in slide-in-from-top-4 duration-500">
+                    <div className="flex items-center gap-4 mb-8">
+                      <div className="w-12 h-12 bg-primary-50 text-primary-600 rounded-2xl flex items-center justify-center shadow-inner"><Plus className="w-6 h-6" /></div>
+                      <div>
+                        <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight">{editingResponder ? 'Modify Responder' : 'Initialize Auto-Response'}</h4>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{editingResponder ? 'Recalibrating keyword node' : 'Define new autonomous reply parameters'}</p>
+                      </div>
+                    </div>
+                    <form onSubmit={editingResponder ? handleUpdateResponder : handleCreateResponder} className="space-y-8">
+                      <div className="grid md:grid-cols-2 gap-8">
+                        <div className="space-y-2">
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Trigger Keyword</label>
+                          <input type="text" required className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-primary-100 outline-none" placeholder="e.g. HELP" value={editingResponder ? editingResponder.keyword : newResponder.keyword} onChange={(e) => editingResponder ? setEditingResponder({...editingResponder, keyword: e.target.value}) : setNewResponder({ ...newResponder, keyword: e.target.value })} />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Match Algorithm</label>
+                          <select className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-primary-100 outline-none appearance-none" value={editingResponder ? editingResponder.match_type : newResponder.match_type} onChange={(e) => editingResponder ? setEditingResponder({...editingResponder, match_type: e.target.value}) : setNewResponder({ ...newResponder, match_type: e.target.value })}>
+                            <option value="EXACT">Exact Match (Case Sensitive)</option>
+                            <option value="CONTAINS">Contains Keyword</option>
+                            <option value="STARTS_WITH">Starts With Keyword</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Automated Response Content</label>
+                        <textarea required rows="5" className="w-full px-6 py-5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-primary-100 outline-none resize-none" placeholder="Enter auto-reply text..." value={editingResponder ? editingResponder.response : newResponder.response} onChange={(e) => editingResponder ? setEditingResponder({...editingResponder, response: e.target.value}) : setNewResponder({ ...newResponder, response: e.target.value })} />
+                      </div>
+                      <div className="flex gap-4 pt-4">
+                        <button type="submit" disabled={waActionLoading} className="flex-1 py-5 bg-primary-600 text-white text-[11px] font-black rounded-2xl uppercase tracking-[0.3em] shadow-xl shadow-primary-900/20 hover:bg-primary-700 transition-all flex items-center justify-center gap-3 active:scale-95">
+                          {waActionLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                          {editingResponder ? 'Execute Update' : 'Establish Responder'}
+                        </button>
+                        <button 
+                          type="button" 
+                          onClick={() => {
+                            setShowResponderForm(false);
+                            setEditingResponder(null);
+                          }} 
+                          className="px-10 py-5 bg-slate-100 text-slate-500 text-[11px] font-black rounded-2xl uppercase tracking-widest hover:bg-slate-200"
+                        >
+                          Abort
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
                   {responders.map(r => (
-                    <div key={r.id} className={`bg-white p-8 rounded-3xl shadow-sm border flex flex-col group hover:shadow-2xl transition-all duration-500 ${r.is_active ? 'border-slate-200' : 'border-slate-100 grayscale opacity-60'}`}>
+                    <div key={r.id} className={`bg-white p-8 rounded-3xl shadow-sm border flex flex-col group hover:shadow-2xl transition-all duration-500 ${editingResponder?.id === r.id ? 'border-primary-600 ring-4 ring-primary-100' : (r.is_active ? 'border-slate-200' : 'border-slate-100 grayscale opacity-60')}`}>
                       <div className="flex justify-between items-start mb-8">
-                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border shadow-inner transition-colors duration-500 ${r.is_active ? 'bg-primary-50 text-primary-600 border-primary-100' : 'bg-slate-50 text-slate-400 border-slate-200'}`}><MessageSquare className="w-7 h-7" /></div>
+                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border shadow-inner transition-colors duration-500 ${editingResponder?.id === r.id ? 'bg-primary-600 text-white border-primary-600' : (r.is_active ? 'bg-primary-50 text-primary-600 border-primary-100' : 'bg-slate-50 text-slate-400 border-slate-200')}`}><MessageSquare className="w-7 h-7" /></div>
                         <div className="flex gap-2">
+                          <button 
+                            onClick={() => {
+                              setEditingResponder(r);
+                              setShowResponderForm(false);
+                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                            }} 
+                            className="p-3 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-2xl transition-all"
+                          >
+                            <Save className="w-5 h-5" />
+                          </button>
                           <button onClick={() => handleToggleResponder(r.id)} className="p-3 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-2xl transition-all"><RefreshCw className="w-5 h-5" /></button>
-                          <button onClick={() => handleDeleteResponder(r.id)} className="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"><Trash2 className="w-5 h-5" /></button>
+                          <button onClick={() => handleDeleteResponder(r.id, r.keyword)} className="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"><Trash2 className="w-5 h-5" /></button>
                         </div>
                       </div>
                       <h4 className="text-lg font-black text-slate-900 mb-1 tracking-tight uppercase">{r.keyword}</h4>
@@ -1331,8 +1595,82 @@ const AdminDashboard = () => {
                     <h3 className="text-2xl font-black text-slate-900 tracking-tight">Scheduled Tasks</h3>
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Pending Automation Pipeline</p>
                   </div>
-                  <button onClick={() => setShowCreateScheduled(true)} className="px-8 py-4 bg-slate-900 text-white text-[10px] font-black rounded-2xl uppercase tracking-widest shadow-xl active:scale-95 transform hover:bg-slate-800 transition-all">Schedule Message</button>
+                  <button 
+                    onClick={() => {
+                      setShowScheduledForm(!showScheduledForm);
+                      setEditingScheduled(null);
+                    }} 
+                    className={`px-8 py-4 ${showScheduledForm ? 'bg-slate-200 text-slate-600' : 'bg-slate-900 text-white'} text-[10px] font-black rounded-2xl uppercase tracking-widest shadow-xl active:scale-95 transform transition-all`}
+                  >
+                    {showScheduledForm ? 'Cancel' : 'Schedule Message'}
+                  </button>
                 </header>
+
+                {showScheduledForm && (
+                  <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-200 max-w-4xl mx-auto animate-in slide-in-from-top-4 duration-500">
+                    <div className="flex items-center gap-4 mb-8">
+                      <div className="w-12 h-12 bg-primary-50 text-primary-600 rounded-2xl flex items-center justify-center shadow-inner"><RefreshCw className="w-6 h-6" /></div>
+                      <div>
+                        <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight">New Scheduled Transmission</h4>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Queued automated broadcast protocol</p>
+                      </div>
+                    </div>
+                    <form onSubmit={handleCreateScheduled} className="space-y-8">
+                      <div className="space-y-2">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Target Recipients</label>
+                        <div className="flex flex-wrap gap-2 p-4 bg-slate-50 border border-slate-200 rounded-2xl min-h-[60px]">
+                          {newScheduled.targets.map(t => (
+                            <span key={t.id} className="inline-flex items-center gap-2 px-3 py-1 bg-slate-900 text-white text-[9px] font-black rounded-lg uppercase tracking-widest">
+                              {t.name}
+                              <button type="button" onClick={() => setNewScheduled({ ...newScheduled, targets: newScheduled.targets.filter(st => st.id !== t.id) })} className="hover:text-red-400"><X className="w-3 h-3" /></button>
+                            </span>
+                          ))}
+                          <select className="bg-transparent border-none outline-none text-[10px] font-black uppercase tracking-widest text-primary-600 cursor-pointer" onChange={(e) => {
+                            if (!e.target.value) return;
+                            const chat = waChats.find(c => c.id?._serialized === e.target.value);
+                            if (chat && !newScheduled.targets.find(t => t.id === chat.id?._serialized)) {
+                              setNewScheduled({ ...newScheduled, targets: [...newScheduled.targets, { id: chat.id?._serialized, name: chat.name, type: chat.isGroup ? 'group' : 'channel' }] });
+                            }
+                            e.target.value = '';
+                          }}>
+                            <option value="">+ Add Target</option>
+                            {waChats.filter(c => c.isAdmin).map(chat => <option key={chat.id?._serialized} value={chat.id?._serialized}>{chat.name}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="grid md:grid-cols-2 gap-8">
+                        <div className="space-y-2">
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Execution Timestamp</label>
+                          <input type="datetime-local" required className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-primary-100 outline-none" value={newScheduled.scheduled_for} onChange={(e) => setNewScheduled({ ...newScheduled, scheduled_for: e.target.value })} />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Media Type</label>
+                          <select className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-primary-100 outline-none appearance-none" value={newScheduled.media_type} onChange={(e) => setNewScheduled({ ...newScheduled, media_type: e.target.value })}>
+                            <option value="image">Image Attachment</option>
+                            <option value="video">Video Stream</option>
+                            <option value="document">Document Packet</option>
+                            <option value="audio">Audio Payload</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Message Content</label>
+                        <textarea required rows="4" className="w-full px-6 py-5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-primary-100 outline-none resize-none" placeholder="Transmission content..." value={newScheduled.message} onChange={(e) => setNewScheduled({ ...newScheduled, message: e.target.value })} />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Media Resource URL</label>
+                        <input type="url" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-mono focus:ring-4 focus:ring-primary-100 outline-none" placeholder="https://..." value={newScheduled.media_url} onChange={(e) => setNewScheduled({ ...newScheduled, media_url: e.target.value })} />
+                      </div>
+                      <div className="flex gap-4 pt-4">
+                        <button type="submit" disabled={waActionLoading} className="flex-1 py-5 bg-primary-600 text-white text-[11px] font-black rounded-2xl uppercase tracking-[0.3em] shadow-xl shadow-primary-900/20 hover:bg-primary-700 transition-all flex items-center justify-center gap-3 active:scale-95">
+                          {waActionLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                          Confirm Schedule
+                        </button>
+                        <button type="button" onClick={() => setShowScheduledForm(false)} className="px-10 py-5 bg-slate-100 text-slate-500 text-[11px] font-black rounded-2xl uppercase tracking-widest hover:bg-slate-200">Cancel</button>
+                      </div>
+                    </form>
+                  </div>
+                )}
                 <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
                   <table className="w-full text-left">
                     <thead>
@@ -1387,9 +1725,17 @@ const AdminDashboard = () => {
             {/* MESSAGE HISTORY */}
             {activeTab === 'history' && (
               <div className="space-y-10">
-                <header className="px-4">
-                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">Audit Trail</h3>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Global Transmission History</p>
+                <header className="px-4 flex justify-between items-end">
+                  <div>
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tight">Audit Trail</h3>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Global Transmission History</p>
+                  </div>
+                  <button 
+                    onClick={handleClearAuditHistory}
+                    className="px-6 py-3 bg-red-50 text-red-600 text-[10px] font-black rounded-xl uppercase tracking-widest hover:bg-red-100 transition-all flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" /> Clear History
+                  </button>
                 </header>
                 <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
                   <div className="overflow-x-auto">
@@ -1439,12 +1785,15 @@ const AdminDashboard = () => {
                 <div className="grid md:grid-cols-2 gap-8">
                   {pollResults.map(poll => (
                     <div key={poll.id} className="bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-200">
-                      <div className="flex items-center gap-4 mb-8">
-                        <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center shadow-inner"><BarChart2 className="w-6 h-6" /></div>
-                        <div>
-                          <h4 className="text-lg font-black text-slate-900 leading-none">{poll.question || poll.title}</h4>
-                          <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-widest">Type: {poll.type || 'WhatsApp'} | Chat: {poll.chat_id || 'System'}</p>
+                      <div className="flex items-center justify-between gap-4 mb-8">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center shadow-inner"><BarChart2 className="w-6 h-6" /></div>
+                          <div>
+                            <h4 className="text-lg font-black text-slate-900 leading-none">{poll.question || poll.title}</h4>
+                            <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-widest">Type: {poll.type || 'WhatsApp'} | Chat: {poll.chat_id || 'System'}</p>
+                          </div>
                         </div>
+                        <button onClick={() => handleDeletePoll(poll.id, poll.question || poll.title)} className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"><Trash2 className="w-5 h-5" /></button>
                       </div>
                       <div className="space-y-4">
                         {poll.options && !Array.isArray(poll.options) ? Object.entries(poll.options).map(([opt, count]) => {
@@ -1522,11 +1871,26 @@ const AdminDashboard = () => {
                   {activeSettingsTab === 'general' && (
                     <div className="space-y-10 animate-in fade-in">
                       <div className="space-y-3">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Application Name</label>
+                        <div className="flex gap-3">
+                          <input type="text" className="flex-1 px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-sm outline-none focus:ring-4 focus:ring-primary-100 shadow-inner" value={settings.find(s => s.key === 'site_name')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'site_name' ? {...s, value: e.target.value} : s))} />
+                          <button onClick={() => handleUpdateSetting('site_name', settings.find(s => s.key === 'site_name')?.value)} className="px-10 bg-slate-900 text-white text-[10px] font-black rounded-2xl uppercase tracking-widest hover:bg-slate-800 transition-all">Save</button>
+                        </div>
+                      </div>
+                      <div className="space-y-3">
                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Website Domain</label>
                         <div className="flex gap-3">
                           <input type="text" className="flex-1 px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-mono text-sm outline-none focus:ring-4 focus:ring-primary-100 shadow-inner" value={settings.find(s => s.key === 'website_domain')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'website_domain' ? {...s, value: e.target.value} : s))} />
                           <button onClick={() => handleUpdateSetting('website_domain', settings.find(s => s.key === 'website_domain')?.value)} className="px-10 bg-slate-900 text-white text-[10px] font-black rounded-2xl uppercase tracking-widest hover:bg-slate-800 transition-all">Save</button>
                         </div>
+                      </div>
+                      <div className="space-y-3">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Backend API URL</label>
+                        <div className="flex gap-3">
+                          <input type="text" className="flex-1 px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-mono text-sm outline-none focus:ring-4 focus:ring-primary-100 shadow-inner" value={settings.find(s => s.key === 'vite_api_base_url')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'vite_api_base_url' ? {...s, value: e.target.value} : s))} />
+                          <button onClick={() => handleUpdateSetting('vite_api_base_url', settings.find(s => s.key === 'vite_api_base_url')?.value)} className="px-10 bg-slate-900 text-white text-[10px] font-black rounded-2xl uppercase tracking-widest hover:bg-slate-800 transition-all">Save</button>
+                        </div>
+                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest ml-2">Caution: Changing this may require a frontend rebuild or reload to take full effect in all components.</p>
                       </div>
                       <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 flex items-center justify-between shadow-inner">
                         <div>
@@ -1734,174 +2098,7 @@ const AdminDashboard = () => {
         </form>
       </Modal>
 
-      <Modal
-        isOpen={showCreateTemplate}
-        onClose={() => setShowCreateTemplate(false)}
-        title="Create Message Template"
-        subtitle="Reusable Response Asset"
-        flash={flash}
-      >
-        <form onSubmit={handleCreateTemplate} className="space-y-8">
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Template Name</label>
-            <input type="text" required className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-sm outline-none focus:ring-4 focus:ring-primary-100 shadow-inner" placeholder="e.g. WELCOME_PACKET" value={newTemplate.name} onChange={(e) => setNewTemplate({...newTemplate, name: e.target.value})} />
-          </div>
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Message Payload</label>
-            <textarea required rows="4" className="w-full px-6 py-5 bg-slate-50 border border-slate-200 rounded-2xl text-base font-medium outline-none focus:ring-4 focus:ring-primary-100 resize-none shadow-inner" placeholder="Synthesize template content..." value={newTemplate.content} onChange={(e) => setNewTemplate({...newTemplate, content: e.target.value})} />
-          </div>
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Media Attachment</label>
-              <div className="flex gap-2">
-                <input type="url" className="flex-1 px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-mono text-xs outline-none focus:ring-4 focus:ring-primary-100 shadow-inner" placeholder="URL: https://..." value={newTemplate.media_url} onChange={(e) => setNewTemplate({...newTemplate, media_url: e.target.value})} />
-                <div className="relative">
-                  <input type="file" id="tpl-file" className="hidden" onChange={(e) => handleFileUpload(e.target.files[0], (url, type) => { setNewTemplate({ ...newTemplate, media_url: url, media_type: type }); })} />
-                  <label htmlFor="tpl-file" className={`px-6 py-4 rounded-2xl font-black text-[10px] uppercase cursor-pointer flex items-center gap-2 transition-all shadow-md ${isUploading ? 'bg-slate-100 text-slate-400' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>{isUploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} UPLOAD</label>
-                </div>
-              </div>
-            </div>
-            {newTemplate.media_url && (
-              <div className="grid grid-cols-2 gap-4">
-                <select className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-[10px] font-black uppercase tracking-widest appearance-none outline-none shadow-inner" value={newTemplate.media_type} onChange={(e) => setNewTemplate({...newTemplate, media_type: e.target.value})}>
-                  <option value="image">Image</option>
-                  <option value="document">Document</option>
-                  <option value="audio">Audio</option>
-                  <option value="video">Video</option>
-                </select>
-                <button type="button" onClick={() => setNewTemplate({ ...newTemplate, media_url: '', media_type: 'image' })} className="w-full py-4 bg-red-50 text-red-600 font-black rounded-2xl text-[10px] uppercase tracking-widest border border-red-100 shadow-sm">Discard</button>
-              </div>
-            )}
-          </div>
-          <div className="flex gap-4 pt-6">
-            <button type="submit" disabled={waActionLoading} className="flex-1 py-5 bg-primary-600 text-white text-[11px] font-black rounded-2xl uppercase tracking-[0.3em] shadow-2xl shadow-primary-900/30 active:scale-95 transform transition-all">Save Template</button>
-            <button type="button" onClick={() => setShowCreateTemplate(false)} className="px-10 py-5 bg-slate-100 text-slate-500 text-[11px] font-black rounded-2xl uppercase tracking-widest hover:bg-slate-200 shadow-sm">Abort</button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal
-        isOpen={showCreateResponder}
-        onClose={() => setShowCreateResponder(false)}
-        title="New Auto-Responder"
-        subtitle="Reactive Engine Configuration"
-        flash={flash}
-      >
-        <form onSubmit={handleCreateResponder} className="space-y-8">
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Trigger Keyword</label>
-            <input type="text" required className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-sm outline-none focus:ring-4 focus:ring-primary-100 shadow-inner" placeholder="e.g. HELP" value={newResponder.keyword} onChange={(e) => setNewResponder({...newResponder, keyword: e.target.value})} />
-          </div>
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Match Logic</label>
-            <select className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-black appearance-none outline-none focus:ring-4 focus:ring-primary-100 shadow-inner" value={newResponder.match_type} onChange={(e) => setNewResponder({...newResponder, match_type: e.target.value})}>
-              <option value="EXACT">EXACT MATCH</option>
-              <option value="CONTAINS">CONTAINS KEYWORD</option>
-            </select>
-          </div>
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Response Message</label>
-            <textarea required rows="4" className="w-full px-6 py-5 bg-slate-50 border border-slate-200 rounded-2xl text-base font-medium outline-none focus:ring-4 focus:ring-primary-100 resize-none shadow-inner" placeholder="Enter automated response..." value={newResponder.response} onChange={(e) => setNewResponder({...newResponder, response: e.target.value})} />
-          </div>
-          <div className="flex gap-4 pt-6">
-            <button type="submit" disabled={waActionLoading} className="flex-1 py-5 bg-primary-600 text-white text-[11px] font-black rounded-2xl uppercase tracking-[0.3em] shadow-2xl shadow-primary-900/30 active:scale-95 transform transition-all">Save Responder</button>
-            <button type="button" onClick={() => setShowCreateResponder(false)} className="px-10 py-5 bg-slate-100 text-slate-500 text-[11px] font-black rounded-2xl uppercase tracking-widest hover:bg-slate-200 shadow-sm border border-slate-200">Cancel</button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal
-        isOpen={showCreateScheduled}
-        onClose={() => setShowCreateScheduled(false)}
-        title="Schedule Transmission"
-        subtitle="Deferred Automation Event"
-        flash={flash}
-      >
-        <form onSubmit={handleCreateScheduled} className="space-y-8">
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Select Target Entities</label>
-            <div className="max-h-32 overflow-y-auto p-4 bg-slate-50 rounded-2xl border border-slate-200 custom-scrollbar">
-              {waChats.filter(c => c.isAdmin).map(chat => (
-                <label key={chat.id._serialized} className="flex items-center gap-3 p-2 hover:bg-white rounded-lg cursor-pointer transition-colors">
-                  <input 
-                    type="checkbox" 
-                    checked={newScheduled.targets.some(t => t.id === chat.id._serialized)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setNewScheduled({...newScheduled, targets: [...newScheduled.targets, { id: chat.id._serialized, name: chat.name, type: chat.isGroup ? 'group' : 'channel' }]});
-                      } else {
-                        setNewScheduled({...newScheduled, targets: newScheduled.targets.filter(t => t.id !== chat.id._serialized)});
-                      }
-                    }}
-                    className="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                  />
-                  <span className="text-xs font-bold text-slate-700">{chat.name}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Execution Timestamp</label>
-            <input type="datetime-local" required className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-sm outline-none focus:ring-4 focus:ring-primary-100 shadow-inner" value={newScheduled.scheduled_for} onChange={(e) => setNewScheduled({...newScheduled, scheduled_for: e.target.value})} />
-          </div>
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Message Payload</label>
-            <textarea required rows="4" className="w-full px-6 py-5 bg-slate-50 border border-slate-200 rounded-2xl text-base font-medium outline-none focus:ring-4 focus:ring-primary-100 resize-none shadow-inner" placeholder="Enter message to schedule..." value={newScheduled.message} onChange={(e) => setNewScheduled({...newScheduled, message: e.target.value})} />
-          </div>
-          <div className="flex gap-4 pt-6">
-            <button type="submit" disabled={waActionLoading || newScheduled.targets.length === 0} className="flex-1 py-5 bg-primary-600 text-white text-[11px] font-black rounded-2xl uppercase tracking-[0.3em] shadow-2xl shadow-primary-900/30 active:scale-95 transform transition-all">Schedule</button>
-            <button type="button" onClick={() => setShowCreateScheduled(false)} className="px-10 py-5 bg-slate-100 text-slate-500 text-[11px] font-black rounded-2xl uppercase tracking-widest hover:bg-slate-200 border border-slate-200 shadow-sm">Cancel</button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal
-        isOpen={showCreateGroup}
-        onClose={() => setShowCreateGroup(false)}
-        title="New WhatsApp Group"
-        subtitle="Direct Engine API"
-        maxWidth="max-w-md"
-        flash={flash}
-      >
-        <form onSubmit={handleCreateWaGroup} className="space-y-8">
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Group Name</label>
-            <input type="text" required className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-sm outline-none focus:ring-4 focus:ring-primary-100 shadow-inner" placeholder="Enter name..." value={newEntity.name} onChange={(e) => setNewEntity({...newEntity, name: e.target.value})} />
-          </div>
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Phone List (Comma-Separated)</label>
-            <textarea rows="2" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-mono text-[10px] outline-none focus:ring-4 focus:ring-primary-100 resize-none shadow-inner" placeholder="919876543210, 91..." value={newEntity.participants} onChange={(e) => setNewEntity({...newEntity, participants: e.target.value})} />
-          </div>
-          <div className="flex gap-4 pt-6">
-            <button type="submit" disabled={waActionLoading} className="flex-1 py-5 bg-primary-600 text-white text-[11px] font-black rounded-2xl uppercase tracking-[0.2em] shadow-xl active:scale-95 transform transition-all">Initialize</button>
-            <button type="button" onClick={() => setShowCreateGroup(false)} className="px-8 py-5 bg-slate-100 text-slate-500 text-[11px] font-black rounded-2xl uppercase tracking-widest hover:bg-slate-200 shadow-sm border border-slate-200">Cancel</button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal
-        isOpen={showCreateChannel}
-        onClose={() => setShowCreateChannel(false)}
-        title="New Broadcast Channel"
-        subtitle="Direct Engine API"
-        maxWidth="max-w-md"
-        flash={flash}
-      >
-        <form onSubmit={handleCreateWaChannel} className="space-y-8">
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Channel Name</label>
-            <input type="text" required className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-sm outline-none focus:ring-4 focus:ring-primary-100 shadow-inner" placeholder="Enter name..." value={newEntity.name} onChange={(e) => setNewEntity({...newEntity, name: e.target.value})} />
-          </div>
-          <div className="space-y-2">
-            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Description</label>
-            <textarea rows="3" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium outline-none focus:ring-4 focus:ring-primary-100 resize-none shadow-inner" placeholder="Channel context..." value={newEntity.description} onChange={(e) => setNewEntity({...newEntity, description: e.target.value})} />
-          </div>
-          <div className="flex gap-4 pt-6">
-            <button type="submit" disabled={waActionLoading} className="flex-1 py-5 bg-primary-600 text-white text-[11px] font-black rounded-2xl uppercase tracking-[0.2em] shadow-xl active:scale-95 transform transition-all">Spawn</button>
-            <button type="button" onClick={() => setShowCreateChannel(false)} className="px-8 py-5 bg-slate-100 text-slate-500 text-[11px] font-black rounded-2xl uppercase tracking-widest hover:bg-slate-200 shadow-sm border border-slate-200">Cancel</button>
-          </div>
-        </form>
-      </Modal>
+      {/* CREATE MODALS REPLACED BY INLINE FORMS */}
 
       {/* POLL MODAL */}
       <Modal

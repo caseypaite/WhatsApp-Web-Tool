@@ -1,25 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import api from '../services/api';
-import { LogOut, User, Shield } from 'lucide-react';
+import { LogOut, Shield } from 'lucide-react';
 
 const Navbar = () => {
-  const { user, logout, isAdmin } = useAuth();
+  const { user, logout, isAdmin, siteName } = useAuth();
   const navigate = useNavigate();
-  const [siteName, setSiteName] = useState('WhatsApp Web Tool');
-
-  useEffect(() => {
-    const fetchSiteName = async () => {
-      try {
-        const res = await api.get('/settings/public');
-        if (res.data.SITE_NAME) setSiteName(res.data.SITE_NAME);
-      } catch (err) {
-        console.error('Failed to fetch site name');
-      }
-    };
-    fetchSiteName();
-  }, []);
 
   const handleLogout = () => {
     logout();

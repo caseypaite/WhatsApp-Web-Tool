@@ -58,7 +58,7 @@ class SettingsController {
     try {
       const otpService = require('../services/otp.service');
       // Call gateway directly with a dummy code to bypass database insertion
-      const gatewayResponse = await otpService.callOtpGateway(phoneNumber, '123456');
+      const gatewayResponse = await otpService.callOtpGateway(phoneNumber, '123456', 'testing');
       const success = gatewayResponse.status === 200;
       
       res.json({ 

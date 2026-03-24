@@ -15,7 +15,7 @@ const LoginPage = () => {
   
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login, loginWithPhoneRequest, loginWithPhoneVerify } = useAuth();
+  const { login, loginWithPhoneRequest, loginWithPhoneVerify, siteName } = useAuth();
   const navigate = useNavigate();
 
   const handleEmailLogin = async (e) => {
@@ -112,7 +112,7 @@ const LoginPage = () => {
       <div className="w-full max-w-md p-8 bg-white rounded-3xl shadow-xl">
         <div className="text-center mb-10">
           <h1 className="text-3xl font-bold text-slate-900">
-            {loginMode === 'forgot' ? 'Reset Password' : 'Welcome Back'}
+            {loginMode === 'forgot' ? 'Reset Password' : `Welcome to ${siteName}`}
           </h1>
           <p className="text-slate-500 mt-2">
             {loginMode === 'forgot' ? 'Set a new password for your account' : 'Sign in to continue'}

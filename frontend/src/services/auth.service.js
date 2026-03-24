@@ -76,8 +76,8 @@ const createGroup = async (groupData) => {
   return response.data;
 };
 
-const deleteGroup = async (groupId) => {
-  const response = await api.delete(`/user/groups/${groupId}`);
+const deleteGroup = async (groupId, otp) => {
+  const response = await api.delete(`/user/groups/${groupId}`, { data: { otp } });
   return response.data;
 };
 
@@ -203,8 +203,13 @@ const createTemplate = async (data) => {
   return response.data;
 };
 
-const deleteTemplate = async (id) => {
-  const response = await api.delete(`/templates/${id}`);
+const updateTemplate = async (id, data) => {
+  const response = await api.put(`/templates/${id}`, data);
+  return response.data;
+};
+
+const deleteTemplate = async (id, otp) => {
+  const response = await api.delete(`/templates/${id}`, { data: { otp } });
   return response.data;
 };
 
@@ -300,8 +305,8 @@ const verifyAndVote = async (data) => {
   return response.data;
 };
 
-const deleteAdvancedPoll = async (id) => {
-  const response = await api.delete(`/polls/${id}`);
+const deleteAdvancedPoll = async (id, otp) => {
+  const response = await api.delete(`/polls/${id}`, { data: { otp } });
   return response.data;
 };
 
@@ -321,8 +326,8 @@ const updateResponder = async (id, data) => {
   return response.data;
 };
 
-const deleteResponder = async (id) => {
-  const response = await api.delete(`/responders/${id}`);
+const deleteResponder = async (id, otp) => {
+  const response = await api.delete(`/responders/${id}`, { data: { otp } });
   return response.data;
 };
 
@@ -347,14 +352,19 @@ const cancelScheduledMessage = async (id) => {
   return response.data;
 };
 
-const deleteScheduledMessage = async (id) => {
-  const response = await api.delete(`/scheduled/${id}`);
+const deleteScheduledMessage = async (id, otp) => {
+  const response = await api.delete(`/scheduled/${id}`, { data: { otp } });
   return response.data;
 };
 
 // Audit & Polls
 const getAuditLogs = async (params) => {
   const response = await api.get('/audit/messages', { params });
+  return response.data;
+};
+
+const clearAuditHistory = async (otp) => {
+  const response = await api.delete('/audit/messages', { data: { otp } });
   return response.data;
 };
 
@@ -423,6 +433,7 @@ export default {
   sendWaBroadcast,
   getTemplates,
   createTemplate,
+  updateTemplate,
   deleteTemplate,
   uploadFile,
   getGroupMetadata,
@@ -452,6 +463,7 @@ export default {
   cancelScheduledMessage,
   deleteScheduledMessage,
   getAuditLogs,
+  clearAuditHistory,
   getPollResults,
   publishPollResults,
   getAdvancedPollResults

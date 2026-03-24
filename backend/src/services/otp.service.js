@@ -9,9 +9,10 @@ class OtpService {
    * Generates a 6-digit OTP code and stores it with an expiration timestamp.
    * @param {number|null} userId - The user ID (optional).
    * @param {string} phoneNumber - The target phone number.
+   * @param {string} purpose - The purpose of the OTP (default: 'verification').
    * @returns {Object} Result of the operation.
    */
-  async generateAndSendOtp(userId, phoneNumber) {
+  async generateAndSendOtp(userId, phoneNumber, purpose = 'verification') {
     const isEnabled = (await settingsService.get('otp_enabled')) === 'true';
     if (!isEnabled) {
       console.log(`[OTP] Skipping OTP because OTP_ENABLED is false.`);
@@ -37,7 +38,7 @@ class OtpService {
       );
 
       console.log(`[OTP] Stored OTP for ${phoneNumber}, expires at ${expiresAt}. Code: ${code}`);
-      const gatewayResponse = await this.callOtpGateway(phoneNumber, code);
+      const gatewayResponse = await this.callOtpGateway(phoneNumber, code, purpose);
       
       const gatewaySuccess = gatewayResponse.status >= 200 && gatewayResponse.status < 300;
       
@@ -56,11 +57,13 @@ class OtpService {
   /**
    * Triggers the internal WhatsApp service for OTP.
    */
-  async callOtpGateway(phoneNumber, code) {
+  async callOtpGateway(phoneNumber, code, purpose = 'verification') {
     const whatsappService = require('./whatsapp.service');
     try {
       const siteName = await settingsService.get('site_name') || 'AppStack';
-      const message = `Your ${siteName} verification code is: ${code}`;
+      // Format: "Your OTP 123456 for login in AppStack"
+      // "Your OTP " is 9 chars. "123456" is 6 chars. Total 15 chars.
+      const message = `Your OTP ${code} for ${purpose} in ${siteName}`;
       const result = await whatsappService.sendMessage(phoneNumber, message);
       return { status: 200, data: { success: true, messageId: result.id?._serialized || result.id } };
     } catch (error) {
