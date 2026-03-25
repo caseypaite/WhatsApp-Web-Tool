@@ -63,7 +63,7 @@ const PollVotingPage = () => {
       setIsViewing(confirmView || res.already_voted);
       setSuccess('OTP sent to your mobile number.');
     } catch (err) {
-      setError('Failed to send OTP. Please check the number.');
+      setError(err.response?.data?.error || 'Failed to send OTP. Please check the number.');
     } finally {
       setActionLoading(false);
     }

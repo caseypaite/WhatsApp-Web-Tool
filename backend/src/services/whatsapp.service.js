@@ -534,6 +534,22 @@ class WhatsappService {
     const poll = new Poll(question, options, { allowNullOptions: false, multiAnswers: allowMultiple });
     return await this.client.sendMessage(chatId, poll);
   }
+
+  async isParticipantInGroup(groupId, phoneNumber) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    try {
+      const chat = await this.client.getChatById(groupId);
+      if (!chat.isGroup) return false;
+      
+      const cleanNumber = phoneNumber.replace(/\D/g, '');
+      const participantId = `${cleanNumber}@c.us`;
+      
+      return chat.groupMetadata.participants.some(p => p.id._serialized === participantId);
+    } catch (err) {
+      console.error('[WHATSAPP] Membership check error:', err.message);
+      return false;
+    }
+  }
 }
 
 module.exports = new WhatsappService();

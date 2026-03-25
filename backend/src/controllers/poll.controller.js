@@ -37,7 +37,7 @@ class PollController {
   async getPublicLatest(req, res) {
     try {
       const result = await db.query(
-        "SELECT id, title, description, type, created_at, starts_at, ends_at FROM polls WHERE access_type = 'PUBLIC' AND status = 'OPEN' ORDER BY created_at DESC LIMIT 6"
+        "SELECT id, title, description, type, created_at, starts_at, ends_at, background_image_url FROM polls WHERE access_type = 'PUBLIC' AND status = 'OPEN' ORDER BY created_at DESC LIMIT 12"
       );
       res.json(result.rows);
     } catch (error) {
@@ -45,8 +45,59 @@ class PollController {
     }
   }
 
+  async getEligiblePolls(req, res) {
+    const userId = req.user.id;
+
+    try {
+      // Fetch user's phone number first
+      const userRes = await db.query('SELECT phone_number FROM users WHERE id = $1', [userId]);
+      const phoneNumber = userRes.rows[0]?.phone_number;
+
+      // 1. Get all PUBLIC polls
+      // 2. Get CLOSED polls where user is in the internal group
+      // 3. Get polls created by the user
+      
+      const query = `
+        SELECT DISTINCT p.* 
+        FROM polls p
+        LEFT JOIN group_members gm ON p.group_id = gm.group_id AND gm.user_id = $1
+        WHERE p.status = 'OPEN' AND (
+          p.access_type = 'PUBLIC' 
+          OR (p.access_type = 'CLOSED' AND gm.user_id IS NOT NULL)
+          OR (p.creator_id = $1)
+        )
+        ORDER BY p.created_at DESC
+      `;
+      
+      const result = await db.query(query, [userId]);
+      let polls = result.rows;
+
+      // 4. Get CLOSED polls where user is in the WA group
+      const whatsappService = require('../services/whatsapp.service');
+      if (whatsappService.isReady && phoneNumber) {
+        const closedWaPolls = await db.query(
+          "SELECT * FROM polls WHERE status = 'OPEN' AND access_type = 'CLOSED' AND wa_jid IS NOT NULL AND creator_id != $1",
+          [userId]
+        );
+        
+        for (const poll of closedWaPolls.rows) {
+          if (!polls.find(p => p.id === poll.id)) {
+            const isMember = await whatsappService.isParticipantInGroup(poll.wa_jid, phoneNumber);
+            if (isMember) {
+              polls.push(poll);
+            }
+          }
+        }
+      }
+
+      res.json(polls);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
   async create(req, res) {
-    let { title, description, type, access_type, options, group_id, candidates, starts_at, ends_at, background_image_url } = req.body;
+    let { title, description, type, access_type, options, group_id, candidates, starts_at, ends_at, background_image_url, wa_jid } = req.body;
     const creator_id = req.user.id;
 
     const client = await db.pool.connect();
@@ -75,8 +126,8 @@ class PollController {
       }
 
       const pollRes = await client.query(
-        'INSERT INTO polls (creator_id, group_id, type, access_type, title, description, options, status, starts_at, ends_at, background_image_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
-        [creator_id, finalGroupId, type || 'GENERAL', access_type || 'PUBLIC', title, description, JSON.stringify(options || []), status, starts_at || null, ends_at || null, background_image_url || null]
+        'INSERT INTO polls (creator_id, group_id, type, access_type, title, description, options, status, starts_at, ends_at, background_image_url, wa_jid) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *',
+        [creator_id, finalGroupId, type || 'GENERAL', access_type || 'PUBLIC', title, description, JSON.stringify(options || []), status, starts_at || null, ends_at || null, background_image_url || null, wa_jid || null]
       );
       const poll = pollRes.rows[0];
 
@@ -101,7 +152,7 @@ class PollController {
 
   async update(req, res) {
     const { id } = req.params;
-    const { title, description, status, access_type, options, starts_at, ends_at, results_published, candidates, type, background_image_url } = req.body;
+    const { title, description, status, access_type, options, starts_at, ends_at, results_published, candidates, type, background_image_url, wa_jid } = req.body;
     const userId = req.user.id;
 
     const client = await db.pool.connect();
@@ -115,8 +166,8 @@ class PollController {
       await client.query('BEGIN');
 
       const result = await client.query(
-        'UPDATE polls SET title = $1, description = $2, status = $3, access_type = $4, options = $5, starts_at = $6, ends_at = $7, results_published = $8, background_image_url = $9, updated_at = CURRENT_TIMESTAMP WHERE id = $10 RETURNING *',
-        [title, description, status, access_type, JSON.stringify(options), starts_at, ends_at, results_published, background_image_url, id]
+        'UPDATE polls SET title = $1, description = $2, status = $3, access_type = $4, options = $5, starts_at = $6, ends_at = $7, results_published = $8, background_image_url = $9, wa_jid = $10, updated_at = CURRENT_TIMESTAMP WHERE id = $11 RETURNING *',
+        [title, description, status, access_type, JSON.stringify(options), starts_at, ends_at, results_published, background_image_url, wa_jid, id]
       );
 
       // Handle candidates if it's an election poll
@@ -206,7 +257,10 @@ class PollController {
     if (!phone_number) return res.status(400).json({ error: 'Phone number required' });
 
     try {
-      const pollRes = await db.query('SELECT status, starts_at, ends_at FROM polls WHERE id = $1', [pollId]);
+      const pollRes = await db.query(
+        'SELECT p.status, p.starts_at, p.ends_at, p.access_type, p.group_id, p.wa_jid as poll_wa_jid, g.wa_jid as group_wa_jid FROM polls p LEFT JOIN groups g ON p.group_id = g.id WHERE p.id = $1',
+        [pollId]
+      );
       const poll = pollRes.rows[0];
       if (!poll) return res.status(404).json({ error: 'Poll not found' });
       
@@ -214,6 +268,20 @@ class PollController {
       if (poll.starts_at && new Date(poll.starts_at) > now) return res.status(400).json({ error: 'Polling has not started yet.' });
       if (poll.ends_at && new Date(poll.ends_at) < now) return res.status(400).json({ error: 'Polling has ended.' });
       if (poll.status !== 'OPEN') return res.status(400).json({ error: 'Poll is not currently open.' });
+
+      // WhatsApp Group Membership Check
+      const targetWaJid = poll.poll_wa_jid || poll.group_wa_jid;
+      if (poll.access_type === 'CLOSED' && targetWaJid) {
+        const whatsappService = require('../services/whatsapp.service');
+        if (!whatsappService.isReady) {
+          return res.status(503).json({ error: 'Identity validation service is currently offline. Please try again in a few minutes.' });
+        }
+        
+        const isMember = await whatsappService.isParticipantInGroup(targetWaJid, phone_number);
+        if (!isMember) {
+          return res.status(403).json({ error: 'This decision node is restricted to specific organizational units. Your current mobile unit is not recognized as a member.' });
+        }
+      }
 
       // Check if already voted
       const checkVote = await db.query(

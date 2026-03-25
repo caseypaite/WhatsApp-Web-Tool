@@ -4,7 +4,7 @@ import authService from '../services/auth.service';
 import { 
   ArrowLeft, Save, X, Plus, Trash2, 
   RefreshCw, BarChart2, User, Shield, Image as ImageIcon,
-  AlertCircle, CheckCircle, Info
+  AlertCircle, CheckCircle, Info, ShieldCheck
 } from 'lucide-react';
 
 const PollEditPage = () => {
@@ -17,16 +17,19 @@ const PollEditPage = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [myGroups, setMyGroups] = useState([]);
+  const [waGroups, setWaGroups] = useState([]);
 
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
-        const [pollData, groupsData] = await Promise.all([
+        const [pollData, groupsData, waChats] = await Promise.all([
           authService.getPollDetails(id),
-          authService.getMyGroups()
+          authService.getMyGroups(),
+          authService.getWhatsappChats().catch(() => [])
         ]);
         setPoll(pollData);
         setMyGroups(groupsData || []);
+        setWaGroups(waChats.filter(c => c.isGroup && c.isAdmin) || []);
       } catch (err) {
         setError('Failed to load poll details or your groups.');
       } finally {
@@ -269,6 +272,20 @@ const PollEditPage = () => {
               </div>
 
               <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">WhatsApp Group Restriction</label>
+                <select 
+                  className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-primary-100 outline-none font-bold text-sm appearance-none" 
+                  value={poll.wa_jid || ''} 
+                  onChange={(e) => setPoll({...poll, wa_jid: e.target.value || null})}
+                >
+                  <option value="">No Restriction</option>
+                  {waGroups.map(g => (
+                    <option key={g.id._serialized} value={g.id._serialized}>{g.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-2">
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Results Visibility</label>
                 <div className="flex items-center justify-between px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl">
                   <span className="text-xs font-bold text-slate-600 uppercase">Publish Results Now</span>
@@ -282,6 +299,16 @@ const PollEditPage = () => {
                 </div>
               </div>
             </div>
+
+            {( (poll.group_id && myGroups.find(g => g.id === parseInt(poll.group_id))?.wa_jid) || poll.wa_jid ) && (
+              <div className="mt-8 p-6 bg-indigo-50 border border-indigo-100 rounded-[2rem] flex items-start gap-4 animate-in fade-in slide-in-from-top-2">
+                <ShieldCheck className="w-6 h-6 text-indigo-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-black text-indigo-600 uppercase tracking-widest">WhatsApp Identity Protocol Active</p>
+                  <p className="text-[11px] text-indigo-500 font-bold mt-1 leading-relaxed">Voting is restricted to verified members of the linked WhatsApp Group. Membership will be validated against live WhatsApp infrastructure before OTP issuance.</p>
+                </div>
+              </div>
+            )}
             
             <div className="grid md:grid-cols-2 gap-8 mt-8">
               <div className="space-y-2">

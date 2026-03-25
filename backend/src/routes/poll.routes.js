@@ -5,6 +5,7 @@ const { authenticate, checkRole } = require('../middleware/auth.middleware');
 
 // Public/Voter routes
 router.get('/public/latest', pollController.getPublicLatest);
+router.get('/my-eligible', authenticate, pollController.getEligiblePolls);
 router.post('/vote/request-otp', pollController.requestVoteOtp);
 router.post('/vote/verify', pollController.verifyAndVote);
 router.get('/:id', pollController.getById);

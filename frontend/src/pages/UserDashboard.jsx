@@ -96,9 +96,10 @@ const UserDashboard = () => {
   const [polls, setPolls] = useState([]);
   const [showCreatePoll, setShowCreatePoll] = useState(false);
   const [selectedPoll, setSelectedPoll] = useState(null);
+  const [waGroups, setWaGroups] = useState([]);
   const [newPoll, setNewPoll] = useState({
     title: '', description: '', type: 'GENERAL', access_type: 'PUBLIC',
-    options: ['', ''], group_id: '', candidates: [{ name: '', photo_url: '', manifesto: '', biography: '' }],
+    options: ['', ''], group_id: '', wa_jid: '', candidates: [{ name: '', photo_url: '', manifesto: '', biography: '' }],
     starts_at: '', ends_at: '', background_image_url: ''
   });
 
@@ -203,9 +204,14 @@ const UserDashboard = () => {
       } else if (tab === 'messages' && myMessages.length === 0) {
         const messagesData = await authService.getMyMessages();
         setMyMessages(messagesData || []);
-      } else if (tab === 'polls' && polls.length === 0) {
-        const pollsData = await authService.getPublicLatestPolls();
+      } else if (tab === 'polls') {
+        const [pollsData, waChats] = await Promise.all([
+          authService.getEligiblePolls(),
+          authService.getWhatsappChats().catch(() => [])
+        ]);
         setPolls(pollsData || []);
+        // Only managed WA groups
+        setWaGroups(waChats.filter(c => c.isGroup && c.isAdmin) || []);
       }
     } catch (err) {
       console.error(`Failed to load data for tab: ${tab}`);
@@ -401,8 +407,9 @@ const UserDashboard = () => {
       setIsViewingVote(confirmView || res.already_voted);
       setSuccessMessage('OTP sent for verification.');
     } catch (err) {
-      setError('Failed to send voting OTP.');
+      setError(err.response?.data?.error || 'Failed to send OTP.');
     } finally {
+
       setActionLoading(false);
     }
   };
@@ -1034,7 +1041,30 @@ const UserDashboard = () => {
                     ))}
                   </select>
                 </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">WhatsApp Group Restriction</label>
+                  <select 
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none font-bold" 
+                    value={newPoll.wa_jid} 
+                    onChange={(e) => setNewPoll({...newPoll, wa_jid: e.target.value})}
+                  >
+                    <option value="">No Restriction</option>
+                    {waGroups.map(g => (
+                      <option key={g.id._serialized} value={g.id._serialized}>{g.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
+
+              {( (newPoll.group_id && myGroups.find(g => g.id === parseInt(newPoll.group_id))?.wa_jid) || newPoll.wa_jid ) && (
+                <div className="mt-3 p-4 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-start gap-3 animate-in fade-in slide-in-from-top-2">
+                  <ShieldCheck className="w-5 h-5 text-indigo-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">WhatsApp Identity Protocol Active</p>
+                    <p className="text-[10px] text-indigo-500 font-bold mt-0.5 leading-relaxed">Voting is restricted to verified members of the linked WhatsApp Group. Membership will be validated before OTP issuance.</p>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Description</label>

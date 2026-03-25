@@ -295,6 +295,11 @@ const getPublicLatestPolls = async () => {
   return response.data;
 };
 
+const getEligiblePolls = async () => {
+  const response = await api.get('/polls/my-eligible');
+  return response.data;
+};
+
 const getPollResultsAdvanced = async (id) => {
   const response = await api.get(`/polls/${id}/results`);
   return response.data;
@@ -455,6 +460,7 @@ export default {
   updateAdvancedPoll,
   getPollDetails,
   getPublicLatestPolls,
+  getEligiblePolls,
   getPollResultsAdvanced,
   requestVoteOtp,
   verifyAndVote,

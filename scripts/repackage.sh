@@ -6,7 +6,7 @@
 
 set -e
 
-VERSION="1.4.5"
+VERSION="1.4.6"
 ROOT_DIR="/home/ubuntu/AppStack"
 PROD_DIR="$ROOT_DIR/production"
 RELEASE_FILE="release-v$VERSION.tar.gz"

@@ -134,6 +134,7 @@ CREATE TABLE IF NOT EXISTS polls (
     status VARCHAR(20) DEFAULT 'OPEN', -- OPEN, CLOSED, PENDING
     results_published BOOLEAN DEFAULT false,
     background_image_url TEXT,
+    wa_jid VARCHAR(255),
     starts_at TIMESTAMP,
     ends_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
