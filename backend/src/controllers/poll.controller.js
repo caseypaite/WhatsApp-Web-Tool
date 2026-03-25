@@ -254,6 +254,7 @@ class PollController {
 
   async requestVoteOtp(req, res) {
     const { pollId, phone_number, confirmView } = req.body;
+    console.log(`[POLL] OTP Request received for poll ${pollId}, phone ${phone_number}, confirmView ${confirmView}`);
     if (!phone_number) return res.status(400).json({ error: 'Phone number required' });
 
     try {
@@ -262,24 +263,61 @@ class PollController {
         [pollId]
       );
       const poll = pollRes.rows[0];
-      if (!poll) return res.status(404).json({ error: 'Poll not found' });
+      if (!poll) {
+        console.log(`[POLL] Poll ${pollId} not found`);
+        return res.status(404).json({ error: 'Poll not found' });
+      }
       
       const now = new Date();
-      if (poll.starts_at && new Date(poll.starts_at) > now) return res.status(400).json({ error: 'Polling has not started yet.' });
-      if (poll.ends_at && new Date(poll.ends_at) < now) return res.status(400).json({ error: 'Polling has ended.' });
-      if (poll.status !== 'OPEN') return res.status(400).json({ error: 'Poll is not currently open.' });
+      if (poll.starts_at && new Date(poll.starts_at) > now) {
+        console.log(`[POLL] Poll ${pollId} not started yet`);
+        return res.status(400).json({ error: 'Polling has not started yet.' });
+      }
+      if (poll.ends_at && new Date(poll.ends_at) < now) {
+        console.log(`[POLL] Poll ${pollId} has ended`);
+        return res.status(400).json({ error: 'Polling has ended.' });
+      }
+      if (poll.status !== 'OPEN') {
+        console.log(`[POLL] Poll ${pollId} status is ${poll.status}`);
+        return res.status(400).json({ error: 'Poll is not currently open.' });
+      }
 
       // WhatsApp Group Membership Check
       const targetWaJid = poll.poll_wa_jid || poll.group_wa_jid;
-      if (poll.access_type === 'CLOSED' && targetWaJid) {
-        const whatsappService = require('../services/whatsapp.service');
-        if (!whatsappService.isReady) {
-          return res.status(503).json({ error: 'Identity validation service is currently offline. Please try again in a few minutes.' });
+      if (poll.access_type === 'CLOSED') {
+        let isVerified = false;
+
+        if (targetWaJid) {
+          console.log(`[POLL] Membership check required for poll ${pollId}, targetWaJid: ${targetWaJid}`);
+          const whatsappService = require('../services/whatsapp.service');
+          if (!whatsappService.isReady) {
+            console.log(`[POLL] WhatsApp service not ready`);
+            return res.status(503).json({ error: 'Identity validation service is currently offline. Please try again in a few minutes.' });
+          }
+          
+          isVerified = await whatsappService.isParticipantInGroup(targetWaJid, phone_number);
+          if (!isVerified) {
+            console.log(`[POLL] Voter ${phone_number} is not a member of ${targetWaJid}`);
+            return res.status(403).json({ error: 'This decision node is restricted to specific organizational units. Your current mobile unit is not recognized as a member.' });
+          }
+          console.log(`[POLL] Voter ${phone_number} verified as member of ${targetWaJid}`);
+        } else if (poll.group_id) {
+          // Fallback to internal group check ONLY if no WA JID is provided
+          const userRes = await db.query('SELECT id FROM users WHERE phone_number = $1', [phone_number]);
+          if (userRes.rows.length === 0) {
+            return res.status(403).json({ error: 'Only registered members can vote in this closed poll' });
+          }
+          
+          const userId = userRes.rows[0].id;
+          const memberRes = await db.query('SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2', [poll.group_id, userId]);
+          if (memberRes.rows.length === 0) {
+            return res.status(403).json({ error: 'You are not a member of the required internal group' });
+          }
+          isVerified = true;
         }
-        
-        const isMember = await whatsappService.isParticipantInGroup(targetWaJid, phone_number);
-        if (!isMember) {
-          return res.status(403).json({ error: 'This decision node is restricted to specific organizational units. Your current mobile unit is not recognized as a member.' });
+
+        if (!isVerified) {
+           return res.status(403).json({ error: 'This poll is restricted and your membership could not be verified.' });
         }
       }
 
@@ -290,6 +328,7 @@ class PollController {
       );
 
       if (checkVote.rows.length > 0 && !confirmView) {
+        console.log(`[POLL] Voter ${phone_number} already voted for poll ${pollId}`);
         return res.json({ 
           already_voted: true, 
           needs_confirmation: true,
@@ -297,9 +336,11 @@ class PollController {
         });
       }
 
+      console.log(`[POLL] Triggering OTP for ${phone_number}`);
       await otpService.generateAndSendOtp(null, phone_number, 'voting');
       res.json({ success: true, message: 'OTP sent successfully.' });
     } catch (error) {
+      console.error(`[POLL] requestVoteOtp error:`, error);
       res.status(500).json({ error: error.message });
     }
   }
@@ -340,12 +381,26 @@ class PollController {
       if (poll.status !== 'OPEN') return res.status(400).json({ error: 'Poll is closed' });
 
       if (poll.access_type === 'CLOSED') {
-        const userRes = await db.query('SELECT id FROM users WHERE phone_number = $1', [phone_number]);
-        if (userRes.rows.length === 0) return res.status(403).json({ error: 'Only registered members can vote in this closed poll' });
-        
-        const userId = userRes.rows[0].id;
-        const memberRes = await db.query('SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2', [poll.group_id, userId]);
-        if (memberRes.rows.length === 0) return res.status(403).json({ error: 'You are not a member of the required group' });
+        const targetWaJid = poll.wa_jid; // Use wa_jid directly if set on poll
+        let isVerified = false;
+
+        if (targetWaJid) {
+          const whatsappService = require('../services/whatsapp.service');
+          if (whatsappService.isReady) {
+            isVerified = await whatsappService.isParticipantInGroup(targetWaJid, phone_number);
+          }
+        } else if (poll.group_id) {
+          const userRes = await db.query('SELECT id FROM users WHERE phone_number = $1', [phone_number]);
+          if (userRes.rows.length > 0) {
+            const userId = userRes.rows[0].id;
+            const memberRes = await db.query('SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2', [poll.group_id, userId]);
+            isVerified = memberRes.rows.length > 0;
+          }
+        }
+
+        if (!isVerified) {
+          return res.status(403).json({ error: 'Membership validation failed for this restricted decision unit.' });
+        }
       }
 
       const voteRes = await db.query(

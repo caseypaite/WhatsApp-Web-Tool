@@ -539,12 +539,33 @@ class WhatsappService {
     if (!this.isReady) throw new Error('WhatsApp client not ready');
     try {
       const chat = await this.client.getChatById(groupId);
-      if (!chat.isGroup) return false;
-      
+      if (!chat.isGroup) {
+        console.log(`[WHATSAPP] Chat ${groupId} is not a group`);
+        return false;
+      }
+
+      // Ensure participants are loaded
+      if (!chat.groupMetadata || !chat.groupMetadata.participants || chat.groupMetadata.participants.length === 0) {
+        console.log(`[WHATSAPP] Fetching fresh metadata for ${chat.name}`);
+        await chat.fetchMetadata();
+      }
+
       const cleanNumber = phoneNumber.replace(/\D/g, '');
-      const participantId = `${cleanNumber}@c.us`;
-      
-      return chat.groupMetadata.participants.some(p => p.id._serialized === participantId);
+      console.log(`[WHATSAPP] Checking membership for ${cleanNumber} in group ${chat.name} (${groupId})`);
+
+      const found = chat.groupMetadata.participants.find(p => {
+        const pId = p.id.user; // Just the number part
+        // Match if cleanNumber is a suffix of pId or vice versa (usually cleanNumber is 10 digits, pId is 12)
+        return pId.endsWith(cleanNumber) || cleanNumber.endsWith(pId);
+      });
+
+      if (found) {
+        console.log(`[WHATSAPP] Match found: ${found.id._serialized}`);
+        return true;
+      }
+
+      console.log(`[WHATSAPP] No match found for ${cleanNumber}. Total participants: ${chat.groupMetadata?.participants?.length || 0}`);
+      return false;
     } catch (err) {
       console.error('[WHATSAPP] Membership check error:', err.message);
       return false;

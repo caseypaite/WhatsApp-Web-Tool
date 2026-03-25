@@ -8,7 +8,7 @@ import {
   User, Mail, Phone, Shield, Clock, AlertCircle, Edit2, 
   CheckCircle, Send, X, Terminal, ChevronDown, ChevronUp, 
   Lock, Key, MapPin, Globe, Home, Users, MessageSquare, 
-  History, Settings, LogOut, Menu, Zap, Fingerprint, Activity, BarChart2, Link, Trash2, RefreshCw
+  History, Settings, LogOut, Menu, Zap, Fingerprint, Activity, BarChart2, Link, Trash2, RefreshCw, ShieldCheck
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 
@@ -23,28 +23,29 @@ const Modal = ({ isOpen, onClose, title, subtitle, children, maxWidth = 'max-w-2
         className={`bg-white rounded-[2.5rem] w-full ${maxWidth} p-10 shadow-2xl my-8 border border-slate-100 animate-in zoom-in-95 duration-300 relative`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-start mb-8">
-          <div>
-            <h3 className="text-2xl font-black text-slate-900 tracking-tight uppercase">{title}</h3>
-            {subtitle && <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{subtitle}</p>}
-          </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-            <X className="w-6 h-6 text-slate-400" />
-          </button>
+        <button 
+          onClick={onClose}
+          className="absolute top-8 right-8 p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-50 rounded-xl transition-all"
+        >
+          <X className="w-6 h-6" />
+        </button>
+        
+        <div className="mb-8">
+          <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">{title}</h2>
+          {subtitle && <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">{subtitle}</p>}
         </div>
 
-        {/* In-Modal Alerts */}
         {error && (
-          <div className="flex items-center gap-3 p-4 mb-6 text-red-800 bg-red-50 border border-red-100 rounded-xl animate-in fade-in duration-300">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <p className="text-xs font-bold">{error}</p>
+          <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-2xl border border-red-100 flex items-center gap-3 animate-in slide-in-from-top-2">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <p className="text-xs font-bold uppercase tracking-widest">{error}</p>
           </div>
         )}
 
         {successMessage && (
-          <div className="flex items-center gap-3 p-4 mb-6 text-green-800 bg-green-50 border border-green-100 rounded-xl animate-in fade-in duration-300">
-            <CheckCircle className="w-4 h-4 flex-shrink-0" />
-            <p className="text-xs font-bold">{successMessage}</p>
+          <div className="mb-6 p-4 bg-green-50 text-green-700 rounded-2xl border border-green-100 flex items-center gap-3 animate-in slide-in-from-top-2">
+            <CheckCircle className="w-5 h-5 flex-shrink-0" />
+            <p className="text-xs font-bold uppercase tracking-widest">{successMessage}</p>
           </div>
         )}
 
@@ -64,6 +65,13 @@ const UserDashboard = () => {
   const [myMessages, setMyMessages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [flash, setFlash] = useState(null);
+
+  const showFlash = (message, type = 'success') => {
+    setFlash({ message, type });
+    setTimeout(() => setFlash(null), 5000);
+  };
   
   // Phone Update State
   const [isEditingPhone, setIsEditingPhone] = useState(false);
@@ -105,62 +113,58 @@ const UserDashboard = () => {
 
   const [viewingResultsId, setViewingResultsId] = useState(null);
   const [advancedResults, setAdvancedResults] = useState(null);
+
+  // Voting State
   const [votingData, setVotingData] = useState({ pollId: null, phone_number: '', otp: '', option_selected: '', candidate_id: null });
   const [voteOtpSent, setVoteOtpSent] = useState(false);
   const [voteNeedsConfirmation, setVoteNeedsConfirmation] = useState(false);
   const [isViewingVote, setIsViewingVote] = useState(false);
-  const [pollResults, setPollResults] = useState(null);
-
   const [actionLoading, setActionLoading] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [gatewayResponse, setGatewayResponse] = useState(null);
-  const [isDebugExpanded, setIsDebugExpanded] = useState(false);
+  const [notification, setNotification] = useState(null);
 
-  const handlePublishPoll = async (id, currentStatus) => {
-    try {
-      await authService.publishPollResults(id, !currentStatus);
-      setSuccessMessage(`Results ${!currentStatus ? 'published' : 'hidden'}.`);
-      fetchData();
-    } catch (err) {
-      setError('Failed to publish results.');
-    }
-  };
-
-  const handleViewAdvancedResults = async (id) => {
-    try {
-      const data = await authService.getAdvancedPollResults(id);
-      setAdvancedResults(data);
-      setViewingResultsId(id);
-    } catch (err) {
-      setError('Failed to load results.');
-    }
-  };
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const handleEditPoll = (poll) => {
     navigate(`/poll/edit/${poll.id}`);
   };
 
 
+  useEffect(() => {
+    if (selectedPoll) {
+      setVotingData(prev => ({
+        ...prev,
+        pollId: selectedPoll.id,
+        phone_number: '',
+        otp: '',
+        option_selected: '',
+        candidate_id: null
+      }));
+      setVoteOtpSent(false);
+      setVoteNeedsConfirmation(false);
+      setIsViewingVote(false);
+    }
+  }, [selectedPoll]);
+
   const handleTogglePollStatus = async (poll) => {
     setActionLoading(true);
     try {
       const newStatus = poll.status === 'OPEN' ? 'CLOSED' : 'OPEN';
       await authService.updateAdvancedPoll(poll.id, { ...poll, status: newStatus });
-      setSuccessMessage(`Poll ${newStatus === 'OPEN' ? 'Enabled' : 'Disabled'}!`);
       fetchData();
     } catch (err) {
-      setError('Failed to toggle poll status.');
+      setError('Failed to update status');
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleDeletePoll = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this poll?')) return;
+    if (!window.confirm('Destroy this decision node? Action is irreversible.')) return;
     setActionLoading(true);
     try {
       await authService.deleteAdvancedPoll(id);
-      setSuccessMessage('Poll deleted successfully!');
       fetchData();
     } catch (err) {
       setError('Failed to delete poll.');
@@ -171,9 +175,48 @@ const UserDashboard = () => {
 
   const copyPollLink = (id) => {
     const link = `${window.location.origin}/#/poll/${id}`;
-    navigator.clipboard.writeText(link);
-    setSuccessMessage('Poll link copied to clipboard!');
-    setTimeout(() => setSuccessMessage(''), 3000);
+    
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link)
+        .then(() => {
+          showFlash('Poll link copied to clipboard!');
+        })
+        .catch(() => {
+          fallbackCopyTextToClipboard(link);
+        });
+    } else {
+      fallbackCopyTextToClipboard(link);
+    }
+  };
+
+  const fallbackCopyTextToClipboard = (text) => {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    
+    // Ensure the textarea is not visible but part of the DOM
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    textArea.style.top = "0";
+    document.body.appendChild(textArea);
+    
+    textArea.focus();
+    textArea.select();
+    textArea.setSelectionRange(0, 99999); // For mobile devices
+
+    let successful = false;
+    try {
+      successful = document.execCommand('copy');
+    } catch (err) {
+      console.error('Fallback copy failed', err);
+    }
+
+    if (successful) {
+      showFlash('Poll link copied to clipboard!');
+    } else {
+      setError('Manual copy required: ' + text);
+    }
+    
+    document.body.removeChild(textArea);
   };
 
   const fetchData = async () => {
@@ -189,8 +232,10 @@ const UserDashboard = () => {
         district: profileData?.district || '',
         pincode: profileData?.pincode || ''
       });
+      
+      await fetchTabSpecificData(activeTab);
     } catch (err) {
-      setError('Failed to load profile.');
+      console.error('Failed to fetch profile');
     } finally {
       setLoading(false);
     }
@@ -198,7 +243,7 @@ const UserDashboard = () => {
 
   const fetchTabSpecificData = async (tab) => {
     try {
-      if (tab === 'profile' && myGroups.length === 0) {
+      if (tab === 'groups' && myGroups.length === 0) {
         const groupsData = await authService.getMyGroups();
         setMyGroups(groupsData || []);
       } else if (tab === 'messages' && myMessages.length === 0) {
@@ -219,159 +264,83 @@ const UserDashboard = () => {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
-
-  useEffect(() => {
-    fetchTabSpecificData(activeTab);
+    if (activeTab) fetchTabSpecificData(activeTab);
   }, [activeTab]);
-
-  // Fetch Countries
-  useEffect(() => {
-    if (isEditingProfile) {
-      const fetchCountries = async () => {
-        try {
-          const res = await axios.get('https://countriesnow.space/api/v0.1/countries/iso');
-          setCountries(res.data.data.sort((a, b) => a.name.localeCompare(b.name)));
-        } catch (err) {
-          console.error('Failed to fetch countries');
-        }
-      };
-      fetchCountries();
-    }
-  }, [isEditingProfile]);
-
-  // Fetch States
-  useEffect(() => {
-    if (isEditingProfile && editForm.country) {
-      const fetchStates = async () => {
-        try {
-          const res = await axios.post('https://countriesnow.space/api/v0.1/countries/states', {
-            country: editForm.country
-          });
-          setStates(res.data.data.states || []);
-        } catch (err) {
-          console.error('Failed to fetch states');
-          setStates([]);
-        }
-      };
-      fetchStates();
-    }
-  }, [editForm.country, isEditingProfile]);
-
-  // Fetch Districts
-  useEffect(() => {
-    if (isEditingProfile && editForm.state && editForm.country) {
-      const fetchDistricts = async () => {
-        try {
-          const res = await axios.post('https://countriesnow.space/api/v0.1/countries/state/cities', {
-            country: editForm.country,
-            state: editForm.state
-          });
-          setDistricts(res.data.data || []);
-        } catch (err) {
-          console.error('Failed to fetch districts');
-          setDistricts([]);
-        }
-      };
-      fetchDistricts();
-    }
-  }, [editForm.state, editForm.country, isEditingProfile]);
-
-  const handleRequestPhoneOtp = async () => {
-    if (!newPhone) return;
-    setActionLoading(true);
-    setError('');
-    setGatewayResponse(null);
-    setSuccessMessage('');
-    try {
-      const res = await api.post('/user/request-phone-update', { phone_number: newPhone });
-      setPhoneOtpSent(true);
-      setSuccessMessage('OTP sent to your new phone number.');
-      if (res.data.result?.gatewayResponse) setGatewayResponse(res.data.result.gatewayResponse);
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to send OTP.');
-      if (err.response?.data?.result?.gatewayResponse) setGatewayResponse(err.response.data.result.gatewayResponse);
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleVerifyPhone = async () => {
-    if (!phoneOtp) return;
-    setActionLoading(true);
-    setError('');
-    try {
-      await api.post('/user/confirm-phone-update', { otp: phoneOtp, phone_number: newPhone });
-      setSuccessMessage('Phone number updated successfully!');
-      setIsEditingPhone(false);
-      setPhoneOtpSent(false);
-      setPhoneOtp('');
-      fetchData();
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to verify OTP.');
-    } finally {
-      setActionLoading(false);
-    }
-  };
 
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     setActionLoading(true);
     setError('');
     try {
-      await api.put('/user/profile', editForm);
+      await authService.updateProfile(editForm);
       setSuccessMessage('Profile updated successfully!');
       setIsEditingProfile(false);
       fetchData();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to update profile.');
+      setError(err.response?.data?.error || 'Update failed.');
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleRequestPassOtp = async () => {
-    if (passwords.new !== passwords.confirm) {
-      setError('Passwords do not match.');
-      return;
-    }
-    
-    if (passwords.new.length < 8 || !/[A-Z]/.test(passwords.new) || !/[a-z]/.test(passwords.new) || !/\d/.test(passwords.new) || !/[@$!%*?&#]/.test(passwords.new)) {
-      setError('Password must be 8+ chars with uppercase, lowercase, number and special char.');
-      return;
-    }
-    
+  const handleRequestPhoneOtp = async () => {
+    if (!newPhone) return;
     setActionLoading(true);
-    setError('');
-    setGatewayResponse(null);
-    setSuccessMessage('');
     try {
-      const res = await authService.requestPasswordChange();
-      setPassOtpSent(true);
-      setSuccessMessage('OTP sent to your registered phone number.');
-      if (res.result?.gatewayResponse) setGatewayResponse(res.result.gatewayResponse);
+      await authService.requestPhoneUpdate(newPhone);
+      setPhoneOtpSent(true);
+      setSuccessMessage('OTP sent to your new number.');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to send OTP.');
-      if (err.response?.data?.result?.gatewayResponse) setGatewayResponse(err.response.data.result.gatewayResponse);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleVerifyPhone = async () => {
+    setActionLoading(true);
+    try {
+      await authService.verifyPhoneUpdate(newPhone, phoneOtp);
+      setSuccessMessage('Phone number updated!');
+      setIsEditingPhone(false);
+      setPhoneOtpSent(false);
+      setPhoneOtp('');
+      fetchData();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Verification failed.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRequestPasswordOtp = async () => {
+    if (passwords.new !== passwords.confirm) {
+      setError('Passwords do not match');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      await authService.requestPasswordChange();
+      setPassOtpSent(true);
+      setSuccessMessage('OTP sent to your registered number.');
+    } catch (err) {
+      setError('Failed to send OTP');
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleVerifyPassword = async () => {
-    if (!passOtp) return;
     setActionLoading(true);
-    setError('');
     try {
-      await authService.confirmPasswordChange(passOtp, passwords.new);
+      await authService.verifyPasswordChange(passwords.new, passOtp);
       setSuccessMessage('Password changed successfully!');
       setIsChangingPassword(false);
       setPassOtpSent(false);
       setPassOtp('');
       setPasswords({ new: '', confirm: '' });
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to change password.');
+      setError('Verification failed');
     } finally {
       setActionLoading(false);
     }
@@ -380,23 +349,38 @@ const UserDashboard = () => {
   const handleCreatePoll = async (e) => {
     e.preventDefault();
     setActionLoading(true);
+    setError('');
     try {
       await authService.createAdvancedPoll(newPoll);
       setSuccessMessage('Poll created successfully!');
       setShowCreatePoll(false);
       fetchData();
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to create poll.');
+      setError(err.response?.data?.error || 'Creation failed.');
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleRequestVoteOtp = async (confirmView = false) => {
-    if (!votingData.phone_number) return;
-    setActionLoading(true);
+  const handleViewAdvancedResults = async (id) => {
+    setViewingResultsId(id);
     try {
-      const res = await authService.requestVoteOtp(votingData.pollId, votingData.phone_number, confirmView);
+      const data = await authService.getPollResultsAdvanced(id);
+      setAdvancedResults(data);
+    } catch (err) {
+      setError('Failed to load results.');
+    }
+  };
+
+  const handleRequestVoteOtp = async (confirmView = false) => {
+    if (!votingData.phone_number) {
+      setError('Phone number is required.');
+      return;
+    }
+    setActionLoading(true);
+    setError('');
+    try {
+      const res = await authService.requestVoteOtp(selectedPoll.id, votingData.phone_number, confirmView);
       if (res.already_voted && !confirmView) {
         setVoteNeedsConfirmation(true);
         setSuccessMessage(res.message);
@@ -409,26 +393,36 @@ const UserDashboard = () => {
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to send OTP.');
     } finally {
-
       setActionLoading(false);
     }
   };
 
   const handleVerifyAndVote = async () => {
+    if (!isViewingVote && !votingData.option_selected && !votingData.candidate_id) {
+      setError('Please select an option before finalizing.');
+      return;
+    }
     setActionLoading(true);
     try {
       const res = await authService.verifyAndVote(votingData);
       if (res.already_voted) {
-        setSuccessMessage(res.message);
-        setIsViewingVote(true);
-      } else {
-        setSuccessMessage('Vote cast successfully!');
+        setSuccessMessage('Identity verified. Loading your previous decision...');
         setTimeout(() => {
           setSelectedPoll(null);
           setVoteOtpSent(false);
           setIsViewingVote(false);
           setSuccessMessage('');
-        }, 3000);
+          navigate(`/poll/${selectedPoll.id}/results`);
+        }, 2000);
+      } else {
+        setSuccessMessage('Decision recorded successfully!');
+        setTimeout(() => {
+          setSelectedPoll(null);
+          setVoteOtpSent(false);
+          setIsViewingVote(false);
+          setSuccessMessage('');
+          navigate(`/poll/${selectedPoll.id}/results`);
+        }, 2000);
       }
       fetchData();
     } catch (err) {
@@ -457,58 +451,33 @@ const UserDashboard = () => {
 
   return (
     <div className="flex min-h-screen bg-[#F1F5F9] text-slate-800 font-sans selection:bg-primary-100">
-      {/* SIDEBAR */}
-      <aside className={`bg-slate-900 flex flex-col sticky top-0 h-screen z-30 transition-all duration-300 flex-shrink-0 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
-        <div className={`p-6 flex items-center ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center shadow-lg transform transition-transform hover:scale-105 active:scale-95 cursor-pointer">
-              <Zap className="w-5 h-5 text-white fill-white" />
+      {/* Sidebar */}
+      <aside className={`bg-slate-900 border-r border-slate-800 transition-all duration-500 ease-in-out z-40 fixed lg:static h-full shadow-2xl ${isSidebarCollapsed ? 'w-20' : 'w-72'} ${isSidebarCollapsed ? '-translate-x-full lg:translate-x-0' : 'translate-x-0'}`}>
+        <div className="flex flex-col h-full">
+          <div className="p-6 mb-8 flex items-center justify-center">
+            <div className={`flex items-center gap-3 transition-all duration-500 ${isSidebarCollapsed ? 'opacity-0 scale-50' : 'opacity-100 scale-100'}`}>
+              <div className="w-10 h-10 bg-primary-600 rounded-2xl flex items-center justify-center shadow-lg shadow-primary-900/50"><Zap className="w-6 h-6 text-white" /></div>
+              <h1 className="text-xl font-black text-white uppercase tracking-tighter italic">AppStack</h1>
             </div>
-            {!isSidebarCollapsed && (
-              <div>
-                <h1 className="text-lg font-bold text-white tracking-tight">WA Web Tool</h1>
-                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Portal</p>
-              </div>
-            )}
           </div>
-        </div>
 
-        <nav className="flex-1 px-3 space-y-1.5 mt-4">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setActiveTab(tab.id);
-                setError('');
-                setSuccessMessage('');
-              }}
-              title={isSidebarCollapsed ? tab.label : ''}
-              className={`w-full flex items-center rounded-xl font-semibold transition-all duration-200 group ${
-                isSidebarCollapsed ? 'justify-center py-4' : 'px-4 py-3 gap-3'
-              } ${
-                activeTab === tab.id 
-                  ? 'bg-primary-600 text-white shadow-md' 
-                  : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'
-              }`}
-            >
-              <tab.icon className={`w-5 h-5 ${activeTab === tab.id ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`} />
-              {!isSidebarCollapsed && <span className="text-sm whitespace-nowrap">{tab.label}</span>}
-            </button>
-          ))}
-        </nav>
+          <nav className="flex-1 px-4 space-y-2 overflow-y-auto custom-scrollbar">
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => { setActiveTab(tab.id); setIsSidebarCollapsed(true); }}
+                className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all group ${activeTab === tab.id ? 'bg-primary-600 text-white shadow-xl shadow-primary-900/20' : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}`}
+              >
+                <tab.icon className={`w-5 h-5 flex-shrink-0 transition-transform duration-500 ${activeTab === tab.id ? 'scale-110' : 'group-hover:scale-110'}`} />
+                {!isSidebarCollapsed && <span className="text-xs font-black uppercase tracking-widest">{tab.label}</span>}
+              </button>
+            ))}
+          </nav>
 
-        <div className="p-4 border-t border-slate-800">
-          <button 
-            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className="w-full mb-4 flex items-center justify-center p-2.5 bg-slate-800 text-slate-400 rounded-lg hover:text-white transition-all border border-slate-700/50"
-          >
-            <Menu className={`w-4 h-4 transition-transform duration-300 ${isSidebarCollapsed ? '' : 'rotate-180'}`} />
-          </button>
-
-          {!isSidebarCollapsed ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 p-2 bg-slate-800/50 rounded-xl border border-slate-700/30">
-                <div className="w-9 h-9 bg-slate-700 text-white rounded-lg flex items-center justify-center font-bold text-sm">
+          <div className="p-4 mt-auto">
+            <div className={`mb-4 p-4 bg-slate-800/50 rounded-[2rem] transition-all duration-500 ${isSidebarCollapsed ? 'opacity-0 scale-50' : 'opacity-100 scale-100'}`}>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-slate-700 flex items-center justify-center font-black text-white text-xs border border-slate-600">
                   {userData?.name?.[0] || 'U'}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -516,274 +485,195 @@ const UserDashboard = () => {
                   <p className="text-[9px] text-slate-500 truncate uppercase tracking-tighter">{userData?.email}</p>
                 </div>
               </div>
-              <button 
-                onClick={logout}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-widest text-red-400 bg-red-400/5 hover:bg-red-400/10 transition-all"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                Sign Out
-              </button>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center gap-4">
-              <div className="w-9 h-9 bg-slate-800 text-slate-400 rounded-lg flex items-center justify-center font-bold text-sm border border-slate-700">
-                {userData?.name?.[0] || 'U'}
+              <div className="flex items-center gap-2">
+                <div className={`w-1.5 h-1.5 rounded-full ${userData?.status === 'ACTIVE' ? 'bg-green-500' : 'bg-amber-500'}`}></div>
+                <span className="text-[9px] font-bold tracking-widest uppercase text-slate-500">{userData?.status}</span>
               </div>
-              <button 
-                onClick={logout}
-                title="Sign Out"
-                className="p-3 rounded-xl text-red-400 bg-red-400/5 hover:bg-red-400/10 transition-all"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
             </div>
-          )}
+            
+            <button onClick={logout} className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl text-red-400 hover:bg-red-400/5 hover:text-red-300 transition-all ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+              <LogOut className="w-5 h-5 flex-shrink-0" />
+              {!isSidebarCollapsed && <span className="text-xs font-black uppercase tracking-widest">Terminate Session</span>}
+            </button>
+          </div>
         </div>
       </aside>
 
-      {/* MAIN CONTENT AREA */}
-      <main className="flex-1 min-w-0 overflow-y-auto custom-scrollbar">
-        <div className="p-6 lg:p-10 max-w-5xl mx-auto">
-          {/* Header Info */}
-          <div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-            <div>
-              <p className="text-[10px] font-black text-primary-600 uppercase tracking-[0.2em] mb-1">User Dashboard</p>
-              <h2 className="text-3xl font-black text-slate-900 tracking-tight">
-                {activeTab === 'profile' ? 'Identity Management' : activeTab === 'messages' ? 'Activity Log' : activeTab}
-              </h2>
-            </div>
-            
-            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl shadow-sm border border-slate-200">
-              <span className={`w-1.5 h-1.5 rounded-full ${userData?.status === 'ACTIVE' ? 'bg-green-500' : 'bg-amber-500'}`}></span>
-              <span className="text-[9px] font-bold tracking-widest uppercase text-slate-500">{userData?.status}</span>
-            </div>
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+        {/* Header */}
+        <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 px-8 py-5 flex items-center justify-between sticky top-0 z-30">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="p-2.5 text-slate-500 hover:bg-slate-100 rounded-xl transition-all">
+              <Menu className="w-6 h-6" />
+            </button>
+            <div className="h-8 w-px bg-slate-200 mx-2 hidden md:block"></div>
+            <h2 className="text-lg font-black text-slate-900 uppercase tracking-tight hidden md:block">
+              {tabs.find(t => t.id === activeTab)?.label}
+            </h2>
           </div>
 
-          {/* Alert Messages */}
-          {error && !showCreatePoll && !selectedPoll && !isEditingProfile && !isEditingPhone && !isChangingPassword && (
-            <div className="flex items-center gap-3 p-4 mb-6 text-red-800 bg-red-50 border border-red-100 rounded-xl animate-in fade-in duration-300">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              <p className="text-xs font-bold">{error}</p>
-              <button onClick={() => setError('')} className="ml-auto"><X className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
+          <div className="flex items-center gap-4">
+            <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-full shadow-inner">
+              <div className={`w-2 h-2 rounded-full ${userData?.status === 'ACTIVE' ? 'bg-green-500' : 'bg-amber-500'} animate-pulse`}></div>
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">{userData?.status} NODE</span>
+            </div>
+            {userData?.roles?.includes('Admin') && (
+              <button 
+                onClick={() => navigate('/admin')}
+                className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white text-[10px] font-black rounded-xl hover:bg-slate-800 transition shadow-lg shadow-black/10 uppercase tracking-widest"
+              >
+                <Shield className="w-3.5 h-3.5" />
+                Root Terminal
+              </button>
+            )}
+          </div>
+        </header>
+
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+          {flash && (
+            <div className={`p-4 mb-8 rounded-2xl border flex items-center gap-3 animate-in fade-in slide-in-from-top-4 duration-300 ${
+              flash.type === 'error' ? 'bg-red-50 border-red-100 text-red-800' : 'bg-green-50 border-green-100 text-green-800'
+            }`}>
+              {flash.type === 'error' ? <AlertCircle className="w-5 h-5" /> : <CheckCircle className="w-5 h-5" />}
+              <p className="text-xs font-black uppercase tracking-widest">{flash.message}</p>
+              <button onClick={() => setFlash(null)} className="ml-auto opacity-50 hover:opacity-100"><X className="w-4 h-4" /></button>
             </div>
           )}
-
-          {successMessage && !showCreatePoll && !selectedPoll && !isEditingProfile && !isEditingPhone && !isChangingPassword && (
-            <div className="flex items-center gap-3 p-4 mb-6 text-green-800 bg-green-50 border border-green-100 rounded-xl animate-in fade-in duration-300">
-              <CheckCircle className="w-4 h-4 flex-shrink-0" />
-              <p className="text-xs font-bold">{successMessage}</p>
-              <button onClick={() => setSuccessMessage('')} className="ml-auto"><X className="w-4 h-4 opacity-50 hover:opacity-100" /></button>
-            </div>
-          )}
-
-          {/* TAB CONTENT: PROFILE */}
           {activeTab === 'profile' && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
-              {/* Profile Card */}
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="h-24 bg-gradient-to-r from-primary-600 to-indigo-600 relative">
-                  <div className="absolute inset-0 bg-white/5 backdrop-blur-sm"></div>
+            <div className="max-w-5xl space-y-10 animate-in fade-in duration-500">
+              <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-200 overflow-hidden">
+                <div className="h-40 bg-gradient-to-r from-primary-600 to-indigo-600 relative">
+                  <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '32px 32px' }}></div>
                 </div>
-                
-                <div className="px-8 pb-8 relative">
-                  <div className="flex flex-col sm:flex-row sm:items-end justify-between -mt-10 mb-8 gap-4">
-                    <div className="flex items-end gap-5">
-                      <div className="w-24 h-24 bg-white p-1.5 rounded-2xl shadow-lg border border-slate-100">
-                        <div className="w-full h-full bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 overflow-hidden">
-                          {userData?.name ? (
-                            <span className="text-3xl font-black text-primary-600">{userData?.name?.[0]}</span>
-                          ) : (
-                            <User className="w-10 h-10 text-slate-300" />
-                          )}
-                        </div>
-                      </div>
-                      <div className="mb-1">
-                        <h3 className="text-xl font-black text-slate-900 tracking-tight">{userData?.name || 'User Name'}</h3>
-                        <p className="text-sm text-slate-500 font-medium flex items-center gap-1.5">
-                          <Mail className="w-3.5 h-3.5" />
-                          {userData?.email}
-                        </p>
+                <div className="px-10 pb-10">
+                  <div className="relative -mt-16 mb-8 flex items-end gap-8">
+                    <div className="w-32 h-32 bg-white rounded-[2.5rem] p-2 shadow-2xl border-4 border-white overflow-hidden group">
+                      <div className="w-full h-full bg-slate-50 rounded-[2rem] flex items-center justify-center relative">
+                        {userData?.name ? (
+                          <span className="text-3xl font-black text-primary-600">{userData?.name?.[0]}</span>
+                        ) : (
+                          <User className="w-12 h-12 text-slate-200" />
+                        )}
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      {!isEditingProfile && (
-                        <button 
-                          onClick={() => setIsEditingProfile(true)}
-                          className="px-5 py-2.5 bg-slate-900 text-white text-[11px] font-bold rounded-xl hover:bg-slate-800 transition-all shadow-md active:scale-95 flex items-center gap-2 uppercase tracking-wider"
-                        >
-                          <Edit2 className="w-3.5 h-3.5" />
-                          Edit Profile
-                        </button>
-                      )}
+                    <div className="mb-4">
+                      <h3 className="text-xl font-black text-slate-900 tracking-tight">{userData?.name || 'User Name'}</h3>
+                      <div className="flex items-center gap-2 text-slate-400 mt-1">
+                        <Mail className="w-3.5 h-3.5" />
+                        <span className="text-[10px] font-bold uppercase tracking-widest">{userData?.email}</span>
+                      </div>
+                    </div>
+                    <div className="ml-auto mb-4">
                       <button 
-                        onClick={() => setIsChangingPassword(true)}
-                        className="px-5 py-2.5 bg-primary-600 text-white text-[11px] font-bold rounded-xl hover:bg-primary-700 transition-all shadow-md active:scale-95 flex items-center gap-2 uppercase tracking-wider"
+                        onClick={() => setIsEditingProfile(true)}
+                        className="flex items-center gap-2 px-6 py-3 bg-white text-slate-900 border border-slate-200 rounded-2xl hover:bg-slate-50 transition shadow-sm font-black text-[10px] uppercase tracking-widest"
                       >
-                        <Shield className="w-3.5 h-3.5" />
-                        Password
+                        <Edit2 className="w-3.5 h-3.5" /> Modify Identity
                       </button>
                     </div>
                   </div>
 
-                  {/* PROFILE CARD BODY */}
-                  <div className="grid gap-8 md:grid-cols-2">
-                    <div className="space-y-6">
-                      <div className="flex gap-4">
-                        <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 border border-slate-100 shadow-inner">
-                          <Phone className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Phone</label>
-                            <button onClick={() => { setIsEditingPhone(true); setGatewayResponse(null); }} className="text-[9px] font-bold text-primary-600 uppercase hover:underline">Change</button>
-                          </div>
-                          <p className="text-base font-bold text-slate-800">{userData?.phone_number || 'None'}</p>
-                        </div>
+                  <div className="grid md:grid-cols-3 gap-8 pt-8 border-t border-slate-100">
+                    <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 space-y-4">
+                      <div className="flex items-center gap-3 text-slate-400 uppercase tracking-widest font-black text-[9px]">
+                        <Phone className="w-3.5 h-3.5 text-primary-500" /> WhatsApp Unit
                       </div>
-
-                      <div className="flex gap-4">
-                        <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 border border-slate-100 shadow-inner">
-                          <MapPin className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5 block">Location</label>
-                          <p className="text-sm font-bold text-slate-800 leading-tight">
-                            {userData?.address || 'N/A'}<br/>
-                            <span className="text-slate-400 text-[11px] font-medium">
-                              {userData?.district && `${userData.district}, `}{userData?.state && `${userData.state}, `}{userData?.country || 'N/A'}
-                            </span>
-                          </p>
-                        </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-base font-bold text-slate-800">{userData?.phone_number || 'None'}</p>
+                        <button onClick={() => setIsEditingPhone(true)} className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"><Edit2 className="w-3 h-3" /></button>
                       </div>
                     </div>
-
-                    <div className="bg-slate-50 p-6 rounded-2xl space-y-5 border border-slate-100 shadow-inner">
-                      <div>
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Member Since</span>
+                    <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 space-y-4">
+                      <div className="flex items-center gap-3 text-slate-400 uppercase tracking-widest font-black text-[9px]">
+                        <MapPin className="w-3.5 h-3.5 text-indigo-500" /> Geo Location
+                      </div>
+                      <p className="text-xs font-bold text-slate-600 leading-relaxed">
+                        {userData?.address || 'N/A'}<br/>
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          {userData?.district && `${userData.district}, `}{userData?.state && `${userData.state}, `}{userData?.country || 'N/A'}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 space-y-4">
+                      <div className="flex items-center gap-3 text-slate-400 uppercase tracking-widest font-black text-[9px]">
+                        <Clock className="w-3.5 h-3.5 text-amber-500" /> Node Lifecycle
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-medium text-slate-400 uppercase">Deployed On</p>
                         <span className="text-sm font-bold text-slate-700">{userData?.created_at ? new Date(userData.created_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'N/A'}</span>
                       </div>
-                      <div>
-                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-2">Access Roles</span>
-                        <div className="flex flex-wrap gap-2">
-                          {userData?.roles?.map((role, i) => (
-                            <span key={i} className="px-3 py-1 bg-white text-primary-600 text-[9px] font-black rounded-lg border border-slate-200 shadow-sm uppercase">{role}</span>
-                          ))}
-                        </div>
-                      </div>
                     </div>
+                  </div>
+                  <div className="mt-8 flex gap-2">
+                    {userData?.roles?.map((role, i) => (
+                      <span key={i} className="px-4 py-1.5 bg-primary-50 text-primary-600 rounded-full text-[9px] font-black uppercase border border-primary-100 tracking-widest">{role}</span>
+                    ))}
                   </div>
                 </div>
               </div>
+            </div>
+          )}
 
-              {/* GROUPS SECTION */}
-              <div className="space-y-5">
-                <div className="flex items-center gap-2 px-2">
-                  <Users className="w-4 h-4 text-primary-600" />
-                  <h3 className="text-lg font-black text-slate-900 tracking-tight">Organization Groups</h3>
+          {activeTab === 'security' && (
+            <div className="max-w-3xl space-y-8 animate-in fade-in duration-500">
+              <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-200">
+                <div className="flex items-center gap-4 mb-10">
+                  <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-2xl flex items-center justify-center border border-amber-100 shadow-inner"><Key className="w-6 h-6" /></div>
+                  <div>
+                    <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Cryptographic Protocol</h3>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Access Authentication Management</p>
+                  </div>
                 </div>
                 
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {myGroups.length > 0 ? (
-                    myGroups.map(group => (
-                      <div key={group.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-all group">
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="w-9 h-9 bg-slate-50 text-primary-600 rounded-xl flex items-center justify-center font-black text-lg border border-slate-100 group-hover:bg-primary-600 group-hover:text-white transition-colors duration-300">
-                            {group?.name?.[0]}
-                          </div>
-                          <span className={`px-2.5 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest ${
-                            group.my_role === 'ADMIN' ? 'bg-amber-50 text-amber-600 border border-amber-100' : 'bg-slate-50 text-slate-500 border border-slate-100'
-                          }`}>
-                            {group.my_role}
-                          </span>
-                        </div>
-                        <h4 className="text-base font-bold text-slate-900 mb-1">{group.name}</h4>
-                        <p className="text-[11px] text-slate-500 line-clamp-2 mb-4 font-medium">{group.description || 'Organizational unit group member.'}</p>
-                        <div className="pt-4 border-t border-slate-50 flex items-center gap-1.5 text-slate-400">
-                          <Clock className="w-3 h-3" />
-                          <span className="text-[9px] font-bold uppercase">Since {group?.joined_at ? new Date(group.joined_at).toLocaleDateString() : 'N/A'}</span>
-                        </div>
+                <div className="space-y-6">
+                  <div className="p-8 bg-slate-50 rounded-[2rem] border border-slate-100 flex items-center justify-between group hover:bg-slate-100/50 transition-all duration-500">
+                    <div className="flex items-center gap-6">
+                      <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm border border-slate-200"><Lock className="w-5 h-5 text-slate-400" /></div>
+                      <div>
+                        <p className="font-black text-slate-900 uppercase text-xs tracking-widest">Update Primary Key</p>
+                        <p className="text-[10px] text-slate-400 font-medium mt-1">Change your account access password.</p>
                       </div>
-                    ))
-                  ) : (
-                    <div className="col-span-full py-16 bg-white rounded-2xl border-2 border-dashed border-slate-200 text-center">
-                      <Users className="w-8 h-8 text-slate-200 mx-auto mb-3" />
-                      <p className="text-sm font-bold text-slate-400">No organizational groups assigned.</p>
                     </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* TAB CONTENT: SECURITY */}
-          {activeTab === 'security' && (
-            <div className="space-y-6 animate-in fade-in duration-500 max-w-3xl">
-              <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-6">
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center border border-amber-100 shadow-inner">
-                      <Lock className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-black text-slate-900">Security & Credentials</h3>
-                      <p className="text-xs text-slate-500 font-medium">Protect your access with multi-factor auth</p>
-                    </div>
-                  </div>
-                  <button 
-                    onClick={() => setIsChangingPassword(true)}
-                    className="px-5 py-2 bg-primary-600 text-white text-[10px] font-black rounded-lg hover:bg-primary-700 transition shadow-sm uppercase tracking-widest"
-                  >
-                    Update Password
-                  </button>
-                </div>
-
-                <div className="p-5 bg-slate-50/50 rounded-xl border border-slate-100 flex items-center gap-5 relative group overflow-hidden">
-                  <div className="absolute top-0 left-0 w-1 h-full bg-primary-500"></div>
-                  <Fingerprint className="w-6 h-6 text-slate-300 group-hover:text-primary-500 transition-colors" />
-                  <div>
-                    <p className="text-xs font-black text-slate-700 uppercase tracking-wider mb-0.5">Password Protection Active</p>
-                    <p className="text-[10px] text-slate-500 font-medium leading-relaxed">System manages credentials locally. Changes require WhatsApp multi-factor proofing.</p>
+                    <button onClick={() => setIsChangingPassword(true)} className="px-6 py-3 bg-white text-slate-900 border border-slate-200 rounded-2xl hover:bg-slate-900 hover:text-white transition-all font-black text-[10px] uppercase tracking-widest shadow-sm">Initialize</button>
                   </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* TAB CONTENT: ACTIVITY */}
+          {/* TAB CONTENT: MESSAGES */}
           {activeTab === 'messages' && (
-            <div className="animate-in fade-in duration-500 max-w-4xl">
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="px-8 py-6 border-b border-slate-50 bg-slate-50/30 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Activity className="w-4 h-4 text-primary-600" />
-                    <h3 className="text-base font-black text-slate-900 tracking-tight">System Notifications</h3>
+            <div className="max-w-5xl space-y-8 animate-in fade-in duration-500">
+              <div className="bg-white rounded-[3rem] shadow-sm border border-slate-200 overflow-hidden min-h-[600px] flex flex-col">
+                <div className="p-10 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center border border-indigo-100 shadow-inner"><Activity className="w-6 h-6" /></div>
+                    <div>
+                      <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Interaction Stream</h3>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Live Communication History</p>
+                    </div>
                   </div>
-                  <button onClick={fetchData} className="p-2 hover:bg-white hover:shadow-sm rounded-lg transition-all text-slate-400 hover:text-primary-600"><History className="w-4 h-4" /></button>
                 </div>
-                <div className="divide-y divide-slate-50">
-                  {myMessages.length > 0 ? (
-                    myMessages.map(msg => (
-                      <div key={msg.id} className="p-6 hover:bg-slate-50/30 transition-colors">
-                        <div className="flex justify-between items-center mb-4">
-                          <div className="flex items-center gap-3">
-                            <span className={`px-2 py-0.5 rounded-md text-[8px] font-black tracking-widest uppercase ${
-                              msg.status === 'SUCCESS' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-                            }`}>
-                              {msg.status}
-                            </span>
-                            <div className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {msg?.sent_at ? new Date(msg.sent_at).toLocaleString() : 'N/A'}
-                            </div>
-                          </div>
+                <div className="flex-1 p-10 overflow-y-auto custom-scrollbar space-y-6">
+                  {myMessages.length > 0 ? myMessages.map((msg, i) => (
+                    <div key={i} className="flex gap-6 items-start group animate-in slide-in-from-left-4 transition-all duration-500 hover:translate-x-2" style={{ animationDelay: `${i * 50}ms` }}>
+                      <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:bg-primary-50 group-hover:text-primary-600 transition-colors">
+                        <MessageSquare className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{msg.group_name || 'Individual Message'}</p>
+                          <span className="text-[9px] font-mono text-slate-300">{new Date(msg.sent_at).toLocaleString()}</span>
                         </div>
-                        <div className="bg-slate-50/50 px-5 py-4 rounded-xl border border-slate-100 shadow-inner">
-                          <p className="text-slate-700 font-medium text-xs leading-relaxed whitespace-pre-wrap">{msg.message}</p>
+                        <div className="p-6 bg-slate-50 rounded-3xl rounded-tl-none border border-slate-100 group-hover:border-primary-100 group-hover:bg-white transition-all duration-500 shadow-sm group-hover:shadow-xl">
+                          <p className="text-sm text-slate-600 font-medium leading-relaxed">{msg.message_content}</p>
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <div className="text-center py-20">
+                    </div>
+                  )) : (
+                    <div className="h-full flex flex-col items-center justify-center py-20 text-center space-y-4 opacity-30">
                       <MessageSquare className="w-10 h-10 text-slate-100 mx-auto mb-4" />
                       <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">No Recent Activity</p>
                     </div>
@@ -822,28 +712,23 @@ const UserDashboard = () => {
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {polls.map(poll => (
                     <div key={poll.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 hover:shadow-xl transition-all group">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="px-3 py-1 bg-slate-100 rounded-full text-[9px] font-black text-slate-500 uppercase tracking-widest border border-slate-200">
-                        {poll.type}
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-inner ${poll.type === 'ELECTION' ? 'bg-indigo-50 text-indigo-600' : 'bg-primary-50 text-primary-600'}`}>
+                            <BarChart2 className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-black text-slate-900 truncate max-w-[150px] uppercase tracking-tight">{poll.title}</h4>
+                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-0.5">{poll.type} UNIT</p>
+                          </div>
+                        </div>
+                        <span className={`px-2.5 py-1 rounded text-[9px] font-black uppercase border ${poll.status === 'OPEN' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
+                          {poll.status}
+                        </span>
                       </div>
-                      <span className={`px-2.5 py-1 rounded text-[9px] font-black uppercase border ${poll.status === 'OPEN' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-                        {poll.status}
-                      </span>
-                    </div>
-                    <h4 className="text-lg font-black text-slate-900 mb-2 leading-tight">{poll.title}</h4>
-                    <p className="text-xs text-slate-500 line-clamp-2 mb-6 font-medium">{poll.description}</p>
-                    
-                    <div className="space-y-2">
-                      <button 
-                        onClick={() => {
-                          setSelectedPoll(poll);
-                          setVotingData({ ...votingData, pollId: poll.id });
-                        }}
-                        className="w-full py-3 bg-slate-900 text-white text-[10px] font-black rounded-xl uppercase tracking-[0.2em] hover:bg-slate-800 transition-all"
-                      >
-                        View & Vote
-                      </button>
-
+                      
+                      <p className="text-xs text-slate-500 font-medium line-clamp-2 mb-6 h-10 leading-relaxed">{poll.description}</p>
+                      
                       <div className="flex flex-col gap-1.5 pt-4 border-t border-slate-100 mb-4">
                         <div className="flex items-center gap-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">
                           <Clock className="w-3 h-3" /> {poll.starts_at ? `Starts: ${new Date(poll.starts_at).toLocaleString()}` : 'Instant Activation'}
@@ -854,47 +739,62 @@ const UserDashboard = () => {
                           </div>
                         )}
                       </div>
-                                <button onClick={() => handleViewAdvancedResults(poll.id)} className="flex items-center gap-1 px-3 py-1.5 bg-primary-50 text-primary-600 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-primary-600 hover:text-white transition-all">
-                                  <BarChart2 className="w-3 h-3" /> Results
-                                </button>
-                                {(userData?.id === poll.creator_id || userData?.roles?.includes('Admin') || userData?.roles?.includes('SuperAdmin')) && (
-                                  <button onClick={() => handlePublishPoll(poll.id, poll.results_published)} className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${poll.results_published ? 'bg-amber-50 text-amber-600 hover:bg-amber-600' : 'bg-green-50 text-green-600 hover:bg-green-600'} hover:text-white`}>
-                                    {poll.results_published ? <X className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />} {poll.results_published ? 'Hide' : 'Publish'}
-                                  </button>
-                                )}
-                                {(userData?.id === poll.creator_id || userData?.roles?.includes('Admin') || userData?.roles?.includes('SuperAdmin')) && (
 
+                      <div className="space-y-2">
+                        <button 
+                          onClick={() => {
+                            setSelectedPoll(poll);
+                            setVotingData(prev => ({ 
+                              ...prev, 
+                              pollId: poll.id,
+                              phone_number: ''
+                            }));
+                          }}
+                          className="w-full py-3 bg-slate-900 text-white text-[10px] font-black rounded-xl uppercase tracking-[0.2em] hover:bg-slate-800 transition-all"
+                        >
+                          View & Vote
+                        </button>
+                        
                         <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100">
                           <button 
-                            onClick={() => copyPollLink(poll.id)}
-                            className="flex items-center justify-center gap-2 py-2 bg-slate-50 text-slate-600 text-[9px] font-bold rounded-lg hover:bg-slate-100 uppercase tracking-widest border border-slate-200"
+                            onClick={() => handleViewAdvancedResults(poll.id)}
+                            className="flex items-center justify-center gap-2 py-2 bg-slate-50 text-indigo-600 text-[9px] font-bold rounded-lg hover:bg-indigo-50 uppercase tracking-widest border border-slate-200"
                           >
-                            <Link className="w-3 h-3" /> Link
+                            <BarChart2 className="w-3 h-3" /> Results
                           </button>
-                          <button 
-                            onClick={() => handleEditPoll(poll)}
-                            className="flex items-center justify-center gap-2 py-2 bg-slate-50 text-primary-600 text-[9px] font-bold rounded-lg hover:bg-primary-50 uppercase tracking-widest border border-slate-200"
-                          >
-                            <Edit2 className="w-3 h-3" /> Edit
-                          </button>
-                          <button 
-                            onClick={() => handleTogglePollStatus(poll)}
-                            className={`flex items-center justify-center gap-2 py-2 text-[9px] font-bold rounded-lg uppercase tracking-widest border ${poll.status === 'OPEN' ? 'bg-amber-50 text-amber-600 border-amber-100 hover:bg-amber-100' : 'bg-green-50 text-green-600 border-green-100 hover:bg-green-100'}`}
-                          >
-                            <RefreshCw className={`w-3 h-3 ${actionLoading ? 'animate-spin' : ''}`} /> {poll.status === 'OPEN' ? 'Close' : 'Enable'}
-                          </button>
-                          <button 
-                            onClick={() => handleDeletePoll(poll.id)}
-                            className="flex items-center justify-center gap-2 py-2 bg-red-50 text-red-600 text-[9px] font-bold rounded-lg hover:bg-red-100 uppercase tracking-widest border border-red-100"
-                          >
-                            <Trash2 className="w-3 h-3" /> Delete
-                          </button>
+                          {(userData?.id === poll.creator_id || userData?.roles?.includes('Admin') || userData?.roles?.includes('SuperAdmin')) && (
+                            <>
+                              <button 
+                                onClick={() => copyPollLink(poll.id)}
+                                className="flex items-center justify-center gap-2 py-2 bg-slate-50 text-slate-600 text-[9px] font-bold rounded-lg hover:bg-slate-100 uppercase tracking-widest border border-slate-200"
+                              >
+                                <Link className="w-3 h-3" /> Link
+                              </button>
+                              <button 
+                                onClick={() => handleEditPoll(poll)}
+                                className="flex items-center justify-center gap-2 py-2 bg-slate-50 text-primary-600 text-[9px] font-bold rounded-lg hover:bg-primary-50 uppercase tracking-widest border border-slate-200"
+                              >
+                                <Edit2 className="w-3 h-3" /> Edit
+                              </button>
+                              <button 
+                                onClick={() => handleTogglePollStatus(poll)}
+                                className={`flex items-center justify-center gap-2 py-2 text-[9px] font-bold rounded-lg uppercase tracking-widest border ${poll.status === 'OPEN' ? 'bg-amber-50 text-amber-600 border-amber-100 hover:bg-amber-100' : 'bg-green-50 text-green-600 border-green-100 hover:bg-green-100'}`}
+                              >
+                                <RefreshCw className={`w-3 h-3 ${actionLoading ? 'animate-spin' : ''}`} /> {poll.status === 'OPEN' ? 'Close' : 'Enable'}
+                              </button>
+                              <button 
+                                onClick={() => handleDeletePoll(poll.id)}
+                                className="flex items-center justify-center gap-2 py-2 bg-red-50 text-red-600 text-[9px] font-bold rounded-lg hover:bg-red-100 uppercase tracking-widest border border-red-100"
+                              >
+                                <Trash2 className="w-3 h-3" /> Delete
+                              </button>
+                            </>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
               ) : (
                 <div className="py-20 bg-white rounded-[3rem] border-4 border-dashed border-slate-50 text-center space-y-4">
                   <BarChart2 className="w-12 h-12 text-slate-200 mx-auto" />
@@ -952,62 +852,26 @@ const UserDashboard = () => {
                   </div>
                 </div>
 
-                {advancedResults.poll?.type === 'ELECTION' ? (
-                  <div className="grid md:grid-cols-2 gap-6">
-                    {advancedResults.results.map(cand => (
-                      <div key={cand.id} className="p-6 bg-white border border-slate-100 rounded-3xl shadow-lg hover:shadow-2xl transition-all duration-500 group flex flex-col h-full">
-                        <div className="flex items-center gap-4 mb-6">
-                          <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-md group-hover:scale-105 transition-transform border-2 border-primary-50">
-                            {cand.photo_url ? (
-                              <img src={cand.photo_url} alt={cand.name} className="w-full h-full object-cover" />
-                            ) : (
-                              <div className="w-full h-full bg-slate-100 flex items-center justify-center text-slate-300">
-                                <User className="w-8 h-8" />
-                              </div>
-                            )}
-                          </div>
-                          <div>
-                            <h4 className="text-lg font-black text-slate-900 leading-none">{cand.name}</h4>
-                            <div className="mt-2 flex items-center gap-2">
-                              <span className="text-[10px] font-black text-primary-600 bg-primary-50 px-2 py-0.5 rounded uppercase tracking-widest">{cand.votes} Votes</span>
-                              <span className="text-[10px] font-bold text-slate-400">
-                                {advancedResults.totalVotes > 0 ? ((parseInt(cand.votes) / advancedResults.totalVotes) * 100).toFixed(1) : 0}%
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-4 flex-1">
-                          <div>
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><Shield className="w-3 h-3 text-primary-500" /> Manifesto</p>
-                            <p className="text-xs text-slate-600 font-medium leading-relaxed italic line-clamp-3">"{cand.manifesto}"</p>
-                          </div>
-                          <div>
-                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5"><User className="w-3 h-3 text-amber-500" /> Biography</p>
-                            <p className="text-xs text-slate-500 font-medium leading-relaxed line-clamp-3">{cand.biography}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
+                <div className="space-y-6">
+                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.3em]">Decision Node Breakdown</h4>
                   <div className="grid gap-4">
-                    {advancedResults.results.map((res, i) => (
-                      <div key={i} className="p-5 bg-white border border-slate-100 rounded-2xl flex items-center justify-between shadow-sm">
-                        <span className="text-sm font-black text-slate-800 uppercase tracking-tight">{res.option_selected}</span>
-                        <div className="flex items-center gap-4">
-                          <div className="text-right">
-                            <p className="text-sm font-black text-primary-600">{res.votes}</p>
-                            <p className="text-[8px] font-bold text-slate-400 uppercase">Packets</p>
+                    {advancedResults.results.map((r, i) => (
+                      <div key={i} className="p-6 bg-white border border-slate-100 rounded-[2rem] flex items-center justify-between group hover:shadow-lg transition-all">
+                        <div className="flex items-center gap-5">
+                          <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center font-black text-slate-400 border border-slate-100">{i+1}</div>
+                          <div>
+                            <p className="font-black text-slate-900 uppercase text-sm tracking-tight">{r.name || r.option_selected}</p>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Verified Packet Carrier</p>
                           </div>
-                          <div className="w-12 h-12 bg-slate-50 rounded-xl flex items-center justify-center border border-slate-100 shadow-inner">
-                            <CheckCircle className="w-5 h-5 text-green-500" />
-                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-black text-primary-600 tracking-tighter">{r.votes}</p>
+                          <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Global Weight</p>
                         </div>
                       </div>
                     ))}
                   </div>
-                )}
+                </div>
               </div>
             )}
           </Modal>
@@ -1050,7 +914,7 @@ const UserDashboard = () => {
                   >
                     <option value="">No Restriction</option>
                     {waGroups.map(g => (
-                      <option key={g.id._serialized} value={g.id._serialized}>{g.name}</option>
+                      <option key={g.id?._serialized} value={g.id?._serialized}>{g.name}</option>
                     ))}
                   </select>
                 </div>
@@ -1080,12 +944,37 @@ const UserDashboard = () => {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Access Level</label>
-                  <div className="flex gap-4">
-                    {['PUBLIC', 'CLOSED'].map(acc => (
-                      <button key={acc} type="button" onClick={() => setNewPoll({...newPoll, access_type: acc})} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${newPoll.access_type === acc ? 'bg-slate-900 text-white border-slate-900 shadow-lg' : 'bg-white text-slate-400 border-slate-200'}`}>{acc}</button>
-                    ))}
-                  </div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Access Protocol</label>
+                  <select 
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none font-bold" 
+                    value={
+                      newPoll.access_type === 'PUBLIC' ? 'PUBLIC' : 
+                      newPoll.group_id ? `INTERNAL:${newPoll.group_id}` : 
+                      newPoll.wa_jid ? `WHATSAPP:${newPoll.wa_jid}` : 'PUBLIC'
+                    } 
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === 'PUBLIC') {
+                        setNewPoll({...newPoll, access_type: 'PUBLIC', group_id: '', wa_jid: ''});
+                      } else if (val.startsWith('INTERNAL:')) {
+                        setNewPoll({...newPoll, access_type: 'CLOSED', group_id: val.split(':')[1], wa_jid: ''});
+                      } else if (val.startsWith('WHATSAPP:')) {
+                        setNewPoll({...newPoll, access_type: 'CLOSED', group_id: '', wa_jid: val.split(':')[1]});
+                      }
+                    }}
+                  >
+                    <option value="PUBLIC">🌍 PUBLIC (Anyone with link)</option>
+                    <optgroup label="Internal Managed Units">
+                      {myGroups.map(g => (
+                        <option key={g.id} value={`INTERNAL:${g.id}`}>🏠 INTERNAL: {g.name}</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="WhatsApp Organizational Units">
+                      {waGroups.map(g => (
+                        <option key={g.id?._serialized} value={`WHATSAPP:${g.id?._serialized}`}>💬 WHATSAPP: {g.name}</option>
+                      ))}
+                    </optgroup>
+                  </select>
                 </div>
               </div>
 
@@ -1110,26 +999,26 @@ const UserDashboard = () => {
                 <div className="space-y-6">
                   <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Candidates</label>
                   {newPoll.candidates.map((cand, i) => (
-                    <div key={i} className="p-6 bg-slate-50 rounded-2xl border border-slate-200 space-y-4 relative group">
-                      <button type="button" onClick={() => setNewPoll({...newPoll, candidates: newPoll.candidates.filter((_, idx) => idx !== i)})} className="absolute top-4 right-4 p-1.5 bg-white border border-slate-200 rounded-lg text-red-400 opacity-0 group-hover:opacity-100 transition-all"><X className="w-3.5 h-3.5" /></button>
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <input type="text" placeholder="Candidate Name" className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold" value={cand.name} onChange={(e) => {
+                    <div key={i} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3 relative group">
+                      <button type="button" onClick={() => setNewPoll({...newPoll, candidates: newPoll.candidates.filter((_, idx) => idx !== i)})} className="absolute top-2 right-2 p-1 text-red-400 opacity-0 group-hover:opacity-100 hover:bg-red-50 rounded transition-all"><X className="w-3 h-3" /></button>
+                      <div className="grid grid-cols-2 gap-3">
+                        <input type="text" placeholder="Name" className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-bold" value={cand.name} onChange={(e) => {
                           const cands = [...newPoll.candidates];
                           cands[i].name = e.target.value;
                           setNewPoll({...newPoll, candidates: cands});
                         }} />
-                        <input type="url" placeholder="Photo URL" className="px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold" value={cand.photo_url} onChange={(e) => {
+                        <input type="url" placeholder="Photo URL" className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-mono" value={cand.photo_url} onChange={(e) => {
                           const cands = [...newPoll.candidates];
                           cands[i].photo_url = e.target.value;
                           setNewPoll({...newPoll, candidates: cands});
                         }} />
                       </div>
-                      <textarea placeholder="Manifesto" className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium" value={cand.manifesto} onChange={(e) => {
+                      <input type="text" placeholder="Manifesto Summary" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium" value={cand.manifesto} onChange={(e) => {
                         const cands = [...newPoll.candidates];
                         cands[i].manifesto = e.target.value;
                         setNewPoll({...newPoll, candidates: cands});
                       }} />
-                      <textarea placeholder="Short Biography" className="w-full px-4 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium" value={cand.biography} onChange={(e) => {
+                      <textarea placeholder="Biography" rows="2" className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs font-medium resize-none" value={cand.biography} onChange={(e) => {
                         const cands = [...newPoll.candidates];
                         cands[i].biography = e.target.value;
                         setNewPoll({...newPoll, candidates: cands});
@@ -1161,14 +1050,24 @@ const UserDashboard = () => {
               </div>
 
               {!voteOtpSent ? (
-                <div className="space-y-6">
-                  <div className="space-y-4">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Verification Required</label>
+                <div className="py-6 space-y-8 animate-in fade-in duration-500">
+                  <div className="text-center space-y-2">
+                    <h3 className="text-lg font-black text-slate-900 uppercase">Identity Authentication</h3>
+                    <p className="text-xs text-slate-400 font-medium">Verify your mobile unit to enable decision selection.</p>
+                  </div>
+                  
+                  <div className="max-w-md mx-auto space-y-4">
                     <div className="flex flex-col gap-3">
                       <div className="flex gap-2">
                         <input type="tel" disabled={voteNeedsConfirmation} className="flex-1 px-6 py-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black focus:ring-2 focus:ring-primary-500 outline-none shadow-inner disabled:opacity-50" placeholder="Mobile Number (e.g. 91...)" value={votingData.phone_number} onChange={(e) => setVotingData({...votingData, phone_number: e.target.value})} />
                         {!voteNeedsConfirmation && (
-                          <button onClick={() => handleRequestVoteOtp(false)} disabled={actionLoading || !votingData.phone_number} className="px-8 bg-primary-600 text-white text-[10px] font-black rounded-xl uppercase tracking-widest hover:bg-primary-700 transition shadow-lg">Get OTP</button>
+                          <button 
+                            onClick={() => handleRequestVoteOtp(false)} 
+                            disabled={actionLoading || !votingData.phone_number} 
+                            className="px-8 bg-primary-600 text-white text-[10px] font-black rounded-xl uppercase tracking-widest hover:bg-primary-700 transition shadow-lg disabled:opacity-50"
+                          >
+                            Get OTP
+                          </button>
                         )}
                       </div>
                       
@@ -1192,65 +1091,73 @@ const UserDashboard = () => {
                       )}
                     </div>
                   </div>
+
+                  <div className="p-6 bg-indigo-50/50 rounded-3xl border border-indigo-100 flex items-start gap-4">
+                    <ShieldCheck className="w-6 h-6 text-indigo-600 flex-shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-black text-indigo-900 uppercase tracking-widest">WhatsApp Identity Protocol</p>
+                      <p className="text-[9px] text-indigo-600 font-medium leading-relaxed">Your mobile unit is validated against the live participant ledger of the linked WhatsApp Group before voting is enabled.</p>
+                    </div>
+                  </div>
                 </div>
               ) : (
-                <div className="space-y-8 animate-in slide-in-from-bottom-4">
-                  <div className="space-y-6">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 text-center">
-                      {isViewingVote ? 'Identity Verification' : 'Cast Your Identity Unit'}
-                    </label>
-                    
-                    {!isViewingVote && (
-                      <div className="grid gap-4">
-                      {selectedPoll?.type === 'GENERAL' ? (
-                        selectedPoll.options.map(opt => (
+                <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-500">
+                  <div className="text-center space-y-2">
+                    <h3 className="text-lg font-black text-slate-900 uppercase">Cast Your Decision</h3>
+                    <p className="text-xs text-slate-400 font-medium">{isViewingVote ? 'Identity verified. Viewing your previous selection.' : 'Identity verified. Select your option and enter the 6-digit packet.'}</p>
+                  </div>
+
+                  {!isViewingVote && (
+                    <div className="grid gap-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                      {selectedPoll.type === 'GENERAL' ? (
+                        selectedPoll.options?.map(opt => (
                           <button key={opt} onClick={() => setVotingData({...votingData, option_selected: opt, candidate_id: null})} className={`p-5 rounded-2xl border-2 text-left transition-all ${votingData.option_selected === opt ? 'border-primary-600 bg-primary-50 shadow-md ring-4 ring-primary-50' : 'border-slate-100 bg-white hover:border-slate-200'}`}>
                             <div className="flex items-center gap-4">
                               <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${votingData.option_selected === opt ? 'border-primary-600' : 'border-slate-300'}`}>
                                 {votingData.option_selected === opt && <div className="w-2.5 h-2.5 bg-primary-600 rounded-full"></div>}
                               </div>
-                              <span className="text-sm font-black text-slate-800">{opt}</span>
+                              <span className="text-sm font-bold text-slate-700">{opt}</span>
                             </div>
                           </button>
                         ))
                       ) : (
-                        <div className="grid gap-4">
-                          {selectedPoll?.candidates?.map(cand => (
-                            <button key={cand.id} onClick={() => setVotingData({...votingData, candidate_id: cand.id, option_selected: null})} className={`p-6 rounded-3xl border-2 text-left transition-all flex gap-5 ${votingData.candidate_id === cand.id ? 'border-primary-600 bg-primary-50 shadow-md ring-4 ring-primary-50' : 'border-slate-100 bg-white hover:border-slate-200'}`}>
-                              <div className="w-20 h-20 bg-slate-100 rounded-2xl overflow-hidden flex-shrink-0 border border-slate-200 shadow-inner">
-                                {cand.photo_url ? <img src={cand.photo_url} alt={cand.name} className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-300" />}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center justify-between mb-1">
-                                  <h5 className="text-base font-black text-slate-900 uppercase tracking-tight">{cand.name}</h5>
-                                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${votingData.candidate_id === cand.id ? 'border-primary-600' : 'border-slate-300'}`}>
-                                    {votingData.candidate_id === cand.id && <div className="w-2.5 h-2.5 bg-primary-600 rounded-full"></div>}
-                                  </div>
+                        selectedPoll.candidates?.map(cand => (
+                          <button key={cand.id} onClick={() => setVotingData({...votingData, candidate_id: cand.id, option_selected: null})} className={`p-6 rounded-3xl border-2 text-left transition-all flex gap-5 ${votingData.candidate_id === cand.id ? 'border-primary-600 bg-primary-50 shadow-md ring-4 ring-primary-50' : 'border-slate-100 bg-white hover:border-slate-200'}`}>
+                            <div className="w-16 h-16 bg-slate-50 rounded-2xl overflow-hidden flex-shrink-0 border border-slate-100">
+                              {cand.photo_url ? <img src={cand.photo_url} alt="" className="w-full h-full object-cover" /> : <User className="w-full h-full p-4 text-slate-200" />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1">
+                                <h5 className="text-sm font-black uppercase text-slate-900 truncate">{cand.name}</h5>
+                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${votingData.candidate_id === cand.id ? 'border-primary-600' : 'border-slate-300'}`}>
+                                  {votingData.candidate_id === cand.id && <div className="w-2.5 h-2.5 bg-primary-600 rounded-full"></div>}
                                 </div>
-                                <p className="text-[10px] text-slate-500 font-medium line-clamp-2 leading-relaxed italic">{cand.manifesto}</p>
                               </div>
-                            </button>
-                          ))}
-                        </div>
+                              <p className="text-[10px] text-slate-500 font-medium line-clamp-2 leading-relaxed italic">{cand.manifesto}</p>
+                            </div>
+                          </button>
+                        ))
                       )}
                     </div>
                   )}
-                </div>
 
-                <div className="pt-8 border-t border-slate-100 space-y-6">
-                    <div className="flex gap-2 max-w-sm mx-auto">
+                  <div className="pt-6 border-t-2 border-dashed border-slate-100 space-y-6">
+                    <div className="flex gap-2">
                       <input type="text" maxLength="6" className="flex-1 px-6 py-4 bg-slate-50 border border-slate-200 rounded-xl text-center font-black tracking-[0.8em] text-xl focus:ring-2 focus:ring-primary-500 outline-none shadow-inner" placeholder="000000" value={votingData.otp} onChange={(e) => setVotingData({...votingData, otp: e.target.value})} />
                       <button 
                         onClick={handleVerifyAndVote} 
                         disabled={actionLoading || votingData.otp.length !== 6 || (!isViewingVote && !votingData.option_selected && !votingData.candidate_id)} 
-                        className="px-8 bg-green-600 text-white text-[10px] font-black rounded-xl uppercase tracking-widest shadow-xl hover:bg-green-700 transition-all active:scale-95 transform"
+                        className="px-10 bg-green-600 text-white text-xs font-black rounded-xl uppercase tracking-widest shadow-lg hover:bg-green-700 transition-all active:scale-95 disabled:opacity-50"
                       >
-                        {isViewingVote ? 'Verify & View' : 'Verify & Cast'}
+                        {isViewingVote ? 'Verify' : 'Finalize'}
                       </button>
                     </div>
-                    <p className="text-[9px] text-slate-400 font-black uppercase text-center tracking-[0.2em]">
-                      {isViewingVote ? 'Identity confirmation required to reveal cast unit' : 'One vote per mobile unit - Finalized on submission'}
-                    </p>
+                    <button 
+                      onClick={() => { setVoteOtpSent(false); setVotingData({...votingData, otp: ''}); }}
+                      className="w-full text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-all"
+                    >
+                      Wrong Number? Go Back
+                    </button>
                   </div>
                 </div>
               )}
@@ -1263,87 +1170,74 @@ const UserDashboard = () => {
             isOpen={isEditingProfile}
             onClose={() => setIsEditingProfile(false)}
             title="Update Identity"
-            subtitle="Organizational Profile Metadata"
+            subtitle="Secure Profile Node Modification"
             error={error}
             successMessage={successMessage}
           >
             <form onSubmit={handleUpdateProfile} className="space-y-6">
               <div className="grid gap-6 sm:grid-cols-2">
                 <div className="space-y-1.5">
-                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Full Name</label>
-                  <input type="text" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none transition-all font-bold text-sm" value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} />
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Full Legal Name</label>
+                  <input type="text" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none font-bold" value={editForm.name} onChange={(e) => setEditForm({...editForm, name: e.target.value})} />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Country</label>
-                  <select className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none transition-all font-bold text-sm" value={editForm.country} onChange={(e) => setEditForm({...editForm, country: e.target.value, state: '', district: ''})}>
-                    <option value="">Select Country</option>
-                    {countries.map(c => <option key={c.iso2} value={c.name}>{c.name}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">State</label>
-                  <select className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none font-bold text-sm disabled:opacity-50" value={editForm.state} onChange={(e) => setEditForm({...editForm, state: e.target.value, district: ''})} disabled={!editForm.country}>
-                    <option value="">Select State</option>
-                    {states.map(s => <option key={s.state_code || s.name} value={s.name}>{s.name}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">City</label>
-                  <select className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none font-bold text-sm disabled:opacity-50" value={editForm.district} onChange={(e) => setEditForm({...editForm, district: e.target.value})} disabled={!editForm.state}>
-                    <option value="">Select District</option>
-                    {districts.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                </div>
-                <div className="sm:col-span-2 space-y-1.5">
-                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Address</label>
-                  <input type="text" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none font-bold text-sm" value={editForm.address} onChange={(e) => setEditForm({...editForm, address: e.target.value})} />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Pincode</label>
-                  <input type="text" className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none font-bold text-sm" value={editForm.pincode} onChange={(e) => setEditForm({...editForm, pincode: e.target.value})} />
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Location Data (Pincode)</label>
+                  <input type="text" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none font-bold" value={editForm.pincode} onChange={(e) => setEditForm({...editForm, pincode: e.target.value})} />
                 </div>
               </div>
-              <div className="flex gap-3 pt-4 border-t border-slate-100">
-                <button type="submit" disabled={actionLoading} className="flex-1 py-3 bg-primary-600 text-white text-xs font-black rounded-xl uppercase tracking-widest hover:bg-primary-700 transition shadow-lg shadow-primary-900/20 disabled:opacity-50">
-                  Save Identity
-                </button>
-                <button type="button" onClick={() => setIsEditingProfile(false)} className="px-8 py-3 bg-slate-100 text-slate-500 text-xs font-black rounded-xl uppercase tracking-widest hover:bg-slate-200 transition">
-                  Cancel
-                </button>
+
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Residential Address</label>
+                <textarea className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none font-medium text-sm resize-none" rows="2" value={editForm.address} onChange={(e) => setEditForm({...editForm, address: e.target.value})} />
+              </div>
+
+              <div className="grid gap-6 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Country</label>
+                  <input type="text" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none text-xs font-bold" value={editForm.country} onChange={(e) => setEditForm({...editForm, country: e.target.value})} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">State</label>
+                  <input type="text" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none text-xs font-bold" value={editForm.state} onChange={(e) => setEditForm({...editForm, state: e.target.value})} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">District</label>
+                  <input type="text" className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none text-xs font-bold" value={editForm.district} onChange={(e) => setEditForm({...editForm, district: e.target.value})} />
+                </div>
+              </div>
+
+              <div className="pt-6 border-t border-slate-100 flex gap-3">
+                <button type="submit" disabled={actionLoading} className="flex-1 py-4 bg-slate-900 text-white text-xs font-black rounded-2xl uppercase tracking-[0.3em] shadow-xl hover:bg-slate-800 transition-all">Apply Changes</button>
+                <button type="button" onClick={() => setIsEditingProfile(false)} className="px-8 py-4 bg-slate-100 text-slate-500 text-xs font-black rounded-2xl uppercase tracking-widest hover:bg-slate-200 transition-all">Abort</button>
               </div>
             </form>
           </Modal>
 
-          {/* CHANGE PHONE MODAL */}
+          {/* EDIT PHONE MODAL */}
           <Modal
             isOpen={isEditingPhone}
-            onClose={() => { setIsEditingPhone(false); setPhoneOtpSent(false); }}
-            title="Change Mobile Unit"
-            subtitle="Secure Communications Migration"
-            maxWidth="max-w-md"
+            onClose={() => setIsEditingPhone(false)}
+            title="Update Comm Unit"
+            subtitle="WhatsApp Primary Identity Change"
             error={error}
             successMessage={successMessage}
           >
-            <div className="space-y-6">
+            <div className="space-y-8">
               {!phoneOtpSent ? (
-                <div className="space-y-4">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">New Mobile Number</label>
-                  <div className="flex gap-2">
-                    <input type="tel" className="flex-1 px-6 py-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-black focus:ring-2 focus:ring-primary-500 outline-none shadow-inner" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} placeholder="91" />
-                    <button onClick={handleRequestPhoneOtp} disabled={actionLoading || !newPhone} className="px-6 bg-slate-900 text-white text-[10px] font-black rounded-xl uppercase tracking-widest hover:bg-slate-800 transition shadow-lg">Get OTP</button>
+                <div className="space-y-6">
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">New Mobile Number</label>
+                    <input type="tel" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-xl text-lg font-black focus:ring-2 focus:ring-primary-500 outline-none shadow-inner" placeholder="91XXXXXXXXXX" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
                   </div>
+                  <button onClick={handleRequestPhoneOtp} disabled={actionLoading} className="w-full py-4 bg-slate-900 text-white text-xs font-black rounded-2xl uppercase tracking-[0.3em] shadow-xl hover:bg-slate-800 transition-all">Request OTP</button>
                 </div>
               ) : (
-                <div className="space-y-6 animate-in slide-in-from-bottom-2">
-                  <div className="p-4 bg-primary-50 rounded-xl border border-primary-100 flex items-center gap-3">
-                    <AlertCircle className="w-4 h-4 text-primary-600" />
-                    <p className="text-[10px] font-bold text-primary-700 uppercase tracking-tight">Code sent to: {newPhone}</p>
+                <div className="space-y-6">
+                  <div className="space-y-1.5 text-center">
+                    <label className="block text-[10px] font-black text-primary-600 uppercase tracking-[0.4em] mb-4">Verification Packet</label>
+                    <input type="text" maxLength="6" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-xl text-center font-black tracking-[1em] text-3xl focus:ring-2 focus:ring-primary-500 outline-none shadow-inner" placeholder="000000" value={phoneOtp} onChange={(e) => setPhoneOtp(e.target.value)} />
                   </div>
-                  <div className="space-y-4">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 text-center">Verification Packet</label>
-                    <input type="text" maxLength="6" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-xl text-center font-black tracking-[0.8em] text-2xl focus:ring-2 focus:ring-primary-500 outline-none shadow-inner" placeholder="000000" value={phoneOtp} onChange={(e) => setPhoneOtp(e.target.value)} />
-                    <button onClick={handleVerifyPhone} disabled={actionLoading || phoneOtp.length !== 6} className="w-full py-4 bg-green-600 text-white text-[10px] font-black rounded-xl uppercase tracking-[0.2em] shadow-xl hover:bg-green-700 transition-all">Verify & Update</button>
-                  </div>
+                  <button onClick={handleVerifyPhone} disabled={actionLoading} className="w-full py-4 bg-primary-600 text-white text-xs font-black rounded-2xl uppercase tracking-[0.3em] shadow-xl hover:bg-primary-700 transition-all">Authorize Change</button>
                 </div>
               )}
             </div>
@@ -1352,65 +1246,38 @@ const UserDashboard = () => {
           {/* CHANGE PASSWORD MODAL */}
           <Modal
             isOpen={isChangingPassword}
-            onClose={() => { setIsChangingPassword(false); setPassOtpSent(false); }}
-            title="Security Vault"
-            subtitle="Multi-Factor Credential Update"
-            maxWidth="max-w-md"
+            onClose={() => setIsChangingPassword(false)}
+            title="Reset Protocol"
+            subtitle="Access Key Modification"
             error={error}
             successMessage={successMessage}
           >
-            <div className="space-y-6">
+            <div className="space-y-8">
               {!passOtpSent ? (
                 <div className="space-y-6">
                   <div className="space-y-4">
                     <div className="space-y-1.5">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">New Password</label>
-                      <input type="password" placeholder="••••••••" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none font-bold text-sm" value={passwords.new} onChange={(e) => setPasswords({ ...passwords, new: e.target.value })} />
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">New Access Key</label>
+                      <input type="password" underline="false" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-primary-500 outline-none" value={passwords.new} onChange={(e) => setPasswords({...passwords, new: e.target.value})} />
                     </div>
                     <div className="space-y-1.5">
-                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Confirm Password</label>
-                      <input type="password" placeholder="••••••••" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none font-bold text-sm" value={passwords.confirm} onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })} />
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Confirm Access Key</label>
+                      <input type="password" underline="false" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-primary-500 outline-none" value={passwords.confirm} onChange={(e) => setPasswords({...passwords, confirm: e.target.value})} />
                     </div>
                   </div>
-                  <button onClick={handleRequestPassOtp} disabled={actionLoading || !passwords.new || passwords.new !== passwords.confirm} className="w-full py-4 bg-slate-900 text-white text-[10px] font-black rounded-xl uppercase tracking-[0.2em] shadow-xl hover:bg-slate-800 transition-all">Request OTP via WhatsApp</button>
+                  <button onClick={handleRequestPasswordOtp} disabled={actionLoading} className="w-full py-4 bg-slate-900 text-white text-xs font-black rounded-2xl uppercase tracking-[0.3em] shadow-xl hover:bg-slate-800 transition-all">Begin Authorization</button>
                 </div>
               ) : (
-                <div className="space-y-8 animate-in slide-in-from-bottom-2">
-                  <div className="space-y-4">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 text-center">Identity ProofingPacket</label>
-                    <input type="text" maxLength="6" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-xl text-center font-black tracking-[0.8em] text-2xl focus:ring-2 focus:ring-primary-500 outline-none shadow-inner" placeholder="000000" value={passOtp} onChange={(e) => setPassOtp(e.target.value)} />
-                    <button onClick={handleVerifyPassword} disabled={actionLoading || passOtp.length !== 6} className="w-full py-4 bg-green-600 text-white text-[10px] font-black rounded-xl uppercase tracking-[0.2em] shadow-xl hover:bg-green-700 transition-all">Confirm Change</button>
+                <div className="space-y-6">
+                  <div className="space-y-1.5 text-center">
+                    <label className="block text-[10px] font-black text-primary-600 uppercase tracking-[0.4em] mb-4">Auth Packet</label>
+                    <input type="text" maxLength="6" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-xl text-center font-black tracking-[1em] text-3xl focus:ring-2 focus:ring-primary-500 outline-none shadow-inner" placeholder="000000" value={passOtp} onChange={(e) => setPassOtp(e.target.value)} />
                   </div>
+                  <button onClick={handleVerifyPassword} disabled={actionLoading} className="w-full py-4 bg-primary-600 text-white text-xs font-black rounded-2xl uppercase tracking-[0.3em] shadow-xl hover:bg-primary-700 transition-all">Commit Reset</button>
                 </div>
               )}
             </div>
           </Modal>
-
-          {/* GATEWAY DEBUG AREA */}
-          {gatewayResponse && (
-            <div className="mt-10 bg-slate-900 rounded-2xl overflow-hidden shadow-xl border border-slate-800 animate-in slide-in-from-bottom-4 duration-500">
-              <button 
-                onClick={() => setIsDebugExpanded(!isDebugExpanded)}
-                className="w-full px-6 py-4 flex items-center justify-between hover:bg-white/5 transition-all"
-              >
-                <div className="flex items-center gap-3 text-primary-400">
-                  <Terminal className="w-4 h-4" />
-                  <span className="text-[9px] font-black uppercase tracking-[0.2em]">Gateway Log</span>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-[9px] font-bold text-white tracking-widest uppercase">HTTP {gatewayResponse.status}</span>
-                  {isDebugExpanded ? <ChevronUp className="w-4 h-4 text-slate-500" /> : <ChevronDown className="w-4 h-4 text-slate-500" />}
-                </div>
-              </button>
-              {isDebugExpanded && (
-                <div className="p-6 bg-black/30 border-t border-slate-800 overflow-x-auto max-h-[400px] custom-scrollbar">
-                  <pre className="text-primary-300/70 font-mono text-[10px] leading-relaxed">
-                    {JSON.stringify(gatewayResponse.data, null, 4)}
-                  </pre>
-                </div>
-              )}
-            </div>
-          )}
         </div>
       </main>
     </div>

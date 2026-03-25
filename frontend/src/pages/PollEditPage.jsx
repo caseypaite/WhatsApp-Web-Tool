@@ -249,39 +249,33 @@ const PollEditPage = () => {
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Access Protocol</label>
                 <select 
                   className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-primary-100 outline-none font-bold text-sm appearance-none" 
-                  value={poll.access_type} 
-                  onChange={(e) => setPoll({...poll, access_type: e.target.value})}
+                  value={
+                    poll.access_type === 'PUBLIC' ? 'PUBLIC' : 
+                    poll.group_id ? `INTERNAL:${poll.group_id}` : 
+                    poll.wa_jid ? `WHATSAPP:${poll.wa_jid}` : 'PUBLIC'
+                  } 
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'PUBLIC') {
+                      setPoll({...poll, access_type: 'PUBLIC', group_id: null, wa_jid: null});
+                    } else if (val.startsWith('INTERNAL:')) {
+                      setPoll({...poll, access_type: 'CLOSED', group_id: val.split(':')[1], wa_jid: null});
+                    } else if (val.startsWith('WHATSAPP:')) {
+                      setPoll({...poll, access_type: 'CLOSED', group_id: null, wa_jid: val.split(':')[1]});
+                    }
+                  }}
                 >
-                  <option value="PUBLIC">PUBLIC (Anyone with link)</option>
-                  <option value="CLOSED">CLOSED (Organizational Group Only)</option>
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Associated Group</label>
-                <select 
-                  className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-primary-100 outline-none font-bold text-sm appearance-none" 
-                  value={poll.group_id || ''} 
-                  onChange={(e) => setPoll({...poll, group_id: e.target.value || null})}
-                >
-                  <option value="">No Group (Global)</option>
-                  {myGroups.map(g => (
-                    <option key={g.id} value={g.id}>{g.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">WhatsApp Group Restriction</label>
-                <select 
-                  className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-primary-100 outline-none font-bold text-sm appearance-none" 
-                  value={poll.wa_jid || ''} 
-                  onChange={(e) => setPoll({...poll, wa_jid: e.target.value || null})}
-                >
-                  <option value="">No Restriction</option>
-                  {waGroups.map(g => (
-                    <option key={g.id._serialized} value={g.id._serialized}>{g.name}</option>
-                  ))}
+                  <option value="PUBLIC">🌍 PUBLIC (Anyone with link)</option>
+                  <optgroup label="Internal Managed Units">
+                    {myGroups.map(g => (
+                      <option key={g.id} value={`INTERNAL:${g.id}`}>🏠 INTERNAL: {g.name}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="WhatsApp Organizational Units">
+                    {waGroups.map(g => (
+                      <option key={g.id?._serialized} value={`WHATSAPP:${g.id?._serialized}`}>💬 WHATSAPP: {g.name}</option>
+                    ))}
+                  </optgroup>
                 </select>
               </div>
 

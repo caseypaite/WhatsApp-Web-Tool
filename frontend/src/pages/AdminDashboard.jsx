@@ -7,7 +7,7 @@ import {
   User, Shield, Check, X, RefreshCw, Settings, Save, AlertCircle, 
   Globe, Lock, Cpu, Send, Plus, Trash2, History, ChevronDown, 
   ChevronUp, Terminal, MessageSquare, ShieldCheck, Users, 
-  Layout, Smartphone, FileText, Menu, LogOut, Activity, BarChart2, Edit2,
+  Layout, Smartphone, FileText, Menu, LogOut, Activity, BarChart2, Edit2, Link,
   Image as ImageIcon, File as FileIcon, Music, Video, Search
 } from 'lucide-react';
 
@@ -187,6 +187,50 @@ const AdminDashboard = () => {
   const showFlash = (message, type = 'success') => {
     setFlash({ message, type });
     setTimeout(() => setFlash(null), 5000);
+  };
+
+  const copyPollLink = (id) => {
+    const link = `${window.location.origin}/#/poll/${id}`;
+    
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link)
+        .then(() => {
+          showFlash('Poll link copied to clipboard!');
+        })
+        .catch(() => {
+          fallbackCopyTextToClipboard(link);
+        });
+    } else {
+      fallbackCopyTextToClipboard(link);
+    }
+  };
+
+  const fallbackCopyTextToClipboard = (text) => {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    textArea.style.top = "0";
+    document.body.appendChild(textArea);
+    
+    textArea.focus();
+    textArea.select();
+    textArea.setSelectionRange(0, 99999);
+
+    let successful = false;
+    try {
+      successful = document.execCommand('copy');
+    } catch (err) {
+      console.error('Fallback copy failed', err);
+    }
+
+    if (successful) {
+      showFlash('Poll link copied to clipboard!');
+    } else {
+      showFlash('Manual copy required: ' + text, 'error');
+    }
+    
+    document.body.removeChild(textArea);
   };
 
   const fetchWaStatus = async () => {
@@ -1928,6 +1972,13 @@ const AdminDashboard = () => {
                           </div>
                         </div>
                         <div className="flex gap-2">
+                          <button 
+                            onClick={() => copyPollLink(poll.id)} 
+                            className="p-2.5 text-slate-300 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-all border border-transparent hover:border-slate-100"
+                            title="Copy Poll Link"
+                          >
+                            <Link className="w-5 h-5" />
+                          </button>
                           {poll.type && (
                             <button 
                               onClick={() => navigate(`/poll/edit/${poll.id}`)} 
@@ -2395,7 +2446,7 @@ const AdminDashboard = () => {
               <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-2">Participants ({managingGroup?.metadata?.participants?.length || 0})</h4>
               <div className="max-h-[400px] overflow-y-auto pr-2 space-y-3 custom-scrollbar">
                 {managingGroup?.metadata?.participants?.map(p => (
-                  <div key={p.id._serialized} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between group border border-slate-100">
+                  <div key={p.id?._serialized} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between group border border-slate-100">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center text-[10px] font-black text-slate-400 border border-slate-200">
                         {p.id.user[0]}
@@ -2407,11 +2458,11 @@ const AdminDashboard = () => {
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       {p.isAdmin ? (
-                        <button onClick={() => handleDemoteAdmin(p.id._serialized)} title="Demote" className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg"><ChevronDown className="w-4 h-4" /></button>
+                        <button onClick={() => handleDemoteAdmin(p.id?._serialized)} title="Demote" className="p-1.5 text-amber-600 hover:bg-amber-50 rounded-lg"><ChevronDown className="w-4 h-4" /></button>
                       ) : (
-                        <button onClick={() => handlePromoteAdmin(p.id._serialized)} title="Promote" className="p-1.5 text-primary-600 hover:bg-primary-50 rounded-lg"><ChevronUp className="w-4 h-4" /></button>
+                        <button onClick={() => handlePromoteAdmin(p.id?._serialized)} title="Promote" className="p-1.5 text-primary-600 hover:bg-primary-50 rounded-lg"><ChevronUp className="w-4 h-4" /></button>
                       )}
-                      <button onClick={() => handleRemoveParticipant(p.id._serialized)} title="Remove" className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><X className="w-4 h-4" /></button>
+                      <button onClick={() => handleRemoveParticipant(p.id?._serialized)} title="Remove" className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><X className="w-4 h-4" /></button>
                     </div>
                   </div>
                 ))}
@@ -2421,14 +2472,14 @@ const AdminDashboard = () => {
               <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-2">Join Requests ({joinRequests.length})</h4>
               <div className="max-h-[400px] overflow-y-auto pr-2 space-y-3 custom-scrollbar">
                 {joinRequests.length > 0 ? joinRequests.map(r => (
-                  <div key={r.id._serialized} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between border border-slate-100">
+                  <div key={r.id?._serialized} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between border border-slate-100">
                     <div>
                       <p className="text-xs font-bold text-slate-800">{r.id.user}</p>
                       <p className="text-[9px] text-slate-400">{new Date(r.timestamp * 1000).toLocaleString()}</p>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => handleApproveJoin(r.id._serialized)} className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100"><Check className="w-4 h-4" /></button>
-                      <button onClick={() => handleRejectJoin(r.id._serialized)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><X className="w-4 h-4" /></button>
+                      <button onClick={() => handleApproveJoin(r.id?._serialized)} className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100"><Check className="w-4 h-4" /></button>
+                      <button onClick={() => handleRejectJoin(r.id?._serialized)} className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100"><X className="w-4 h-4" /></button>
                     </div>
                   </div>
                 )) : (
@@ -2459,7 +2510,7 @@ const AdminDashboard = () => {
               <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-2">Participants ({managingGroup?.metadata?.participants?.length || 0})</h4>
               <div className="max-h-[500px] overflow-y-auto pr-2 space-y-3 custom-scrollbar">
                 {managingGroup?.metadata?.participants?.map(p => (
-                  <div key={p.id._serialized} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between group border border-slate-100 hover:bg-white hover:shadow-lg transition-all">
+                  <div key={p.id?._serialized} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between group border border-slate-100 hover:bg-white hover:shadow-lg transition-all">
                     <div className="flex items-center gap-3">
                       {p.profilePic ? (
                         <img src={p.profilePic} className="w-10 h-10 rounded-xl object-cover shadow-sm" alt="" />
@@ -2479,7 +2530,7 @@ const AdminDashboard = () => {
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button 
                         onClick={() => {
-                          setDirectMessageTarget({ id: p.id._serialized, name: p.name, type: 'contact' });
+                          setDirectMessageTarget({ id: p.id?._serialized, name: p.name, type: 'contact' });
                           setShowDirectMessage(true);
                         }}
                         className="p-2.5 text-primary-600 hover:bg-primary-50 rounded-xl transition-all"
@@ -2488,11 +2539,11 @@ const AdminDashboard = () => {
                         <MessageSquare className="w-4 h-4" />
                       </button>
                       {p.isAdmin ? (
-                        <button onClick={() => handleDemoteAdmin(p.id._serialized)} title="Demote" className="p-2.5 text-amber-600 hover:bg-amber-50 rounded-xl transition-all"><ChevronDown className="w-4 h-4" /></button>
+                        <button onClick={() => handleDemoteAdmin(p.id?._serialized)} title="Demote" className="p-2.5 text-amber-600 hover:bg-amber-50 rounded-xl transition-all"><ChevronDown className="w-4 h-4" /></button>
                       ) : (
-                        <button onClick={() => handlePromoteAdmin(p.id._serialized)} title="Promote" className="p-2.5 text-primary-600 hover:bg-primary-50 rounded-xl transition-all"><ChevronUp className="w-4 h-4" /></button>
+                        <button onClick={() => handlePromoteAdmin(p.id?._serialized)} title="Promote" className="p-2.5 text-primary-600 hover:bg-primary-50 rounded-xl transition-all"><ChevronUp className="w-4 h-4" /></button>
                       )}
-                      <button onClick={() => handleRemoveParticipant(p.id._serialized)} title="Remove" className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl transition-all"><X className="w-4 h-4" /></button>
+                      <button onClick={() => handleRemoveParticipant(p.id?._serialized)} title="Remove" className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl transition-all"><X className="w-4 h-4" /></button>
                     </div>
                   </div>
                 ))}
@@ -2502,14 +2553,14 @@ const AdminDashboard = () => {
               <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b pb-2">Join Requests ({joinRequests.length})</h4>
               <div className="max-h-[500px] overflow-y-auto pr-2 space-y-3 custom-scrollbar">
                 {joinRequests.length > 0 ? joinRequests.map(r => (
-                  <div key={r.id._serialized} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between border border-slate-100 hover:bg-white hover:shadow-lg transition-all">
+                  <div key={r.id?._serialized} className="p-4 bg-slate-50 rounded-2xl flex items-center justify-between border border-slate-100 hover:bg-white hover:shadow-lg transition-all">
                     <div>
                       <p className="text-xs font-black text-slate-800">{r.name || r.id.user}</p>
                       <p className="text-[9px] font-mono text-slate-400">+{r.id.user}</p>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => handleApproveJoin(r.id._serialized)} className="p-2.5 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 shadow-sm transition-all"><Check className="w-4 h-4" /></button>
-                      <button onClick={() => handleRejectJoin(r.id._serialized)} className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 shadow-sm transition-all"><X className="w-4 h-4" /></button>
+                      <button onClick={() => handleApproveJoin(r.id?._serialized)} className="p-2.5 bg-green-50 text-green-600 rounded-xl hover:bg-green-100 shadow-sm transition-all"><Check className="w-4 h-4" /></button>
+                      <button onClick={() => handleRejectJoin(r.id?._serialized)} className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 shadow-sm transition-all"><X className="w-4 h-4" /></button>
                     </div>
                   </div>
                 )) : (
