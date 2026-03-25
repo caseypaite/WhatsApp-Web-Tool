@@ -9,3 +9,5 @@ temp_release/
 temp_repackage/
 *.tar.gz
 backend/uploads/
+**/backend.env
+**/frontend.env
