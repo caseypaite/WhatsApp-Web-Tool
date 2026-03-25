@@ -133,6 +133,7 @@ CREATE TABLE IF NOT EXISTS polls (
     options JSONB, -- For general polls: ["Option A", "Option B"]
     status VARCHAR(20) DEFAULT 'OPEN', -- OPEN, CLOSED, PENDING
     results_published BOOLEAN DEFAULT false,
+    background_image_url TEXT,
     starts_at TIMESTAMP,
     ends_at TIMESTAMP,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
