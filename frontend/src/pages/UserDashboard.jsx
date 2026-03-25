@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import authService from '../services/auth.service';
 import api from '../services/api';
@@ -54,6 +55,7 @@ const Modal = ({ isOpen, onClose, title, subtitle, children, maxWidth = 'max-w-2
 };
 
 const UserDashboard = () => {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
@@ -93,13 +95,13 @@ const UserDashboard = () => {
   // Polls State
   const [polls, setPolls] = useState([]);
   const [showCreatePoll, setShowCreatePoll] = useState(false);
-  const [isEditingPoll, setIsEditingPoll] = useState(false);
   const [selectedPoll, setSelectedPoll] = useState(null);
-  const [newPoll, setNewPoll] = useState({ 
-    title: '', description: '', type: 'GENERAL', access_type: 'PUBLIC', 
+  const [newPoll, setNewPoll] = useState({
+    title: '', description: '', type: 'GENERAL', access_type: 'PUBLIC',
     options: ['', ''], group_id: '', candidates: [{ name: '', photo_url: '', manifesto: '', biography: '' }],
-    starts_at: '', ends_at: ''
+    starts_at: '', ends_at: '', background_image_url: ''
   });
+
   const [viewingResultsId, setViewingResultsId] = useState(null);
   const [advancedResults, setAdvancedResults] = useState(null);
   const [votingData, setVotingData] = useState({ pollId: null, phone_number: '', otp: '', option_selected: '', candidate_id: null });
@@ -133,21 +135,10 @@ const UserDashboard = () => {
     }
   };
 
-  const handleUpdatePoll = async (e) => {
-    e.preventDefault();
-    setActionLoading(true);
-    try {
-      await authService.updateAdvancedPoll(selectedPoll.id, selectedPoll);
-      setSuccessMessage('Poll updated successfully!');
-      setIsEditingPoll(false);
-      setSelectedPoll(null);
-      fetchData();
-    } catch (err) {
-      setError(err.response?.data?.error || 'Failed to update poll.');
-    } finally {
-      setActionLoading(false);
-    }
+  const handleEditPoll = (poll) => {
+    navigate(`/poll/edit/${poll.id}`);
   };
+
 
   const handleTogglePollStatus = async (poll) => {
     setActionLoading(true);
@@ -813,9 +804,17 @@ const UserDashboard = () => {
                 )}
               </div>
 
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {polls.map(poll => (
-                  <div key={poll.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 hover:shadow-xl transition-all group">
+              {error && (
+                <div className="p-5 bg-red-50 text-red-700 rounded-[2rem] border border-red-100 flex items-center gap-4 animate-in slide-in-from-top-2">
+                  <AlertCircle className="w-6 h-6 flex-shrink-0" />
+                  <p className="text-sm font-bold uppercase tracking-widest">{error}</p>
+                </div>
+              )}
+
+              {polls.length > 0 ? (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {polls.map(poll => (
+                    <div key={poll.id} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 hover:shadow-xl transition-all group">
                     <div className="flex justify-between items-start mb-4">
                       <div className="px-3 py-1 bg-slate-100 rounded-full text-[9px] font-black text-slate-500 uppercase tracking-widest border border-slate-200">
                         {poll.type}
@@ -838,15 +837,15 @@ const UserDashboard = () => {
                         View & Vote
                       </button>
 
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Starts At (Optional)</label>
-                          <input type="datetime-local" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none font-bold text-sm" value={newPoll.starts_at} onChange={(e) => setNewPoll({...newPoll, starts_at: e.target.value})} />
+                      <div className="flex flex-col gap-1.5 pt-4 border-t border-slate-100 mb-4">
+                        <div className="flex items-center gap-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">
+                          <Clock className="w-3 h-3" /> {poll.starts_at ? `Starts: ${new Date(poll.starts_at).toLocaleString()}` : 'Instant Activation'}
                         </div>
-                        <div className="space-y-2">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Ends At (Optional)</label>
-                          <input type="datetime-local" className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none font-bold text-sm" value={newPoll.ends_at} onChange={(e) => setNewPoll({...newPoll, ends_at: e.target.value})} />
-                        </div>
+                        {poll.ends_at && (
+                          <div className="flex items-center gap-2 text-[8px] font-black text-slate-400 uppercase tracking-widest">
+                            <Clock className="w-3 h-3" /> Ends: {new Date(poll.ends_at).toLocaleString()}
+                          </div>
+                        )}
                       </div>
                                 <button onClick={() => handleViewAdvancedResults(poll.id)} className="flex items-center gap-1 px-3 py-1.5 bg-primary-50 text-primary-600 rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-primary-600 hover:text-white transition-all">
                                   <BarChart2 className="w-3 h-3" /> Results
@@ -866,7 +865,7 @@ const UserDashboard = () => {
                             <Link className="w-3 h-3" /> Link
                           </button>
                           <button 
-                            onClick={() => { setSelectedPoll(poll); setIsEditingPoll(true); }}
+                            onClick={() => handleEditPoll(poll)}
                             className="flex items-center justify-center gap-2 py-2 bg-slate-50 text-primary-600 text-[9px] font-bold rounded-lg hover:bg-primary-50 uppercase tracking-widest border border-slate-200"
                           >
                             <Edit2 className="w-3 h-3" /> Edit
@@ -889,6 +888,15 @@ const UserDashboard = () => {
                   </div>
                 ))}
               </div>
+              ) : (
+                <div className="py-20 bg-white rounded-[3rem] border-4 border-dashed border-slate-50 text-center space-y-4">
+                  <BarChart2 className="w-12 h-12 text-slate-200 mx-auto" />
+                  <div>
+                    <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest">No active decisions found</h4>
+                    <p className="text-xs text-slate-400">Check back later for new community polls or create one if you have administrative rights.</p>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1110,7 +1118,7 @@ const UserDashboard = () => {
 
           {/* VOTE MODAL */}
           <Modal
-            isOpen={!!selectedPoll && !isEditingPoll}
+            isOpen={!!selectedPoll}
             onClose={() => { setSelectedPoll(null); setVoteOtpSent(false); }}
             title={selectedPoll?.title}
             subtitle={`Status: ${selectedPoll?.status} | Access: ${selectedPoll?.access_type}`}
@@ -1219,51 +1227,6 @@ const UserDashboard = () => {
             </div>
           </Modal>
 
-          {/* EDIT POLL MODAL */}
-          <Modal
-            isOpen={isEditingPoll}
-            onClose={() => { setIsEditingPoll(false); setSelectedPoll(null); }}
-            title="Edit Decision Unit"
-            subtitle="Update Configuration"
-            error={error}
-            successMessage={successMessage}
-          >
-            {selectedPoll && (
-              <form onSubmit={handleUpdatePoll} className="space-y-6">
-                <div className="space-y-1.5">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Title</label>
-                  <input type="text" required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none font-bold" value={selectedPoll.title} onChange={(e) => setSelectedPoll({...selectedPoll, title: e.target.value})} />
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Description</label>
-                  <textarea required className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none font-medium text-sm resize-none" rows="2" value={selectedPoll.description} onChange={(e) => setSelectedPoll({...selectedPoll, description: e.target.value})} />
-                </div>
-
-                <div className="grid gap-6 sm:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Status</label>
-                    <select className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none font-bold" value={selectedPoll.status} onChange={(e) => setSelectedPoll({...selectedPoll, status: e.target.value})}>
-                      <option value="OPEN">Open (Accepting Votes)</option>
-                      <option value="CLOSED">Closed (Archived)</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Access Level</label>
-                    <select className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none font-bold" value={selectedPoll.access_type} onChange={(e) => setSelectedPoll({...selectedPoll, access_type: e.target.value})}>
-                      <option value="PUBLIC">Public (Any Number)</option>
-                      <option value="CLOSED">Closed (Group Members Only)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="pt-6 border-t border-slate-100 flex gap-3">
-                  <button type="submit" disabled={actionLoading} className="flex-1 py-4 bg-slate-900 text-white text-xs font-black rounded-2xl uppercase tracking-[0.3em] shadow-xl hover:bg-slate-800 transition-all">Save Changes</button>
-                  <button type="button" onClick={() => { setIsEditingPoll(false); setSelectedPoll(null); }} className="px-8 py-4 bg-slate-100 text-slate-500 text-xs font-black rounded-2xl uppercase tracking-widest hover:bg-slate-200 transition-all">Cancel</button>
-                </div>
-              </form>
-            )}
-          </Modal>
 
           {/* EDIT PROFILE MODAL */}
           <Modal

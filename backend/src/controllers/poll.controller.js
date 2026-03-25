@@ -46,7 +46,7 @@ class PollController {
   }
 
   async create(req, res) {
-    let { title, description, type, access_type, options, group_id, candidates, starts_at, ends_at } = req.body;
+    let { title, description, type, access_type, options, group_id, candidates, starts_at, ends_at, background_image_url } = req.body;
     const creator_id = req.user.id;
 
     const client = await db.pool.connect();
@@ -75,8 +75,8 @@ class PollController {
       }
 
       const pollRes = await client.query(
-        'INSERT INTO polls (creator_id, group_id, type, access_type, title, description, options, status, starts_at, ends_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *',
-        [creator_id, finalGroupId, type || 'GENERAL', access_type || 'PUBLIC', title, description, JSON.stringify(options || []), status, starts_at || null, ends_at || null]
+        'INSERT INTO polls (creator_id, group_id, type, access_type, title, description, options, status, starts_at, ends_at, background_image_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *',
+        [creator_id, finalGroupId, type || 'GENERAL', access_type || 'PUBLIC', title, description, JSON.stringify(options || []), status, starts_at || null, ends_at || null, background_image_url || null]
       );
       const poll = pollRes.rows[0];
 
@@ -101,24 +101,43 @@ class PollController {
 
   async update(req, res) {
     const { id } = req.params;
-    const { title, description, status, access_type, options, starts_at, ends_at, results_published } = req.body;
+    const { title, description, status, access_type, options, starts_at, ends_at, results_published, candidates, type, background_image_url } = req.body;
     const userId = req.user.id;
 
+    const client = await db.pool.connect();
     try {
-      const checkRes = await db.query('SELECT creator_id FROM polls WHERE id = $1', [id]);
+      const checkRes = await client.query('SELECT creator_id, type FROM polls WHERE id = $1', [id]);
       if (checkRes.rows.length === 0) return res.status(404).json({ error: 'Poll not found' });
       if (!req.user.roles?.includes('Admin') && !req.user.roles?.includes('SuperAdmin') && checkRes.rows[0].creator_id !== userId) {
         return res.status(403).json({ error: 'Unauthorized' });
       }
 
-      const result = await db.query(
-        'UPDATE polls SET title = $1, description = $2, status = $3, access_type = $4, options = $5, starts_at = $6, ends_at = $7, results_published = $8, updated_at = CURRENT_TIMESTAMP WHERE id = $9 RETURNING *',
-        [title, description, status, access_type, JSON.stringify(options), starts_at, ends_at, results_published, id]
+      await client.query('BEGIN');
+
+      const result = await client.query(
+        'UPDATE polls SET title = $1, description = $2, status = $3, access_type = $4, options = $5, starts_at = $6, ends_at = $7, results_published = $8, background_image_url = $9, updated_at = CURRENT_TIMESTAMP WHERE id = $10 RETURNING *',
+        [title, description, status, access_type, JSON.stringify(options), starts_at, ends_at, results_published, background_image_url, id]
       );
+
+      // Handle candidates if it's an election poll
+      if ((type === 'ELECTION' || checkRes.rows[0].type === 'ELECTION') && candidates) {
+        // Simple approach: delete all and re-insert
+        await client.query('DELETE FROM poll_candidates WHERE poll_id = $1', [id]);
+        for (const cand of candidates) {
+          await client.query(
+            'INSERT INTO poll_candidates (poll_id, name, photo_url, manifesto, biography) VALUES ($1, $2, $3, $4, $5)',
+            [id, cand.name, cand.photo_url, cand.manifesto, cand.biography]
+          );
+        }
+      }
       
+      await client.query('COMMIT');
       res.json(result.rows[0]);
     } catch (error) {
+      await client.query('ROLLBACK');
       res.status(500).json({ error: error.message });
+    } finally {
+      client.release();
     }
   }
 

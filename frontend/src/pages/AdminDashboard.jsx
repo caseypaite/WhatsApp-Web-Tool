@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import authService from '../services/auth.service';
 import { useAuth } from '../context/AuthContext';
@@ -6,7 +7,7 @@ import {
   User, Shield, Check, X, RefreshCw, Settings, Save, AlertCircle, 
   Globe, Lock, Cpu, Send, Plus, Trash2, History, ChevronDown, 
   ChevronUp, Terminal, MessageSquare, ShieldCheck, Users, 
-  Layout, Smartphone, FileText, Menu, LogOut, Activity, BarChart2,
+  Layout, Smartphone, FileText, Menu, LogOut, Activity, BarChart2, Edit2,
   Image as ImageIcon, File as FileIcon, Music, Video, Search
 } from 'lucide-react';
 
@@ -48,8 +49,10 @@ const Modal = ({ isOpen, onClose, title, subtitle, children, maxWidth = 'max-w-l
 };
 
 const AdminDashboard = () => {
+  const navigate = useNavigate();
   const { updateSiteName } = useAuth();
   const [activeTab, setActiveTab] = useState('users');
+  const [automationTab, setAutomationTab] = useState('responders');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [activeSettingsTab, setActiveSettingsTab] = useState('general');
   const [users, setUsers] = useState([]);
@@ -900,8 +903,7 @@ const AdminDashboard = () => {
     { id: 'whatsapp', label: 'WhatsApp Status', icon: Smartphone },
     { id: 'broadcast', label: 'Bulk Broadcast', icon: Send },
     { id: 'templates', label: 'Message Templates', icon: FileText },
-    { id: 'responders', label: 'Auto-Responders', icon: MessageSquare },
-    { id: 'scheduled', label: 'Scheduled Tasks', icon: RefreshCw },
+    { id: 'automation', label: 'Automation Engine', icon: RefreshCw },
     { id: 'history', label: 'Message History', icon: History },
     { id: 'polls', label: 'Poll Results', icon: BarChart2 },
     { id: 'cms', label: 'Landing Page', icon: Layout },
@@ -1184,70 +1186,85 @@ const AdminDashboard = () => {
                   </div>
 
                   <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-200">
-                    <div className="flex items-center justify-between mb-8">
-                      <h3 className="text-lg font-black text-slate-900 tracking-tight">Linking Method</h3>
-                      <div className="flex bg-slate-100 p-1 rounded-xl">
-                        <button onClick={() => setShowPairingForm(false)} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${!showPairingForm ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-400'}`}>QR Code</button>
-                        <button onClick={() => setShowPairingForm(true)} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${showPairingForm ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-400'}`}>Phone Number</button>
-                      </div>
-                    </div>
-
-                    {showPairingForm ? (
-                      <div className="space-y-6 animate-in slide-in-from-right-4">
-                        <p className="text-xs text-slate-500 font-medium leading-relaxed italic">Link your account by entering your phone number and receiving an 8-character pairing code to enter on your mobile device.</p>
-                        {!pairingCode ? (
-                          <form onSubmit={handleRequestPairingCode} className="space-y-4">
-                            <div className="space-y-2">
-                              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Phone Number (International Format)</label>
-                              <input 
-                                type="text" 
-                                required 
-                                className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-sm outline-none focus:ring-4 focus:ring-primary-100 shadow-inner" 
-                                placeholder="919876543210" 
-                                value={pairingPhone} 
-                                onChange={(e) => setPairingPhone(e.target.value)} 
-                              />
-                            </div>
-                            <button type="submit" disabled={waActionLoading} className="w-full py-5 bg-primary-600 text-white text-[11px] font-black rounded-2xl uppercase tracking-[0.2em] shadow-xl hover:bg-primary-700 transition-all flex items-center justify-center gap-3">
-                              {waActionLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Smartphone className="w-5 h-5" />}
-                              Generate Code
-                            </button>
-                          </form>
-                        ) : (
-                          <div className="text-center space-y-8 py-6">
-                            <div className="flex flex-wrap justify-center gap-3">
-                              {pairingCode.split('').map((char, i) => (
-                                <div key={i} className="w-10 h-14 bg-slate-900 text-white rounded-xl flex items-center justify-center text-2xl font-black shadow-2xl border border-primary-500/20">{char}</div>
-                              ))}
-                            </div>
-                            <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100 text-left">
-                              <h4 className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-3">Next Steps:</h4>
-                              <ol className="text-[11px] text-amber-800 font-bold space-y-2 list-decimal ml-4">
-                                <li>Open WhatsApp on your mobile phone</li>
-                                <li>Go to Linked Devices {'>'} Link a Device</li>
-                                <li>Tap "Link with phone number instead"</li>
-                                <li>Enter the 8-character code displayed above</li>
-                              </ol>
-                            </div>
-                            <button onClick={() => setPairingCode('')} className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-900 transition-all underline">Reset Linking Request</button>
-                          </div>
-                        )}
+                    {waStatus.status === 'CONNECTED' ? (
+                      <div className="text-center py-10 space-y-6 animate-in zoom-in-95 duration-500">
+                        <div className="w-20 h-20 bg-green-50 rounded-full flex items-center justify-center mx-auto border-4 border-green-100 shadow-inner">
+                          <Check className="w-10 h-10 text-green-600" />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-black text-slate-900 uppercase tracking-tight">Connection Active</h3>
+                          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Linking mechanisms offline</p>
+                        </div>
+                        <p className="text-[11px] text-slate-500 max-w-xs mx-auto leading-relaxed">Your account is currently synchronized with the engine. To link a different account, please perform a logout first.</p>
                       </div>
                     ) : (
-                      <div className="text-center">
-                        <p className="text-xs text-slate-500 font-medium leading-relaxed italic mb-8">Standard QR protocol. Scan the dynamic packet using your mobile device's built-in WhatsApp scanner.</p>
-                        {waStatus.qr ? (
-                          <div className="bg-white p-6 rounded-3xl shadow-2xl border border-slate-100 relative group inline-block">
-                            <div className="absolute inset-0 bg-primary-600/5 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity blur-xl"></div>
-                            <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(waStatus.qr)}`} className="w-[200px] h-[200px] relative z-10" alt="Link" />
+                      <>
+                        <div className="flex items-center justify-between mb-8">
+                          <h3 className="text-lg font-black text-slate-900 tracking-tight">Linking Method</h3>
+                          <div className="flex bg-slate-100 p-1 rounded-xl">
+                            <button onClick={() => setShowPairingForm(false)} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${!showPairingForm ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-400'}`}>QR Code</button>
+                            <button onClick={() => setShowPairingForm(true)} className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase transition-all ${showPairingForm ? 'bg-white text-primary-600 shadow-sm' : 'text-slate-400'}`}>Phone Number</button>
+                          </div>
+                        </div>
+
+                        {showPairingForm ? (
+                          <div className="space-y-6 animate-in slide-in-from-right-4">
+                            <p className="text-xs text-slate-500 font-medium leading-relaxed italic">Link your account by entering your phone number and receiving an 8-character pairing code to enter on your mobile device.</p>
+                            {!pairingCode ? (
+                              <form onSubmit={handleRequestPairingCode} className="space-y-4">
+                                <div className="space-y-2">
+                                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Phone Number (International Format)</label>
+                                  <input 
+                                    type="text" 
+                                    required 
+                                    className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black text-sm outline-none focus:ring-4 focus:ring-primary-100 shadow-inner" 
+                                    placeholder="919876543210" 
+                                    value={pairingPhone} 
+                                    onChange={(e) => setPairingPhone(e.target.value)} 
+                                  />
+                                </div>
+                                <button type="submit" disabled={waActionLoading} className="w-full py-5 bg-primary-600 text-white text-[11px] font-black rounded-2xl uppercase tracking-[0.2em] shadow-xl hover:bg-primary-700 transition-all flex items-center justify-center gap-3">
+                                  {waActionLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Smartphone className="w-5 h-5" />}
+                                  Generate Code
+                                </button>
+                              </form>
+                            ) : (
+                              <div className="text-center space-y-8 py-6">
+                                <div className="flex flex-wrap justify-center gap-3">
+                                  {pairingCode.split('').map((char, i) => (
+                                    <div key={i} className="w-10 h-14 bg-slate-900 text-white rounded-xl flex items-center justify-center text-2xl font-black shadow-2xl border border-primary-500/20">{char}</div>
+                                  ))}
+                                </div>
+                                <div className="p-6 bg-amber-50 rounded-2xl border border-amber-100 text-left">
+                                  <h4 className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-3">Next Steps:</h4>
+                                  <ol className="text-[11px] text-amber-800 font-bold space-y-2 list-decimal ml-4">
+                                    <li>Open WhatsApp on your mobile phone</li>
+                                    <li>Go to Linked Devices {'>'} Link a Device</li>
+                                    <li>Tap "Link with phone number instead"</li>
+                                    <li>Enter the 8-character code displayed above</li>
+                                  </ol>
+                                </div>
+                                <button onClick={() => setPairingCode('')} className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-900 transition-all underline">Reset Linking Request</button>
+                              </div>
+                            )}
                           </div>
                         ) : (
-                          <div className="py-20 animate-pulse">
-                            <RefreshCw className="w-12 h-12 text-slate-200 animate-spin mx-auto mb-4" />
-                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Generating QR Vector...</p>
+                          <div className="text-center">
+                            <p className="text-xs text-slate-500 font-medium leading-relaxed italic mb-8">Standard QR protocol. Scan the dynamic packet using your mobile device's built-in WhatsApp scanner.</p>
+                            {waStatus.qr ? (
+                              <div className="bg-white p-6 rounded-3xl shadow-2xl border border-slate-100 relative group inline-block">
+                                <div className="absolute inset-0 bg-primary-600/5 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity blur-xl"></div>
+                                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(waStatus.qr)}`} className="w-[200px] h-[200px] relative z-10" alt="Link" />
+                              </div>
+                            ) : (
+                              <div className="py-20 animate-pulse">
+                                <RefreshCw className="w-12 h-12 text-slate-200 animate-spin mx-auto mb-4" />
+                                <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Generating QR Vector...</p>
+                              </div>
+                            )}
                           </div>
                         )}
-                      </div>
+                      </>
                     )}
                   </div>
                 </div>
@@ -1542,37 +1559,42 @@ const AdminDashboard = () => {
                   </div>
                 )}
 
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                   {templates.map(t => (
-                    <div key={t.id} className={`bg-white p-8 rounded-3xl shadow-sm border ${editingTemplate?.id === t.id ? 'border-primary-600 ring-4 ring-primary-100' : 'border-slate-200'} flex flex-col group hover:shadow-2xl hover:border-primary-100 transition-all duration-500`}>
-                      <div className="flex justify-between items-start mb-8">
-                        <div className={`w-14 h-14 ${editingTemplate?.id === t.id ? 'bg-primary-600 text-white' : 'bg-slate-50 text-primary-600'} rounded-2xl flex items-center justify-center border border-slate-100 shadow-inner transition-colors duration-500`}>
-                          <FileText className="w-7 h-7" />
+                    <div key={t.id} className={`bg-white p-5 rounded-xl shadow-sm border ${editingTemplate?.id === t.id ? 'border-primary-600 ring-4 ring-primary-100' : 'border-slate-200'} flex flex-col group hover:shadow-xl hover:border-primary-100 transition-all duration-300`}>
+                      {t.media_url && t.media_type === 'image' && (
+                        <div className="mb-4 aspect-video rounded-lg overflow-hidden border border-slate-100 bg-slate-50">
+                          <img src={t.media_url} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                         </div>
-                        <div className="flex gap-2">
+                      )}
+                      <div className="flex justify-between items-start mb-4">
+                        <div className={`w-10 h-10 ${editingTemplate?.id === t.id ? 'bg-primary-600 text-white' : 'bg-slate-50 text-primary-600'} rounded-lg flex items-center justify-center border border-slate-100 shadow-inner transition-colors duration-300`}>
+                          <FileText className="w-5 h-5" />
+                        </div>
+                        <div className="flex gap-1">
                           <button 
                             onClick={() => {
                               setEditingTemplate(t);
                               setShowTemplateForm(false);
                               window.scrollTo({ top: 0, behavior: 'smooth' });
                             }} 
-                            className="p-3 text-slate-300 hover:text-primary-600 hover:bg-primary-50 rounded-2xl transition-all"
+                            className="p-2 text-slate-300 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all"
                           >
-                            <Save className="w-5 h-5" />
+                            <Save className="w-4 h-4" />
                           </button>
                           <button 
                             onClick={() => handleDeleteTemplate(t.id, t.name)} 
-                            className="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"
+                            className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                           >
-                            <Trash2 className="w-5 h-5" />
+                            <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
                       </div>
-                      <h4 className="text-xl font-black text-slate-900 mb-3 tracking-tight">{t.name}</h4>
-                      <p className="text-sm text-slate-500 font-medium line-clamp-4 leading-relaxed mb-10">{t.content}</p>
-                      <div className="mt-auto pt-6 border-t border-slate-50 flex items-center justify-between">
-                        <span className="text-[9px] font-black text-primary-600 uppercase tracking-widest">Type: {t.media_type || 'TEXT'}</span>
-                        {t.media_url && <ImageIcon className="w-4 h-4 text-slate-300" />}
+                      <h4 className="text-sm font-black text-slate-900 mb-2 tracking-tight line-clamp-1">{t.name}</h4>
+                      <p className="text-xs text-slate-500 font-medium line-clamp-3 leading-relaxed mb-6 flex-1">{t.content}</p>
+                      <div className="mt-auto pt-4 border-t border-slate-50 flex items-center justify-between">
+                        <span className="text-[8px] font-black text-primary-600 uppercase tracking-widest bg-primary-50 px-2 py-0.5 rounded-full">{t.media_type || 'TEXT'}</span>
+                        {t.media_url && <ImageIcon className="w-3.5 h-3.5 text-slate-300" />}
                       </div>
                     </div>
                   ))}
@@ -1580,236 +1602,248 @@ const AdminDashboard = () => {
               </div>
             )}
 
-            {/* AUTO-RESPONDERS */}
-            {activeTab === 'responders' && (
-              <div className="space-y-10">
-                <header className="flex justify-between items-center px-4">
-                  <div>
-                    <h3 className="text-2xl font-black text-slate-900 tracking-tight">Auto-Responders</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Keyword-Based Automated Replies</p>
-                  </div>
-                  <button 
-                    onClick={() => {
-                      setShowResponderForm(!showResponderForm);
-                      setEditingResponder(null);
-                    }} 
-                    className={`px-8 py-4 ${showResponderForm ? 'bg-slate-200 text-slate-600' : 'bg-slate-900 text-white'} text-[10px] font-black rounded-2xl uppercase tracking-widest shadow-xl active:scale-95 transform transition-all`}
-                  >
-                    {showResponderForm ? 'Cancel' : 'New Responder'}
-                  </button>
-                </header>
-
-                {(showResponderForm || editingResponder) && (
-                  <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-200 max-w-4xl mx-auto animate-in slide-in-from-top-4 duration-500">
-                    <div className="flex items-center gap-4 mb-8">
-                      <div className="w-12 h-12 bg-primary-50 text-primary-600 rounded-2xl flex items-center justify-center shadow-inner"><Plus className="w-6 h-6" /></div>
-                      <div>
-                        <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight">{editingResponder ? 'Modify Responder' : 'Initialize Auto-Response'}</h4>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{editingResponder ? 'Recalibrating keyword node' : 'Define new autonomous reply parameters'}</p>
-                      </div>
+            {/* AUTOMATION ENGINE */}
+            {activeTab === 'automation' && (
+              <div className="space-y-10 animate-in fade-in duration-500">
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div className="flex items-center gap-6">
+                    <div className="flex bg-slate-100 p-1.5 rounded-xl border border-slate-200 shadow-inner">
+                      <button 
+                        onClick={() => setAutomationTab('responders')} 
+                        className={`px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${automationTab === 'responders' ? 'bg-white text-primary-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                      >
+                        Auto-Responders
+                      </button>
+                      <button 
+                        onClick={() => setAutomationTab('scheduled')} 
+                        className={`px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${automationTab === 'scheduled' ? 'bg-white text-primary-600 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                      >
+                        Scheduled Tasks
+                      </button>
                     </div>
-                    <form onSubmit={editingResponder ? handleUpdateResponder : handleCreateResponder} className="space-y-8">
-                      <div className="grid md:grid-cols-2 gap-8">
-                        <div className="space-y-2">
-                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Trigger Keyword</label>
-                          <input type="text" required className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-primary-100 outline-none" placeholder="e.g. HELP" value={editingResponder ? editingResponder.keyword : newResponder.keyword} onChange={(e) => editingResponder ? setEditingResponder({...editingResponder, keyword: e.target.value}) : setNewResponder({ ...newResponder, keyword: e.target.value })} />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Match Algorithm</label>
-                          <select className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-primary-100 outline-none appearance-none" value={editingResponder ? editingResponder.match_type : newResponder.match_type} onChange={(e) => editingResponder ? setEditingResponder({...editingResponder, match_type: e.target.value}) : setNewResponder({ ...newResponder, match_type: e.target.value })}>
-                            <option value="EXACT">Exact Match (Case Sensitive)</option>
-                            <option value="CONTAINS">Contains Keyword</option>
-                            <option value="STARTS_WITH">Starts With Keyword</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Automated Response Content</label>
-                        <textarea required rows="5" className="w-full px-6 py-5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-primary-100 outline-none resize-none" placeholder="Enter auto-reply text..." value={editingResponder ? editingResponder.response : newResponder.response} onChange={(e) => editingResponder ? setEditingResponder({...editingResponder, response: e.target.value}) : setNewResponder({ ...newResponder, response: e.target.value })} />
-                      </div>
-                      <div className="flex gap-4 pt-4">
-                        <button type="submit" disabled={waActionLoading} className="flex-1 py-5 bg-primary-600 text-white text-[11px] font-black rounded-2xl uppercase tracking-[0.3em] shadow-xl shadow-primary-900/20 hover:bg-primary-700 transition-all flex items-center justify-center gap-3 active:scale-95">
-                          {waActionLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                          {editingResponder ? 'Execute Update' : 'Establish Responder'}
-                        </button>
-                        <button 
-                          type="button" 
-                          onClick={() => {
-                            setShowResponderForm(false);
-                            setEditingResponder(null);
-                          }} 
-                          className="px-10 py-5 bg-slate-100 text-slate-500 text-[11px] font-black rounded-2xl uppercase tracking-widest hover:bg-slate-200"
-                        >
-                          Abort
-                        </button>
-                      </div>
-                    </form>
                   </div>
-                )}
-                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                  {responders.map(r => (
-                    <div key={r.id} className={`bg-white p-8 rounded-3xl shadow-sm border flex flex-col group hover:shadow-2xl transition-all duration-500 ${editingResponder?.id === r.id ? 'border-primary-600 ring-4 ring-primary-100' : (r.is_active ? 'border-slate-200' : 'border-slate-100 grayscale opacity-60')}`}>
-                      <div className="flex justify-between items-start mb-8">
-                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border shadow-inner transition-colors duration-500 ${editingResponder?.id === r.id ? 'bg-primary-600 text-white border-primary-600' : (r.is_active ? 'bg-primary-50 text-primary-600 border-primary-100' : 'bg-slate-50 text-slate-400 border-slate-200')}`}><MessageSquare className="w-7 h-7" /></div>
-                        <div className="flex gap-2">
-                          <button 
-                            onClick={() => {
-                              setEditingResponder(r);
-                              setShowResponderForm(false);
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
-                            }} 
-                            className="p-3 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-2xl transition-all"
-                          >
-                            <Save className="w-5 h-5" />
-                          </button>
-                          <button onClick={() => handleToggleResponder(r.id)} className="p-3 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-2xl transition-all"><RefreshCw className="w-5 h-5" /></button>
-                          <button onClick={() => handleDeleteResponder(r.id, r.keyword)} className="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"><Trash2 className="w-5 h-5" /></button>
-                        </div>
-                      </div>
-                      <h4 className="text-lg font-black text-slate-900 mb-1 tracking-tight uppercase">{r.keyword}</h4>
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Match: {r.match_type}</p>
-                      <p className="text-sm text-slate-500 font-medium leading-relaxed mb-6">{r.response}</p>
-                      <div className="mt-auto pt-4 flex items-center justify-between">
-                        <span className={`text-[10px] font-black uppercase tracking-widest ${r.is_active ? 'text-green-600' : 'text-slate-400'}`}>{r.is_active ? 'ACTIVE' : 'INACTIVE'}</span>
-                      </div>
-                    </div>
-                  ))}
+                  
+                  {automationTab === 'responders' ? (
+                    <button 
+                      onClick={() => {
+                        setShowResponderForm(!showResponderForm);
+                        setEditingResponder(null);
+                      }} 
+                      className={`px-8 py-4 ${showResponderForm ? 'bg-slate-200 text-slate-600' : 'bg-slate-900 text-white'} text-[10px] font-black rounded-2xl uppercase tracking-widest shadow-xl active:scale-95 transform transition-all`}
+                    >
+                      {showResponderForm ? 'Cancel' : 'New Responder'}
+                    </button>
+                  ) : (
+                    <button 
+                      onClick={() => {
+                        setShowScheduledForm(!showScheduledForm);
+                        setEditingScheduled(null);
+                      }} 
+                      className={`px-8 py-4 ${showScheduledForm ? 'bg-slate-200 text-slate-600' : 'bg-slate-900 text-white'} text-[10px] font-black rounded-2xl uppercase tracking-widest shadow-xl active:scale-95 transform transition-all`}
+                    >
+                      {showScheduledForm ? 'Cancel' : 'Schedule Message'}
+                    </button>
+                  )}
                 </div>
-              </div>
-            )}
 
-            {/* SCHEDULED TASKS */}
-            {activeTab === 'scheduled' && (
-              <div className="space-y-10">
-                <header className="flex justify-between items-center px-4">
-                  <div>
-                    <h3 className="text-2xl font-black text-slate-900 tracking-tight">Scheduled Tasks</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Pending Automation Pipeline</p>
-                  </div>
-                  <button 
-                    onClick={() => {
-                      setShowScheduledForm(!showScheduledForm);
-                      setEditingScheduled(null);
-                    }} 
-                    className={`px-8 py-4 ${showScheduledForm ? 'bg-slate-200 text-slate-600' : 'bg-slate-900 text-white'} text-[10px] font-black rounded-2xl uppercase tracking-widest shadow-xl active:scale-95 transform transition-all`}
-                  >
-                    {showScheduledForm ? 'Cancel' : 'Schedule Message'}
-                  </button>
-                </header>
-
-                {showScheduledForm && (
-                  <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-200 max-w-4xl mx-auto animate-in slide-in-from-top-4 duration-500">
-                    <div className="flex items-center gap-4 mb-8">
-                      <div className="w-12 h-12 bg-primary-50 text-primary-600 rounded-2xl flex items-center justify-center shadow-inner"><RefreshCw className="w-6 h-6" /></div>
-                      <div>
-                        <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight">New Scheduled Transmission</h4>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Queued automated broadcast protocol</p>
-                      </div>
-                    </div>
-                    <form onSubmit={handleCreateScheduled} className="space-y-8">
-                      <div className="space-y-2">
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Target Recipients</label>
-                        <div className="flex flex-wrap gap-2 p-4 bg-slate-50 border border-slate-200 rounded-2xl min-h-[60px]">
-                          {newScheduled.targets.map(t => (
-                            <span key={t.id} className="inline-flex items-center gap-2 px-3 py-1 bg-slate-900 text-white text-[9px] font-black rounded-lg uppercase tracking-widest">
-                              {t.name}
-                              <button type="button" onClick={() => setNewScheduled({ ...newScheduled, targets: newScheduled.targets.filter(st => st.id !== t.id) })} className="hover:text-red-400"><X className="w-3 h-3" /></button>
-                            </span>
-                          ))}
-                          <select className="bg-transparent border-none outline-none text-[10px] font-black uppercase tracking-widest text-primary-600 cursor-pointer" onChange={(e) => {
-                            if (!e.target.value) return;
-                            const chat = waChats.find(c => c.id?._serialized === e.target.value);
-                            if (chat && !newScheduled.targets.find(t => t.id === chat.id?._serialized)) {
-                              setNewScheduled({ ...newScheduled, targets: [...newScheduled.targets, { id: chat.id?._serialized, name: chat.name, type: chat.isGroup ? 'group' : 'channel' }] });
-                            }
-                            e.target.value = '';
-                          }}>
-                            <option value="">+ Add Target</option>
-                            {waChats.filter(c => c.isAdmin).map(chat => <option key={chat.id?._serialized} value={chat.id?._serialized}>{chat.name}</option>)}
-                          </select>
+                {automationTab === 'responders' && (
+                  <div className="space-y-10">
+                    {(showResponderForm || editingResponder) && (
+                      <div className="bg-white p-10 rounded-[2rem] shadow-2xl border border-slate-200 max-w-4xl mx-auto animate-in slide-in-from-top-4 duration-500">
+                        <div className="flex items-center gap-4 mb-8">
+                          <div className="w-12 h-12 bg-primary-50 text-primary-600 rounded-2xl flex items-center justify-center shadow-inner"><Plus className="w-6 h-6" /></div>
+                          <div>
+                            <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight">{editingResponder ? 'Modify Responder' : 'Initialize Auto-Response'}</h4>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{editingResponder ? 'Recalibrating keyword node' : 'Define new autonomous reply parameters'}</p>
+                          </div>
                         </div>
-                      </div>
-                      <div className="grid md:grid-cols-2 gap-8">
-                        <div className="space-y-2">
-                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Execution Timestamp</label>
-                          <input type="datetime-local" required className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-primary-100 outline-none" value={newScheduled.scheduled_for} onChange={(e) => setNewScheduled({ ...newScheduled, scheduled_for: e.target.value })} />
-                        </div>
-                        <div className="space-y-2">
-                          <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Media Type</label>
-                          <select className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-primary-100 outline-none appearance-none" value={newScheduled.media_type} onChange={(e) => setNewScheduled({ ...newScheduled, media_type: e.target.value })}>
-                            <option value="image">Image Attachment</option>
-                            <option value="video">Video Stream</option>
-                            <option value="document">Document Packet</option>
-                            <option value="audio">Audio Payload</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Message Content</label>
-                        <textarea required rows="4" className="w-full px-6 py-5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-primary-100 outline-none resize-none" placeholder="Transmission content..." value={newScheduled.message} onChange={(e) => setNewScheduled({ ...newScheduled, message: e.target.value })} />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Media Resource URL</label>
-                        <input type="url" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-mono focus:ring-4 focus:ring-primary-100 outline-none" placeholder="https://..." value={newScheduled.media_url} onChange={(e) => setNewScheduled({ ...newScheduled, media_url: e.target.value })} />
-                      </div>
-                      <div className="flex gap-4 pt-4">
-                        <button type="submit" disabled={waActionLoading} className="flex-1 py-5 bg-primary-600 text-white text-[11px] font-black rounded-2xl uppercase tracking-[0.3em] shadow-xl shadow-primary-900/20 hover:bg-primary-700 transition-all flex items-center justify-center gap-3 active:scale-95">
-                          {waActionLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                          Confirm Schedule
-                        </button>
-                        <button type="button" onClick={() => setShowScheduledForm(false)} className="px-10 py-5 bg-slate-100 text-slate-500 text-[11px] font-black rounded-2xl uppercase tracking-widest hover:bg-slate-200">Cancel</button>
-                      </div>
-                    </form>
-                  </div>
-                )}
-                <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-100">
-                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Scheduled For</th>
-                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Targets</th>
-                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Message Payload</th>
-                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-50">
-                      {scheduledMessages.map(m => (
-                        <tr key={m.id} className="hover:bg-slate-50 transition-all group">
-                          <td className="px-8 py-6">
-                            <div className="text-sm font-black text-slate-900">{m?.scheduled_for ? new Date(m.scheduled_for).toLocaleString() : 'N/A'}</div>
-                            <div className="text-[10px] text-slate-400 font-bold uppercase mt-1">ID: {m.id}</div>
-                          </td>
-                          <td className="px-8 py-6">
-                            <div className="flex -space-x-2">
-                              {m.targets.map((t, i) => (
-                                <div key={i} className="w-8 h-8 rounded-full bg-slate-900 border-2 border-white flex items-center justify-center text-[10px] font-black text-white" title={t.name || t.id}>{t.name?.[0] || 'T'}</div>
-                              ))}
-                              {m.targets.length > 3 && <div className="w-8 h-8 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[10px] font-black text-slate-500">+{m.targets.length - 3}</div>}
+                        <form onSubmit={editingResponder ? handleUpdateResponder : handleCreateResponder} className="space-y-8">
+                          <div className="grid md:grid-cols-2 gap-8">
+                            <div className="space-y-2">
+                              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Trigger Keyword</label>
+                              <input type="text" required className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-primary-100 outline-none" placeholder="e.g. HELP" value={editingResponder ? editingResponder.keyword : newResponder.keyword} onChange={(e) => editingResponder ? setEditingResponder({...editingResponder, keyword: e.target.value}) : setNewResponder({ ...newResponder, keyword: e.target.value })} />
                             </div>
-                          </td>
-                          <td className="px-8 py-6">
-                            <p className="text-sm font-medium text-slate-600 line-clamp-1 max-w-xs">{m.message}</p>
-                            {m.media_url && <span className="text-[9px] font-black text-primary-600 uppercase tracking-tighter">Media Attached</span>}
-                          </td>
-                          <td className="px-8 py-6">
-                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter border ${
-                              m.status === 'SENT' ? 'bg-green-50 text-green-600 border-green-100' :
-                              m.status === 'PENDING' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                              m.status === 'FAILED' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-slate-50 text-slate-400 border-slate-100'
-                            }`}>{m.status}</span>
-                          </td>
-                          <td className="px-8 py-6 text-right">
-                            <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                              {m.status === 'PENDING' && <button onClick={() => handleCancelScheduled(m.id)} className="p-2.5 text-amber-600 hover:bg-amber-50 rounded-xl transition-all shadow-sm"><X className="w-4 h-4" /></button>}
-                              <button onClick={() => deleteScheduledMessage(m.id)} className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 className="w-4 h-4" /></button>
+                            <div className="space-y-2">
+                              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Match Algorithm</label>
+                              <select className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-primary-100 outline-none appearance-none" value={editingResponder ? editingResponder.match_type : newResponder.match_type} onChange={(e) => editingResponder ? setEditingResponder({...editingResponder, match_type: e.target.value}) : setNewResponder({ ...newResponder, match_type: e.target.value })}>
+                                <option value="EXACT">Exact Match (Case Sensitive)</option>
+                                <option value="CONTAINS">Contains Keyword</option>
+                                <option value="STARTS_WITH">Starts With Keyword</option>
+                              </select>
                             </div>
-                          </td>
-                        </tr>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Automated Response Content</label>
+                            <textarea required rows="5" className="w-full px-6 py-5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-primary-100 outline-none resize-none" placeholder="Enter auto-reply text..." value={editingResponder ? editingResponder.response : newResponder.response} onChange={(e) => editingResponder ? setEditingResponder({...editingResponder, response: e.target.value}) : setNewResponder({ ...newResponder, response: e.target.value })} />
+                          </div>
+                          <div className="flex gap-4 pt-4">
+                            <button type="submit" disabled={waActionLoading} className="flex-1 py-5 bg-primary-600 text-white text-[11px] font-black rounded-2xl uppercase tracking-[0.3em] shadow-xl shadow-primary-900/20 hover:bg-primary-700 transition-all flex items-center justify-center gap-3 active:scale-95">
+                              {waActionLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                              {editingResponder ? 'Execute Update' : 'Establish Responder'}
+                            </button>
+                            <button 
+                              type="button" 
+                              onClick={() => {
+                                setShowResponderForm(false);
+                                setEditingResponder(null);
+                              }} 
+                              className="px-10 py-5 bg-slate-100 text-slate-500 text-[11px] font-black rounded-2xl uppercase tracking-widest hover:bg-slate-200"
+                            >
+                              Abort
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    )}
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                      {responders.map(r => (
+                        <div key={r.id} className={`bg-white p-8 rounded-2xl shadow-sm border flex flex-col group hover:shadow-2xl transition-all duration-500 ${editingResponder?.id === r.id ? 'border-primary-600 ring-4 ring-primary-100' : (r.is_active ? 'border-slate-200' : 'border-slate-100 grayscale opacity-60')}`}>
+                          <div className="flex justify-between items-start mb-8">
+                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border shadow-inner transition-colors duration-500 ${editingResponder?.id === r.id ? 'bg-primary-600 text-white border-primary-600' : (r.is_active ? 'bg-primary-50 text-primary-600 border-primary-100' : 'bg-slate-50 text-slate-400 border-slate-200')}`}><MessageSquare className="w-7 h-7" /></div>
+                            <div className="flex gap-2">
+                              <button 
+                                onClick={() => {
+                                  setEditingResponder(r);
+                                  setShowResponderForm(false);
+                                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }} 
+                                className="p-3 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-2xl transition-all"
+                              >
+                                <Save className="w-5 h-5" />
+                              </button>
+                              <button onClick={() => handleToggleResponder(r.id)} className="p-3 text-slate-400 hover:text-primary-600 hover:bg-primary-50 rounded-2xl transition-all"><RefreshCw className="w-5 h-5" /></button>
+                              <button onClick={() => handleDeleteResponder(r.id, r.keyword)} className="p-3 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-2xl transition-all"><Trash2 className="w-5 h-5" /></button>
+                            </div>
+                          </div>
+                          <h4 className="text-lg font-black text-slate-900 mb-1 tracking-tight uppercase">{r.keyword}</h4>
+                          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-4">Match: {r.match_type}</p>
+                          <p className="text-sm text-slate-500 font-medium leading-relaxed mb-6">{r.response}</p>
+                          <div className="mt-auto pt-4 flex items-center justify-between">
+                            <span className={`text-[10px] font-black uppercase tracking-widest ${r.is_active ? 'text-green-600' : 'text-slate-400'}`}>{r.is_active ? 'ACTIVE' : 'INACTIVE'}</span>
+                          </div>
+                        </div>
                       ))}
-                    </tbody>
-                  </table>
-                </div>
+                    </div>
+                  </div>
+                )}
+
+                {automationTab === 'scheduled' && (
+                  <div className="space-y-10">
+                    {showScheduledForm && (
+                      <div className="bg-white p-10 rounded-[2rem] shadow-2xl border border-slate-200 max-w-4xl mx-auto animate-in slide-in-from-top-4 duration-500">
+                        <div className="flex items-center gap-4 mb-8">
+                          <div className="w-12 h-12 bg-primary-50 text-primary-600 rounded-2xl flex items-center justify-center shadow-inner"><RefreshCw className="w-6 h-6" /></div>
+                          <div>
+                            <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight">New Scheduled Transmission</h4>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Queued automated broadcast protocol</p>
+                          </div>
+                        </div>
+                        <form onSubmit={handleCreateScheduled} className="space-y-8">
+                          <div className="space-y-2">
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Target Recipients</label>
+                            <div className="flex flex-wrap gap-2 p-4 bg-slate-50 border border-slate-200 rounded-2xl min-h-[60px]">
+                              {newScheduled.targets.map(t => (
+                                <span key={t.id} className="inline-flex items-center gap-2 px-3 py-1 bg-slate-900 text-white text-[9px] font-black rounded-lg uppercase tracking-widest">
+                                  {t.name}
+                                  <button type="button" onClick={() => setNewScheduled({ ...newScheduled, targets: newScheduled.targets.filter(st => st.id !== t.id) })} className="hover:text-red-400"><X className="w-3 h-3" /></button>
+                                </span>
+                              ))}
+                              <select className="bg-transparent border-none outline-none text-[10px] font-black uppercase tracking-widest text-primary-600 cursor-pointer" onChange={(e) => {
+                                if (!e.target.value) return;
+                                const chat = waChats.find(c => c.id?._serialized === e.target.value);
+                                if (chat && !newScheduled.targets.find(t => t.id === chat.id?._serialized)) {
+                                  setNewScheduled({ ...newScheduled, targets: [...newScheduled.targets, { id: chat.id?._serialized, name: chat.name, type: chat.isGroup ? 'group' : 'channel' }] });
+                                }
+                                e.target.value = '';
+                              }}>
+                                <option value="">+ Add Target</option>
+                                {waChats.filter(c => c.isAdmin).map(chat => <option key={chat.id?._serialized} value={chat.id?._serialized}>{chat.name}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="grid md:grid-cols-2 gap-8">
+                            <div className="space-y-2">
+                              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Execution Timestamp</label>
+                              <input type="datetime-local" required className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-primary-100 outline-none" value={newScheduled.scheduled_for} onChange={(e) => setNewScheduled({ ...newScheduled, scheduled_for: e.target.value })} />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Media Type</label>
+                              <select className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-bold focus:ring-4 focus:ring-primary-100 outline-none appearance-none" value={newScheduled.media_type} onChange={(e) => setNewScheduled({ ...newScheduled, media_type: e.target.value })}>
+                                <option value="image">Image Attachment</option>
+                                <option value="video">Video Stream</option>
+                                <option value="document">Document Packet</option>
+                                <option value="audio">Audio Payload</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Message Content</label>
+                            <textarea required rows="4" className="w-full px-6 py-5 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-medium focus:ring-4 focus:ring-primary-100 outline-none resize-none" placeholder="Transmission content..." value={newScheduled.message} onChange={(e) => setNewScheduled({ ...newScheduled, message: e.target.value })} />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Media Resource URL</label>
+                            <input type="url" className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl text-sm font-mono focus:ring-4 focus:ring-primary-100 outline-none" placeholder="https://..." value={newScheduled.media_url} onChange={(e) => setNewScheduled({ ...newScheduled, media_url: e.target.value })} />
+                          </div>
+                          <div className="flex gap-4 pt-4">
+                            <button type="submit" disabled={waActionLoading} className="flex-1 py-5 bg-primary-600 text-white text-[11px] font-black rounded-2xl uppercase tracking-[0.3em] shadow-xl shadow-primary-900/20 hover:bg-primary-700 transition-all flex items-center justify-center gap-3 active:scale-95">
+                              {waActionLoading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                              Confirm Schedule
+                            </button>
+                            <button type="button" onClick={() => setShowScheduledForm(false)} className="px-10 py-5 bg-slate-100 text-slate-500 text-[11px] font-black rounded-2xl uppercase tracking-widest hover:bg-slate-200">Cancel</button>
+                          </div>
+                        </form>
+                      </div>
+                    )}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-100">
+                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Scheduled For</th>
+                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Targets</th>
+                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Message Payload</th>
+                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
+                            <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {scheduledMessages.map(m => (
+                            <tr key={m.id} className="hover:bg-slate-50 transition-all group">
+                              <td className="px-8 py-6">
+                                <div className="text-sm font-black text-slate-900">{m?.scheduled_for ? new Date(m.scheduled_for).toLocaleString() : 'N/A'}</div>
+                                <div className="text-[10px] text-slate-400 font-bold uppercase mt-1">ID: {m.id}</div>
+                              </td>
+                              <td className="px-8 py-6">
+                                <div className="flex -space-x-2">
+                                  {m.targets.map((t, i) => (
+                                    <div key={i} className="w-8 h-8 rounded-full bg-slate-900 border-2 border-white flex items-center justify-center text-[10px] font-black text-white" title={t.name || t.id}>{t.name?.[0] || 'T'}</div>
+                                  ))}
+                                  {m.targets.length > 3 && <div className="w-8 h-8 rounded-full bg-slate-100 border-2 border-white flex items-center justify-center text-[10px] font-black text-slate-500">+{m.targets.length - 3}</div>}
+                                </div>
+                              </td>
+                              <td className="px-8 py-6">
+                                <p className="text-sm font-medium text-slate-600 line-clamp-1 max-w-xs">{m.message}</p>
+                                {m.media_url && <span className="text-[9px] font-black text-primary-600 uppercase tracking-tighter">Media Attached</span>}
+                              </td>
+                              <td className="px-8 py-6">
+                                <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-tighter border ${
+                                  m.status === 'SENT' ? 'bg-green-50 text-green-600 border-green-100' :
+                                  m.status === 'PENDING' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                  m.status === 'FAILED' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-slate-50 text-slate-400 border-slate-100'
+                                }`}>{m.status}</span>
+                              </td>
+                              <td className="px-8 py-6 text-right">
+                                <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  {m.status === 'PENDING' && <button onClick={() => handleCancelScheduled(m.id)} className="p-2.5 text-amber-600 hover:bg-amber-50 rounded-xl transition-all shadow-sm"><X className="w-4 h-4" /></button>}
+                                  <button onClick={() => deleteScheduledMessage(m.id)} className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 className="w-4 h-4" /></button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1869,12 +1903,21 @@ const AdminDashboard = () => {
             {/* POLL RESULTS */}
             {activeTab === 'polls' && (
               <div className="space-y-10">
-                <header className="px-4">
-                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">Poll Intelligence</h3>
-                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Real-time Interaction Data</p>
+                <header className="px-4 flex justify-between items-end">
+                  <div>
+                    <h3 className="text-2xl font-black text-slate-900 tracking-tight">Poll Intelligence</h3>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Real-time Interaction Data</p>
+                  </div>
+                  {error && (
+                    <div className="p-3 bg-red-50 text-red-600 rounded-xl border border-red-100 flex items-center gap-2 animate-in slide-in-from-top-2">
+                      <AlertCircle className="w-4 h-4" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">{error}</span>
+                    </div>
+                  )}
                 </header>
-                <div className="grid md:grid-cols-2 gap-8">
-                  {pollResults.map(poll => (
+                {pollResults.length > 0 ? (
+                  <div className="grid md:grid-cols-2 gap-8">
+                    {pollResults.map(poll => (
                     <div key={poll.id} className="bg-white p-10 rounded-[2.5rem] shadow-sm border border-slate-200">
                       <div className="flex items-center justify-between gap-4 mb-8">
                         <div className="flex items-center gap-4">
@@ -1884,30 +1927,69 @@ const AdminDashboard = () => {
                             <p className="text-[10px] text-slate-400 font-bold mt-1 uppercase tracking-widest">Type: {poll.type || 'WhatsApp'} | Chat: {poll.chat_id || 'System'}</p>
                           </div>
                         </div>
-                        <button onClick={() => handleDeletePoll(poll.id, poll.question || poll.title)} className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100"><Trash2 className="w-5 h-5" /></button>
+                        <div className="flex gap-2">
+                          {poll.type && (
+                            <button 
+                              onClick={() => navigate(`/poll/edit/${poll.id}`)} 
+                              className="p-2.5 text-slate-300 hover:text-primary-600 hover:bg-primary-50 rounded-xl transition-all border border-transparent hover:border-primary-100"
+                              title="Edit Poll"
+                            >
+                              <Edit2 className="w-5 h-5" />
+                            </button>
+                          )}
+                          <button onClick={() => handleDeletePoll(poll.id, poll.question || poll.title)} className="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all border border-transparent hover:border-red-100" title="Delete Poll"><Trash2 className="w-5 h-5" /></button>
+                        </div>
                       </div>
                       <div className="space-y-4">
-                        {poll.options && !Array.isArray(poll.options) ? Object.entries(poll.options).map(([opt, count]) => {
-                          const total = Object.values(poll.options).reduce((a, b) => a + (Number(b) || 0), 0);
-                          const percentage = total > 0 ? (Number(count) / total) * 100 : 0;
-                          return (
-                            <div key={opt} className="space-y-2">
-                              <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
-                                <span className="text-slate-600">{opt}</span>
-                                <span className="text-primary-600">{count} Votes</span>
-                              </div>
-                              <div className="h-2 bg-slate-50 rounded-full overflow-hidden shadow-inner border border-slate-100">
-                                <div className="h-full bg-primary-600 rounded-full transition-all duration-1000" style={{ width: `${percentage}%` }}></div>
-                              </div>
+                        {poll.type ? (
+                          <div className="space-y-6">
+                            <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 italic text-slate-400 text-center text-[10px] font-medium">
+                              This is an advanced decision unit. Click below to retrieve real-time encrypted intelligence packets.
                             </div>
-                          );
-                        }) : (
-                          <p className="text-xs text-slate-400 italic">Voting data format incompatible or no options defined.</p>
+                            <button 
+                              onClick={() => {
+                                // We can't use handleViewAdvancedResults directly as it's in UserDashboard
+                                // But we can navigate to a results page or show in modal if we implement it here
+                                // For now, let's at least show it's different
+                                navigate(`/poll/${poll.id}`);
+                              }}
+                              className="w-full py-4 bg-primary-600 text-white text-[10px] font-black rounded-xl uppercase tracking-widest shadow-lg shadow-primary-900/20 hover:bg-primary-700 transition-all flex items-center justify-center gap-2"
+                            >
+                              <BarChart2 className="w-4 h-4" /> View Live Decision Node
+                            </button>
+                          </div>
+                        ) : (
+                          poll.options && !Array.isArray(poll.options) ? Object.entries(poll.options).map(([opt, count]) => {
+                            const total = Object.values(poll.options).reduce((a, b) => a + (Number(b) || 0), 0);
+                            const percentage = total > 0 ? (Number(count) / total) * 100 : 0;
+                            return (
+                              <div key={opt} className="space-y-2">
+                                <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
+                                  <span className="text-slate-600">{opt}</span>
+                                  <span className="text-primary-600">{count} Votes</span>
+                                </div>
+                                <div className="h-2 bg-slate-50 rounded-full overflow-hidden shadow-inner border border-slate-100">
+                                  <div className="h-full bg-primary-600 rounded-full transition-all duration-1000" style={{ width: `${percentage}%` }}></div>
+                                </div>
+                              </div>
+                            );
+                          }) : (
+                            <p className="text-xs text-slate-400 italic">Voting data format incompatible or no options defined.</p>
+                          )
                         )}
                       </div>
                     </div>
                   ))}
                 </div>
+                ) : (
+                  <div className="py-24 bg-white rounded-[3rem] border-4 border-dashed border-slate-50 text-center space-y-4">
+                    <BarChart2 className="w-12 h-12 text-slate-200 mx-auto" />
+                    <div>
+                      <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest">No Interaction Nodes Found</h4>
+                      <p className="text-xs text-slate-400">Deploy a new poll or election unit to start gathering intelligence.</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
