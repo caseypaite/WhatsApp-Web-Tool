@@ -362,13 +362,18 @@ const AdminDashboard = () => {
 
   const loadData = async () => {
     setLoading(true);
-    // Fetch ALL data for all tabs in parallel on load
+    // Fetch CRITICAL data first to show the dashboard
     try {
       await Promise.all([
         fetchWaStatus(),
-        fetchWaData(),
         fetchUsers(),
-        fetchSettings(),
+        fetchSettings()
+      ]);
+      setLoading(false);
+
+      // Fetch the rest in the background
+      Promise.all([
+        fetchWaData(),
         fetchGroups(),
         fetchLandingContent(),
         fetchTemplates(),
@@ -376,8 +381,9 @@ const AdminDashboard = () => {
         fetchScheduledMessages(),
         fetchAuditLogs(),
         fetchPollResults()
-      ]);
-    } finally {
+      ]).catch(err => console.error('Background data fetch error:', err));
+    } catch (err) {
+      console.error('Critical data fetch error:', err);
       setLoading(false);
     }
   };
@@ -1125,9 +1131,9 @@ const AdminDashboard = () => {
                     </div>
                     {showGroupForm && (
                       <form onSubmit={handleCreateGroup} className="p-4 bg-[#f6f7f7] border-b border-[#dcdcde] space-y-3 animate-in slide-in-from-top-2">
-                        <input type="text" required className="w-full wp-input" placeholder="Unit Name" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} />
+                        <input type="text" required className="w-full wp-input" placeholder="Group Name" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} />
                         <textarea className="w-full wp-input resize-none" placeholder="Description" rows="2" value={newGroupDesc} onChange={(e) => setNewGroupDesc(e.target.value)} />
-                        <button type="submit" className="w-full wp-button-primary">Create Unit</button>
+                        <button type="submit" className="w-full wp-button-primary">Create Group</button>
                       </form>
                     )}
                     <div className="p-2 space-y-1">
@@ -1145,7 +1151,7 @@ const AdminDashboard = () => {
                       <div className="px-4 py-3 border-b border-[#dcdcde] bg-[#f6f7f7] flex justify-between items-center">
                         <div>
                           <h3 className="text-sm font-semibold">{selectedGroup.name}</h3>
-                          <p className="text-[10px] text-[#646970] font-medium italic">{selectedGroup.description || 'Organizational Unit'}</p>
+                          <p className="text-[10px] text-[#646970] font-medium italic">{selectedGroup.description || 'Group'}</p>
                         </div>
                         <button onClick={() => initiateDelete(selectedGroup.id, selectedGroup.name, 'group')} className="p-1 text-[#d63638] hover:bg-[#fcf0f1] transition-all"><Trash2 className="w-4 h-4" /></button>
                       </div>
@@ -1188,7 +1194,7 @@ const AdminDashboard = () => {
                     </div>
                   ) : (
                     <div className="h-full min-h-[300px] flex items-center justify-center bg-white border border-[#dcdcde] shadow-sm italic text-[#a7aaad] text-sm">
-                      Select an organizational unit to manage membership registry.
+                      Select an group to manage membership registry.
                     </div>
                   )}
                 </div>
@@ -1254,7 +1260,7 @@ const AdminDashboard = () => {
                                   <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Phone Number</label>
                                   <input type="text" required className="w-full wp-input text-lg font-bold" placeholder="91XXXXXXXXXX" value={pairingPhone} onChange={(e) => setPairingPhone(e.target.value)} />
                                 </div>
-                                <button type="submit" disabled={waActionLoading} className="w-full wp-button-primary py-3">Generate Link Packet</button>
+                                <button type="submit" disabled={waActionLoading} className="w-full wp-button-primary py-3">Generate Code</button>
                               </form>
                             ) : (
                               <div className="text-center py-4">
@@ -1290,7 +1296,7 @@ const AdminDashboard = () => {
 
                 <div className="wp-card min-h-[500px] flex flex-col">
                   <div className="px-4 py-3 border-b border-[#dcdcde] bg-[#f6f7f7] flex items-center justify-between">
-                    <h3 className="text-sm font-semibold">{showWaEntityForm ? `Initialize ${waEntityType}` : 'Managed Comm Units'}</h3>
+                    <h3 className="text-sm font-semibold">{showWaEntityForm ? `Create ${waEntityType}` : 'Managed Phones'}</h3>
                     <div className="flex gap-1">
                        <button onClick={() => { setWaEntityType('group'); setShowWaEntityForm(!showWaEntityForm); }} className={`p-1 border rounded-sm transition-all ${showWaEntityForm && waEntityType === 'group' ? 'bg-[#2271b1] text-white border-[#2271b1]' : 'bg-white text-[#2271b1] border-[#2271b1]'}`} title="New Group"><Users className="w-4 h-4" /></button>
                        <button onClick={() => { setWaEntityType('channel'); setShowWaEntityForm(!showWaEntityForm); }} className={`p-1 border rounded-sm transition-all ${showWaEntityForm && waEntityType === 'channel' ? 'bg-[#1d2327] text-white border-[#1d2327]' : 'bg-white text-[#1d2327] border-[#1d2327]'}`} title="New Channel"><Send className="w-4 h-4" /></button>
@@ -1302,7 +1308,7 @@ const AdminDashboard = () => {
                       <form onSubmit={waEntityType === 'group' ? handleCreateWaGroup : handleCreateWaChannel} className="space-y-6 max-w-sm mx-auto">
                          <div className="space-y-1">
                             <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Display Name</label>
-                            <input type="text" required className="w-full wp-input" placeholder="Unit title..." value={newEntity.name} onChange={(e) => setNewEntity({...newEntity, name: e.target.value})} />
+                            <input type="text" required className="w-full wp-input" placeholder="Poll Title..." value={newEntity.name} onChange={(e) => setNewEntity({...newEntity, name: e.target.value})} />
                          </div>
                          {waEntityType === 'group' ? (
                            <div className="space-y-1">
@@ -1312,7 +1318,7 @@ const AdminDashboard = () => {
                          ) : (
                            <div className="space-y-1">
                               <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Context Metadata</label>
-                              <textarea rows="3" className="w-full wp-input resize-none" placeholder="Unit description..." value={newEntity.description} onChange={(e) => setNewEntity({...newEntity, description: e.target.value})} />
+                              <textarea rows="3" className="w-full wp-input resize-none" placeholder="Group description..." value={newEntity.description} onChange={(e) => setNewEntity({...newEntity, description: e.target.value})} />
                            </div>
                          )}
                          <div className="flex gap-2 pt-2">
@@ -1457,7 +1463,7 @@ const AdminDashboard = () => {
                             <select className="w-full wp-input appearance-none" value={editingTemplate ? editingTemplate.media_type : newTemplate.media_type} onChange={(e) => editingTemplate ? setEditingTemplate({...editingTemplate, media_type: e.target.value}) : setNewTemplate({ ...newTemplate, media_type: e.target.value })}>
                                 <option value="image">Static Image</option>
                                 <option value="video">Video Stream</option>
-                                <option value="document">Binary Packet</option>
+                                <option value="document">Document</option>
                                 <option value="audio">Audio Waveform</option>
                             </select>
                           </div>
@@ -1606,7 +1612,7 @@ const AdminDashboard = () => {
                          <h4 className="text-sm font-semibold mb-6 border-b border-[#dcdcde] pb-2">Task Parameters</h4>
                          <form onSubmit={handleCreateScheduled} className="space-y-4">
                             <div className="space-y-1">
-                               <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Target Unit Registry</label>
+                               <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Target Groups</label>
                                <div className="p-2 border border-[#dcdcde] bg-[#f6f7f7] flex flex-wrap gap-1 min-h-[40px]">
                                   {newScheduled.targets.map(t => (
                                     <span key={t.id} className="px-2 py-1 bg-[#1d2327] text-white text-[9px] font-bold flex items-center gap-2">
@@ -1622,7 +1628,7 @@ const AdminDashboard = () => {
                                     }
                                     e.target.value = '';
                                   }}>
-                                    <option value="">+ Add Unit</option>
+                                    <option value="">+ Add Group</option>
                                     {waChats.filter(c => c.isAdmin).map(chat => <option key={chat.id?._serialized} value={chat.id?._serialized}>{chat.name}</option>)}
                                   </select>
                                </div>
@@ -1637,7 +1643,7 @@ const AdminDashboard = () => {
                                 <select className="w-full wp-input appearance-none" value={newScheduled.media_type} onChange={(e) => setNewScheduled({ ...newScheduled, media_type: e.target.value })}>
                                     <option value="image">Static Image</option>
                                     <option value="video">Video Stream</option>
-                                    <option value="document">Binary Packet</option>
+                                    <option value="document">Document</option>
                                     <option value="audio">Audio Waveform</option>
                                 </select>
                               </div>
@@ -1761,7 +1767,7 @@ const AdminDashboard = () => {
                               <p className="text-[10px] text-[#a7aaad] font-bold uppercase tracking-widest">Type: {poll.type || 'WhatsApp Sync'} | ID: {poll.id}</p>
                               <div className="space-y-3">
                                  {poll.type ? (
-                                   <button onClick={() => navigate(`/poll/${poll.id}`)} className="w-full wp-button-primary py-3">Retrieve Full Intelligence</button>
+                                   <button onClick={() => navigate(`/poll/${poll.id}`)} className="w-full wp-button-primary py-3">View Results</button>
                                  ) : (
                                    poll.options && !Array.isArray(poll.options) ? Object.entries(poll.options).map(([opt, count]) => {
                                       const total = Object.values(poll.options).reduce((a, b) => a + (Number(b) || 0), 0);
@@ -1777,7 +1783,7 @@ const AdminDashboard = () => {
                                            </div>
                                         </div>
                                       );
-                                   }) : <p className="text-xs text-[#a7aaad] italic">Awaiting initial packet transmission...</p>
+                                   }) : <p className="text-xs text-[#a7aaad] italic">Awaiting initial votes...</p>
                                  )}
                               </div>
                            </div>
@@ -1787,7 +1793,7 @@ const AdminDashboard = () => {
                  ) : (
                    <div className="wp-card p-20 flex flex-col items-center opacity-40">
                       <BarChart2 className="w-12 h-12 mb-4" />
-                      <p className="text-sm font-semibold uppercase">No decision units registered.</p>
+                      <p className="text-sm font-semibold uppercase">No polls registered.</p>
                    </div>
                  )}
               </div>
@@ -1921,10 +1927,10 @@ const AdminDashboard = () => {
                            <h4 className="text-xs font-bold text-[#dba617] uppercase mb-4">Transmission Diagnostic</h4>
                            <form onSubmit={handleSendTest} className="flex gap-2">
                               <input type="tel" required className="flex-1 wp-input" placeholder="91XXXXXXXXXX" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} />
-                              <button type="submit" disabled={testLoading} className="px-6 wp-button-primary">{testLoading ? <RefreshCw className="w-4 h-4 animate-spin mx-auto" /> : 'Fire Test Packet'}</button>
+                              <button type="submit" disabled={testLoading} className="px-6 wp-button-primary">{testLoading ? <RefreshCw className="w-4 h-4 animate-spin mx-auto" /> : 'Send Test OTP'}</button>
                            </form>
                         </div>
-                        {testSuccess && <div className="p-3 bg-[#edfaef] text-[#00a32a] text-xs font-bold uppercase tracking-widest border-l-4 border-[#00a32a]">Acknowledge: Packet Delivered</div>}
+                        {testSuccess && <div className="p-3 bg-[#edfaef] text-[#00a32a] text-xs font-bold uppercase tracking-widest border-l-4 border-[#00a32a]">Acknowledge: OTP Delivered</div>}
                       </div>
                     )}
                  </div>
@@ -2031,7 +2037,7 @@ const AdminDashboard = () => {
       >
         <form onSubmit={handleSendPoll} className="space-y-4">
           <div className="space-y-1">
-            <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Inquiry Question</label>
+            <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Question</label>
             <input type="text" required className="w-full wp-input" value={pollData.question} onChange={(e) => setPollData({...pollData, question: e.target.value})} />
           </div>
           <div className="space-y-2">
@@ -2050,7 +2056,7 @@ const AdminDashboard = () => {
             ))}
             <button type="button" onClick={() => setPollData({...pollData, options: [...pollData.options, '']})} className="text-[10px] font-bold text-[#2271b1] hover:underline uppercase">+ Add Selection</button>
           </div>
-          <button type="submit" className="w-full wp-button-primary py-3">Deploy Inquiry Packet</button>
+          <button type="submit" className="w-full wp-button-primary py-3">Deploy Poll</button>
         </form>
       </Modal>
 

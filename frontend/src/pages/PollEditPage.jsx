@@ -35,7 +35,7 @@ const PollEditPage = () => {
         setMyGroups(groupsData || []);
         setWaGroups(waChats.filter(c => c.isGroup && c.isAdmin) || []);
       } catch (err) {
-        setError('Failed to load unit parameters.');
+        setError('Failed to load Poll parameters.');
       } finally {
         setLoading(false);
       }
@@ -66,7 +66,7 @@ const PollEditPage = () => {
     setSuccess('');
     try {
       await authService.updateAdvancedPoll(id, poll);
-      setSuccess('Unit parameters synchronized.');
+      setSuccess('Poll parameters synchronized.');
       setTimeout(() => navigate('/dashboard'), 1500);
     } catch (err) {
       setError(err.response?.data?.error || 'Synchronization failed.');
@@ -103,9 +103,9 @@ const PollEditPage = () => {
   }
 
   const tabs = [
-    { id: 'profile', label: 'Identity Profile', icon: User, path: '/dashboard' },
+    { id: 'profile', label: 'Profile', icon: User, path: '/dashboard' },
     { id: 'security', label: 'Security Node', icon: Lock, path: '/dashboard' },
-    { id: 'polls', label: 'Decision Units', icon: BarChart2, path: '/dashboard' },
+    { id: 'polls', label: 'Polls', icon: BarChart2, path: '/dashboard' },
     { id: 'messages', label: 'Interaction Stream', icon: Activity, path: '/dashboard' },
   ];
 
@@ -306,7 +306,7 @@ const PollEditPage = () => {
                    <div className="px-4 py-2 border-b border-[#dcdcde] bg-[#f6f7f7]"><h3 className="text-xs font-bold uppercase">Protocol Settings</h3></div>
                    <div className="p-4 space-y-4">
                       <div className="space-y-1">
-                         <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Target Access Unit</label>
+                         <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Target Group</label>
                          <select 
                             className="w-full wp-input text-xs" 
                             value={
@@ -326,10 +326,10 @@ const PollEditPage = () => {
                             }}
                           >
                             <option value="PUBLIC">🌍 Public Network</option>
-                            <optgroup label="Internal Units">
+                            <optgroup label="Internal Groups">
                               {myGroups.map(g => <option key={g.id} value={`INTERNAL:${g.id}`}>🏠 {g.name}</option>)}
                             </optgroup>
-                            <optgroup label="WhatsApp Units">
+                            <optgroup label="WhatsApp Groups">
                               {waGroups.map(g => <option key={g.id?._serialized} value={`WHATSAPP:${g.id?._serialized}`}>💬 {g.name}</option>)}
                             </optgroup>
                          </select>

@@ -69,10 +69,12 @@ echo "✅ Configuration and session data preserved."
 # Install dependencies
 echo "📦 Installing backend dependencies..."
 cd "$PROD_DIR/backend"
+rm -rf node_modules
 npm install --production
 
 echo "📦 Installing frontend dependencies..."
 cd "$PROD_DIR/frontend"
+rm -rf node_modules
 npm install --production
 
 # Restart services

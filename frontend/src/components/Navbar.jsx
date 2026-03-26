@@ -53,7 +53,7 @@ const Navbar = () => {
                 to="/register" 
                 className="px-4 py-1.5 bg-[#2271b1] hover:bg-[#135e96] text-white text-[10px] font-bold uppercase tracking-[0.2em] rounded-sm transition-all border-b border-[#135e96] shadow-sm"
               >
-                Initialize
+                Create
               </Link>
             </div>
           )}

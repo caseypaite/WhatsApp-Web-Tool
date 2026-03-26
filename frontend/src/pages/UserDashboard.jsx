@@ -678,7 +678,7 @@ const UserDashboard = () => {
                   <h3 className="text-xl font-medium text-[#1d2327]">Community Polls</h3>
                   {(userData?.roles?.includes('Admin') || userData?.roles?.includes('SuperAdmin') || myGroups.some(g => g.my_role === 'ADMIN')) && (
                     <button onClick={() => setShowCreatePoll(true)} className="wp-button-primary flex items-center gap-1">
-                      <Plus className="w-4 h-4" /> Create New Unit
+                      <Plus className="w-4 h-4" /> Create New Poll
                     </button>
                   )}
                </div>
@@ -736,7 +736,7 @@ const UserDashboard = () => {
                ) : (
                  <div className="wp-card p-20 flex flex-col items-center justify-center text-center opacity-40">
                     <BarChart2 className="w-12 h-12 mb-4" />
-                    <h4 className="text-sm font-bold uppercase">No Decision Units Active</h4>
+                    <h4 className="text-sm font-bold uppercase">No Active Polls</h4>
                     <p className="text-xs max-w-xs mt-2">Check back later or initialize a new unit if authorized.</p>
                  </div>
                )}
@@ -755,7 +755,7 @@ const UserDashboard = () => {
               <div className="space-y-6">
                 <div className="bg-[#f6f7f7] p-6 border border-[#dcdcde] flex flex-col md:flex-row gap-6 items-center">
                    <div className="flex-1 text-center md:text-left">
-                      <p className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-[0.2em] mb-1">Total Packets Processed</p>
+                      <p className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-[0.2em] mb-1">Total Votes</p>
                       <h4 className="text-4xl font-bold text-[#1d2327]">{advancedResults.totalVotes}</h4>
                       <p className="text-xs text-[#646970] mt-4 italic">{advancedResults.poll?.description}</p>
                    </div>
@@ -866,12 +866,12 @@ const UserDashboard = () => {
                     }}
                   >
                     <option value="PUBLIC">🌍 PUBLIC (Open Access)</option>
-                    <optgroup label="Internal Controlled Units">
+                    <optgroup label="Internal Groups">
                       {myGroups.map(g => (
                         <option key={g.id} value={`INTERNAL:${g.id}`}>🏠 {g.name}</option>
                       ))}
                     </optgroup>
-                    <optgroup label="WhatsApp Synced Units">
+                    <optgroup label="WhatsApp Groups">
                       {waGroups.map(g => (
                         <option key={g.id?._serialized} value={`WHATSAPP:${g.id?._serialized}`}>💬 {g.name}</option>
                       ))}
@@ -1059,7 +1059,7 @@ const UserDashboard = () => {
           <Modal
             isOpen={isEditingPhone}
             onClose={() => setIsEditingPhone(false)}
-            title="Update Comm Unit"
+            title="Update Phone"
             error={error}
             successMessage={successMessage}
           >

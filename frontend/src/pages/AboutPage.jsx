@@ -146,7 +146,7 @@ const AboutPage = () => {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-white hover:text-[#72aee6] transition-colors"
               >
-                <Github className="w-4 h-4" /> Retrieve Source Packets
+                <Github className="w-4 h-4" /> Get Source Code
               </a>
             </div>
 

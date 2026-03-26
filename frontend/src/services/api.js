@@ -25,9 +25,12 @@ api.interceptors.response.use(
       console.error('[API] Unauthorized access detected. Clearing session...');
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      // Redirect to login or reload to trigger AuthContext update
-      window.location.href = '/#/login';
-      window.location.reload();
+      
+      // Prevent infinite reload loops
+      if (!window.location.hash.includes('/login')) {
+        window.location.href = '/#/login';
+        window.location.reload();
+      }
     }
     return Promise.reject(error);
   }

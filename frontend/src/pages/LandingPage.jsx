@@ -56,7 +56,7 @@ const LandingPage = () => {
                   {content.hero_text}
                 </h1>
                 <p className="mb-12 text-xl text-[#646970] leading-relaxed max-w-lg font-medium">
-                  A sophisticated ecosystem for distributed governance, secure identity propagation, and organizational unit management.
+                  A sophisticated ecosystem for distributed governance, secure identity propagation, and group management.
                 </p>
                 <div className="flex flex-wrap gap-4 items-center">
                   {loading ? (
@@ -134,7 +134,7 @@ const LandingPage = () => {
               { label: 'Secure Nodes', val: '2.4k+' },
               { label: 'Integrations', val: '150+' },
               { label: 'Uptime Protocol', val: '99.9%' },
-              { label: 'Unit Registry', val: 'Secure' }
+              { label: 'Registry', val: 'Secure' }
             ].map((stat, i) => (
               <div key={i} className="text-center md:text-left border-l border-[#dcdcde] pl-6 first:border-0 first:pl-0">
                 <p className="text-[10px] font-black text-[#a7aaad] uppercase tracking-[0.2em] mb-1">{stat.label}</p>

@@ -40,7 +40,7 @@ const PollVotingPage = () => {
           setError('This node is not currently accepting incoming packets.');
         }
       } catch (err) {
-        setError('Inquiry unit not found or offline.');
+        setError('Poll not found or offline.');
       } finally {
         setLoading(false);
       }
@@ -63,7 +63,7 @@ const PollVotingPage = () => {
       setOtpSent(true);
       setNeedsConfirmation(false);
       setIsViewing(confirmView || res.already_voted);
-      setSuccess('Authorization packet transmitted to your communication unit.');
+      setSuccess('OTP transmitted to your communication unit.');
     } catch (err) {
       setError(err.response?.data?.error || 'Transmission failed. Verify mobile identifier.');
     } finally {
@@ -182,7 +182,7 @@ const PollVotingPage = () => {
                       disabled={actionLoading || !votingData.phone_number}
                       className="w-full py-3 bg-[#2271b1] hover:bg-[#135e96] text-white font-bold rounded-sm uppercase tracking-widest text-sm border-b-2 border-[#135e96] transition-all disabled:opacity-50"
                     >
-                      {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin mx-auto" /> : 'Request Authorization Packet'}
+                      {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin mx-auto" /> : 'Request OTP'}
                     </button>
                   ) : (
                     <div className="flex flex-col gap-3">
@@ -303,7 +303,7 @@ const PollVotingPage = () => {
             {otpSent && isViewing && (
               <div className="space-y-8 animate-in fade-in duration-500">
                 <div className="max-w-xs mx-auto space-y-4 text-center">
-                  <label className="block text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Confirmation Packet</label>
+                  <label className="block text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">OTP</label>
                   <input 
                     type="text" 
                     maxLength="6" 
@@ -331,7 +331,7 @@ const PollVotingPage = () => {
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white w-full max-w-xl shadow-2xl border border-[#dcdcde] animate-in zoom-in-95">
             <div className="flex items-center justify-between px-4 py-2 border-b border-[#dcdcde] bg-[#f6f7f7]">
-              <h4 className="text-sm font-semibold">Intelligence Profile</h4>
+              <h4 className="text-sm font-semibold">Candidate Profile</h4>
               <button onClick={() => setShowCandidateModal(false)} className="p-1 text-[#646970] hover:text-[#d63638]"><X className="w-5 h-5" /></button>
             </div>
             <div className="p-8">
