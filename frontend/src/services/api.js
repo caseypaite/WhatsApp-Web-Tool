@@ -18,4 +18,19 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      console.error('[API] Unauthorized access detected. Clearing session...');
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      // Redirect to login or reload to trigger AuthContext update
+      window.location.href = '/#/login';
+      window.location.reload();
+    }
+    return Promise.reject(error);
+  }
+);
+
 export default api;

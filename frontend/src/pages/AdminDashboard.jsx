@@ -862,7 +862,7 @@ const AdminDashboard = () => {
 
   const handleUpdateUserStatus = async (userId, status) => {
     try {
-      await api.post('/user/update-status', { userId, status });
+      await api.put('/user/status', { userId, status });
       showFlash('User status updated');
       fetchUsers();
     } catch (err) {
@@ -2079,6 +2079,84 @@ const AdminDashboard = () => {
           </div>
           <button type="submit" disabled={waActionLoading} className="w-full wp-button-primary py-3">Execute Transmission</button>
         </form>
+      </Modal>
+
+      {/* WHATSAPP GROUP MANAGEMENT MODAL */}
+      <Modal
+        isOpen={showGroupManage}
+        onClose={() => setShowGroupManage(false)}
+        title="WhatsApp Group Administration"
+        subtitle={`Managing: ${managingGroup?.name}`}
+        maxWidth="max-w-4xl"
+        flash={flash}
+      >
+        <div className="space-y-8">
+          {/* Join Requests */}
+          {joinRequests.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-xs font-bold text-[#dba617] uppercase tracking-widest border-l-2 border-[#dba617] pl-2">Pending Join Requests</h3>
+              <div className="grid sm:grid-cols-2 gap-2">
+                {joinRequests.map(req => (
+                  <div key={req.id._serialized} className="p-3 bg-[#fcf9e8] border border-[#dba617] flex items-center justify-between">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-[#1d2327] truncate">{req.name || req.id.user}</p>
+                      <p className="text-[9px] font-mono text-[#646970]">+{req.id.user}</p>
+                    </div>
+                    <div className="flex gap-1">
+                      <button onClick={() => handleApproveJoin(req.id._serialized)} className="p-1 bg-[#00a32a] text-white rounded-sm hover:bg-[#008a20]"><Check className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => handleRejectJoin(req.id._serialized)} className="p-1 bg-[#d63638] text-white rounded-sm hover:bg-[#b32d2e]"><X className="w-3.5 h-3.5" /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Participant Registry */}
+          <div className="space-y-4">
+            <h3 className="text-xs font-bold text-[#2271b1] uppercase tracking-widest border-l-2 border-[#2271b1] pl-2">Participant Registry</h3>
+            <div className="border border-[#dcdcde] bg-[#f6f7f7] max-h-[400px] overflow-y-auto custom-scrollbar">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-[#f0f0f1] border-b border-[#dcdcde] sticky top-0 z-10">
+                    <th className="px-4 py-2 text-[10px] font-bold text-[#1d2327] uppercase tracking-tighter">Identity</th>
+                    <th className="px-4 py-2 text-[10px] font-bold text-[#1d2327] uppercase tracking-tighter text-right">Operational Control</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {managingGroup?.metadata?.participants?.map(p => (
+                    <tr key={p.id._serialized} className="bg-white border-b border-[#f0f0f1] hover:bg-[#fcfcfc] group">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-[#f6f7f7] border border-[#dcdcde] flex items-center justify-center font-bold text-xs">
+                            {p.profilePic ? <img src={p.profilePic} className="w-full h-full object-cover" /> : (p.name?.[0] || 'U')}
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-[#1d2327]">{p.name}</p>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[8px] font-bold uppercase px-1 py-0.5 border ${p.isAdmin ? 'bg-[#fcf9e8] text-[#dba617] border-[#dba617]' : 'bg-[#f6f7f7] text-[#646970] border-[#dcdcde]'}`}>{p.isAdmin ? 'Admin' : 'Participant'}</span>
+                              <span className="text-[9px] font-mono text-[#a7aaad]">+{p.number}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {p.isAdmin ? (
+                            <button onClick={() => handleDemoteAdmin(p.id._serialized)} className="px-2 py-1 bg-[#f0f0f1] text-[#1d2327] border border-[#dcdcde] text-[9px] font-bold uppercase hover:bg-[#dcdcde]" title="Demote">Demote</button>
+                          ) : (
+                            <button onClick={() => handlePromoteAdmin(p.id._serialized)} className="px-2 py-1 bg-[#2271b1] text-white border border-[#135e96] text-[9px] font-bold uppercase hover:bg-[#135e96]" title="Promote">Promote</button>
+                          )}
+                          <button onClick={() => handleRemoveParticipant(p.id._serialized)} className="px-2 py-1 bg-white text-[#d63638] border border-[#d63638] text-[9px] font-bold uppercase hover:bg-[#fcf0f1]" title="Remove">Expel</button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </Modal>
 
     </div>
