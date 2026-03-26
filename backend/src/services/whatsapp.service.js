@@ -110,7 +110,7 @@ class WhatsappService {
       if (msg.body.startsWith('/')) {
         try {
           const [cmd, ...args] = msg.body.slice(1).split(' ');
-          const sender = msg.from;
+          const sender = msg.author || msg.from;
           const userRes = await db.query(
             'SELECT u.id, array_agg(r.name) as roles FROM users u JOIN user_roles ur ON u.id = ur.user_id JOIN roles r ON ur.role_id = r.id WHERE u.phone_number = $1 GROUP BY u.id', 
             [sender.replace('@c.us', '')]
@@ -313,6 +313,110 @@ class WhatsappService {
       console.error('[WHATSAPP] Get contacts error:', err.message);
       throw err;
     }
+  }
+
+  async createWaGroup(name, participants) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    try {
+      const pJids = participants.map(p => p.includes('@c.us') ? p : `${p.replace(/\D/g, '')}@c.us`);
+      const result = await this.client.createGroup(name, pJids);
+      return result;
+    } catch (err) {
+      console.error('[WHATSAPP] Create group error:', err.message);
+      throw err;
+    }
+  }
+
+  async createWaChannel(name, description) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    try {
+      // whatsapp-web.js uses createNewsletter for Channels
+      const result = await this.client.createNewsletter(name, { description });
+      return result;
+    } catch (err) {
+      console.error('[WHATSAPP] Create channel error:', err.message);
+      throw err;
+    }
+  }
+
+  async deleteGroup(groupId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    try {
+      const chat = await this.client.getChatById(groupId);
+      if (chat.isGroup) {
+        await chat.leave();
+        await chat.delete();
+      }
+    } catch (err) {
+      console.error('[WHATSAPP] Delete group error:', err.message);
+      throw err;
+    }
+  }
+
+  async deleteChannel(channelId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    try {
+      const chat = await this.client.getChatById(channelId);
+      await chat.delete();
+    } catch (err) {
+      console.error('[WHATSAPP] Delete channel error:', err.message);
+      throw err;
+    }
+  }
+
+  async getGroupMetadata(groupId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    try {
+      const chat = await this.client.getChatById(groupId);
+      return chat.groupMetadata;
+    } catch (err) {
+      console.error('[WHATSAPP] Get metadata error:', err.message);
+      throw err;
+    }
+  }
+
+  async getJoinRequests(groupId) {
+    if (!this.isReady) throw new Error('WhatsApp client not ready');
+    try {
+      const chat = await this.client.getChatById(groupId);
+      if (chat.getGroupJoinRequests) {
+        return await chat.getGroupJoinRequests();
+      }
+      return [];
+    } catch (err) {
+      console.error('[WHATSAPP] Get join requests error:', err.message);
+      throw err;
+    }
+  }
+
+  async promoteAdmin(chatId, participantId) {
+    const chat = await this.client.getChatById(chatId);
+    return await chat.promoteParticipants([participantId]);
+  }
+
+  async demoteAdmin(chatId, participantId) {
+    const chat = await this.client.getChatById(chatId);
+    return await chat.demoteParticipants([participantId]);
+  }
+
+  async removeParticipant(chatId, participantId) {
+    const chat = await this.client.getChatById(chatId);
+    return await chat.removeParticipants([participantId]);
+  }
+
+  async addParticipant(chatId, participantId) {
+    const chat = await this.client.getChatById(chatId);
+    return await chat.addParticipants([participantId]);
+  }
+
+  async approveJoinRequest(chatId, participantId) {
+    const chat = await this.client.getChatById(chatId);
+    return await chat.approveGroupJoinRequest(participantId);
+  }
+
+  async rejectJoinRequest(chatId, participantId) {
+    const chat = await this.client.getChatById(chatId);
+    return await chat.rejectGroupJoinRequest(participantId);
   }
 
   async sendMessage(number, message, mediaOptions = null) {

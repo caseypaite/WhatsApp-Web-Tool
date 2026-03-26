@@ -6,7 +6,7 @@ import {
   ArrowLeft, Save, X, Plus, Trash2, 
   RefreshCw, BarChart2, User, Shield, Image as ImageIcon,
   AlertCircle, CheckCircle, Info, ShieldCheck, Zap, LogOut, Menu, Home, Settings as SettingsIcon,
-  ChevronDown, ChevronUp, Lock, Activity, Layout
+  ChevronDown, ChevronUp, Lock, Activity, Layout, Globe, History
 } from 'lucide-react';
 
 const PollEditPage = () => {
