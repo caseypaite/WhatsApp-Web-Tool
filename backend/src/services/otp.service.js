@@ -60,10 +60,11 @@ class OtpService {
   async callOtpGateway(phoneNumber, code, purpose = 'verification') {
     const whatsappService = require('./whatsapp.service');
     try {
-      const siteName = await settingsService.get('site_name') || 'AppStack';
-      // Format: "Your OTP 123456 for login in AppStack"
-      // "Your OTP " is 9 chars. "123456" is 6 chars. Total 15 chars.
-      const message = `Your OTP ${code} for ${purpose} in ${siteName}`;
+      const siteName = await settingsService.get('site_name') || 'Portal';
+      
+      // professional OTP template
+      const message = `🔐 *VERIFICATION CODE*\n\nYour OTP for *${purpose}* is:\n\n*${code}*\n\nThis code will expire in 5 minutes. Do not share this with anyone.`;
+      
       const result = await whatsappService.sendMessage(phoneNumber, message);
       return { status: 200, data: { success: true, messageId: result.id?._serialized || result.id } };
     } catch (error) {

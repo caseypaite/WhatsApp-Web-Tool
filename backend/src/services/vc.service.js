@@ -8,7 +8,7 @@ class VerifiableCredentialService {
    * @returns {Object} The signed W3C Verifiable Credential.
    */
   async issueCredential(userData) {
-    const domain = await settingsService.get('website_domain') || process.env.WEBSITE_DOMAIN || 'appstack.com';
+    const domain = await settingsService.get('website_domain') || process.env.WEBSITE_DOMAIN || 'identity-portal.io';
     const issuerUrl = domain.startsWith('http') ? domain : `https://${domain}`;
 
     const vc = {

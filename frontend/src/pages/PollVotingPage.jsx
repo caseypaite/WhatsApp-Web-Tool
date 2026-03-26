@@ -4,13 +4,13 @@ import authService from '../services/auth.service';
 import { useAuth } from '../context/AuthContext';
 import { 
   BarChart2, ArrowLeft, Phone, ShieldCheck, 
-  User, CheckCircle, AlertCircle, RefreshCw, X 
+  User, CheckCircle, AlertCircle, RefreshCw, X, Zap, Globe
 } from 'lucide-react';
 
 const PollVotingPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { siteName } = useAuth();
   const [poll, setPoll] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -33,14 +33,14 @@ const PollVotingPage = () => {
         setPoll(data);
         const now = new Date();
         if (data.starts_at && new Date(data.starts_at) > now) {
-          setError(`This poll is scheduled to start on ${new Date(data.starts_at).toLocaleString()}.`);
+          setError(`This decision unit is scheduled to initialize on ${new Date(data.starts_at).toLocaleString()}.`);
         } else if (data.ends_at && new Date(data.ends_at) < now) {
-          setError('This poll has ended.');
+          setError('The operational window for this unit has expired.');
         } else if (data.status !== 'OPEN') {
-          setError('This poll is not currently accepting votes.');
+          setError('This node is not currently accepting incoming packets.');
         }
       } catch (err) {
-        setError('Poll not found or inactive.');
+        setError('Inquiry unit not found or offline.');
       } finally {
         setLoading(false);
       }
@@ -63,9 +63,9 @@ const PollVotingPage = () => {
       setOtpSent(true);
       setNeedsConfirmation(false);
       setIsViewing(confirmView || res.already_voted);
-      setSuccess('Authorization packet sent to your WhatsApp.');
+      setSuccess('Authorization packet transmitted to your communication unit.');
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to send OTP. Please check the number.');
+      setError(err.response?.data?.error || 'Transmission failed. Verify mobile identifier.');
     } finally {
       setActionLoading(false);
     }
@@ -73,7 +73,7 @@ const PollVotingPage = () => {
 
   const handleCastVote = async () => {
     if (!isViewing && !votingData.option_selected && !votingData.candidate_id) {
-      setError('Please select an option before finalizing.');
+      setError('Please select a selection node before finalizing.');
       return;
     }
     if (votingData.otp.length !== 6) {
@@ -85,14 +85,14 @@ const PollVotingPage = () => {
     try {
       const res = await authService.verifyAndVote(votingData);
       if (res.already_voted) {
-        setSuccess('Identity verified. Loading your previous decision...');
+        setSuccess('Identity verified. Synchronizing previous decision...');
         setTimeout(() => navigate(`/poll/${id}/results`), 2000);
       } else {
-        setSuccess('Decision finalized and recorded on the ledger.');
+        setSuccess('Decision committed and recorded on the ledger.');
         setTimeout(() => navigate(`/poll/${id}/results`), 2000);
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Verification failed. Incorrect OTP.');
+      setError(err.response?.data?.error || 'Verification failed. Protocol mismatch.');
     } finally {
       setActionLoading(false);
     }
@@ -100,89 +100,76 @@ const PollVotingPage = () => {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-50">
-        <RefreshCw className="w-10 h-10 text-primary-600 animate-spin" />
-      </div>
-    );
-  }
-
-  if (error && !poll) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center p-6 bg-slate-50">
-        <AlertCircle className="w-16 h-16 text-red-400 mb-6" />
-        <h2 className="text-2xl font-black text-slate-900 mb-2 uppercase">Access Denied</h2>
-        <p className="text-slate-500 font-medium mb-8">{error}</p>
-        <button onClick={() => navigate('/')} className="px-8 py-4 bg-slate-900 text-white font-black rounded-2xl uppercase tracking-widest flex items-center gap-3">
-          <ArrowLeft className="w-5 h-5" /> Return to Safety
-        </button>
+      <div className="flex items-center justify-center min-h-screen bg-[#f0f0f1]">
+        <div className="w-8 h-8 border-4 border-[#dcdcde] border-t-[#2271b1] rounded-full animate-spin"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-20 selection:bg-primary-100">
-      {/* Header Backdrop */}
-      <div className="h-80 bg-slate-900 relative overflow-hidden">
-        {poll.background_image_url ? (
-          <img src={poll.background_image_url} className="w-full h-full object-cover opacity-40 grayscale" alt="" />
-        ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-slate-900 to-primary-900 opacity-50" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#F8FAFC] via-transparent to-transparent" />
+    <div className="min-h-screen bg-[#f0f0f1] font-sans text-[#3c434a] pb-20">
+      {/* WP-Style Header for Public Pages */}
+      <div className="bg-[#1d2327] py-12 px-4 mb-12 text-center text-white border-b-4 border-[#2271b1]">
+        <div className="container mx-auto">
+          <div className="flex flex-col items-center gap-4 mb-6">
+            <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center group cursor-pointer" onClick={() => navigate('/')}>
+              <Zap className="w-6 h-6 text-[#72aee6]" />
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight">{siteName} Enterprise</h1>
+          </div>
+          <div className="max-w-2xl mx-auto">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#2271b1] rounded-sm text-[10px] font-bold uppercase tracking-widest mb-4">
+              <Globe className="w-3 h-3" /> Secure Poll
+            </div>
+            <h2 className="text-4xl font-extrabold leading-tight mb-2 uppercase tracking-tighter">{poll?.title}</h2>
+            <p className="text-[#a7aaad] text-sm font-medium italic">"{poll?.description}"</p>
+          </div>
+        </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-4 -mt-40 relative z-10">
+      <div className="container mx-auto px-4 max-w-3xl">
         <button 
           onClick={() => navigate(-1)}
-          className="mb-8 flex items-center gap-2 text-white/70 hover:text-white font-black text-[10px] uppercase tracking-[0.2em] transition-all"
+          className="mb-6 flex items-center gap-1 text-[#646970] hover:text-[#2271b1] text-xs font-bold uppercase tracking-widest transition-colors"
         >
-          <ArrowLeft className="w-4 h-4" /> Go Back
+          <ArrowLeft className="w-4 h-4" /> Return to Polls
         </button>
 
-        <div className="bg-white rounded-[3rem] shadow-2xl shadow-slate-200 border border-white overflow-hidden">
-          <div className="p-10 md:p-16 space-y-12">
-            <div className="text-center space-y-4">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary-50 text-primary-600 rounded-full text-[10px] font-black uppercase tracking-widest mb-2 border border-primary-100">
-                <BarChart2 className="w-3 h-3" /> Decision Unit Active
+        <div className="bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.24)] border border-[#dcdcde] overflow-hidden">
+          <div className="p-8 md:p-12">
+            {error && (
+              <div className="p-4 mb-8 text-[#d63638] bg-white border-l-4 border-[#d63638] shadow-sm text-sm font-medium animate-in fade-in">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                  <p>{error}</p>
+                </div>
               </div>
-              <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter uppercase leading-none">
-                {poll.title}
-              </h1>
-              <p className="text-slate-500 font-medium text-lg max-w-2xl mx-auto leading-relaxed">
-                {poll.description}
-              </p>
-            </div>
+            )}
 
             {success && (
-              <div className="p-6 bg-green-50 text-green-700 rounded-3xl border border-green-100 flex items-center gap-5 animate-in slide-in-from-left-4">
-                <CheckCircle className="w-6 h-6" />
-                <p className="text-sm font-black uppercase tracking-widest leading-tight">{success}</p>
+              <div className="p-4 mb-8 text-[#00a32a] bg-white border-l-4 border-[#00a32a] shadow-sm text-sm font-medium animate-in fade-in">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                  <p>{success}</p>
+                </div>
               </div>
             )}
 
-            {error && (
-              <div className="p-6 bg-red-50 text-red-700 rounded-3xl border border-red-100 flex items-center gap-5 animate-in slide-in-from-left-4">
-                <AlertCircle className="w-6 h-6" />
-                <p className="text-sm font-black uppercase tracking-widest leading-tight">{error}</p>
-              </div>
-            )}
-
-            {/* IDENTITY VERIFICATION (STEP 1) */}
+            {/* STEP 1: AUTH */}
             {!otpSent && (
-              <div className="py-10 space-y-10 animate-in fade-in duration-500">
-                <div className="text-center space-y-2">
-                  <h3 className="text-xl font-black text-slate-900 uppercase">Step 1: Identity Authentication</h3>
-                  <p className="text-sm text-slate-400 font-medium">Please enter your WhatsApp-linked mobile unit to receive an authorization packet.</p>
+              <div className="space-y-8 animate-in slide-in-from-top-2 duration-500">
+                <div className="border-b border-[#f0f0f1] pb-4">
+                  <h3 className="text-lg font-bold text-[#1d2327] uppercase tracking-tight">Step 1: Phone Verification</h3>
+                  <p className="text-xs text-[#646970] font-medium mt-1">Receive an OTP via WhatsApp to verify your identity.</p>
                 </div>
                 
                 <div className="max-w-md mx-auto space-y-6">
-                  <div className="relative">
-                    <Phone className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-slate-300" />
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Mobile Link Identifier</label>
                     <input 
                       type="tel" 
-                      required 
                       disabled={needsConfirmation}
-                      className="w-full pl-16 pr-6 py-6 bg-slate-50 border border-slate-200 rounded-[2rem] font-black text-2xl outline-none focus:ring-8 focus:ring-primary-100 shadow-inner disabled:opacity-50 transition-all" 
+                      className="w-full px-4 py-3 bg-[#f6f7f7] border border-[#8c8f94] focus:border-[#2271b1] focus:ring-1 focus:ring-[#2271b1] outline-none font-bold text-xl tracking-wider shadow-inner disabled:opacity-50 transition-all text-center" 
                       placeholder="91XXXXXXXXXX" 
                       value={votingData.phone_number} 
                       onChange={(e) => setVotingData({...votingData, phone_number: e.target.value})} 
@@ -193,90 +180,85 @@ const PollVotingPage = () => {
                     <button 
                       onClick={() => handleRequestOtp(false)} 
                       disabled={actionLoading || !votingData.phone_number}
-                      className="w-full py-6 bg-primary-600 text-white text-xs font-black rounded-[2rem] uppercase tracking-[0.3em] shadow-2xl shadow-primary-900/30 active:scale-95 transform transition-all hover:bg-primary-700 disabled:opacity-50"
+                      className="w-full py-3 bg-[#2271b1] hover:bg-[#135e96] text-white font-bold rounded-sm uppercase tracking-widest text-sm border-b-2 border-[#135e96] transition-all disabled:opacity-50"
                     >
-                      {actionLoading ? <RefreshCw className="w-5 h-5 animate-spin mx-auto" /> : 'Request Authorization Packet'}
+                      {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin mx-auto" /> : 'Request Authorization Packet'}
                     </button>
                   ) : (
-                    <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-top-2">
+                    <div className="flex flex-col gap-3">
                       <button 
                         onClick={() => handleRequestOtp(true)} 
-                        disabled={actionLoading}
-                        className="w-full py-6 bg-primary-600 text-white text-xs font-black rounded-[2rem] uppercase tracking-[0.3em] shadow-2xl shadow-primary-900/30 active:scale-95 transform transition-all"
+                        className="w-full py-3 bg-[#2271b1] hover:bg-[#135e96] text-white font-bold rounded-sm uppercase tracking-widest text-sm border-b-2 border-[#135e96]"
                       >
-                        Verify Identity to View My Decision
+                        Verify Identity to View Decision
                       </button>
                       <button 
                         onClick={() => { setNeedsConfirmation(false); setSuccess(''); }} 
-                        className="w-full py-4 text-slate-400 font-black text-[10px] uppercase tracking-widest hover:text-slate-600 transition-all"
+                        className="text-xs text-[#2271b1] hover:underline font-bold"
                       >
-                        Change Number
+                        Change Mobile Identifier
                       </button>
                     </div>
                   )}
                 </div>
 
-                <div className="p-8 bg-indigo-50/50 rounded-[2.5rem] border border-indigo-100 flex items-start gap-5">
-                  <ShieldCheck className="w-8 h-8 text-indigo-600 flex-shrink-0 mt-1" />
+                <div className="p-4 bg-[#fcf9e8] border border-[#dba617] flex items-start gap-4">
+                  <ShieldCheck className="w-6 h-6 text-[#dba617] flex-shrink-0 mt-0.5" />
                   <div className="space-y-1">
-                    <p className="text-xs font-black text-indigo-900 uppercase tracking-widest">WhatsApp Identity Protocol</p>
-                    <p className="text-xs text-indigo-600 font-medium leading-relaxed">We use your live WhatsApp group membership as a cryptographic anchor. Your identity is verified against the real-time participant ledger of the linked organizational unit.</p>
+                    <p className="text-[10px] font-black text-[#1d2327] uppercase tracking-widest">Identity Protocol Notice</p>
+                    <p className="text-xs text-[#646970] font-medium leading-relaxed italic">Your organizational membership is verified in real-time against the decentralized participant registry. Access is restricted to authorized entities.</p>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* SELECTION & FINALIZATION (STEP 2) */}
+            {/* STEP 2: SELECTION */}
             {otpSent && !isViewing && (
-              <div className="space-y-12 animate-in slide-in-from-bottom-8 duration-700">
-                <div className="text-center space-y-2">
-                  <h3 className="text-xl font-black text-slate-900 uppercase">Step 2: Cast Your Decision</h3>
-                  <p className="text-sm text-slate-400 font-medium text-center">Identity verified. Select your option and enter the 6-digit packet to finalize.</p>
+              <div className="space-y-10 animate-in fade-in duration-700">
+                <div className="border-b border-[#f0f0f1] pb-4">
+                  <h3 className="text-lg font-bold text-[#1d2327] uppercase tracking-tight">Finalize Selection Node</h3>
+                  <p className="text-xs text-[#646970] font-medium mt-1">Select your decision node and enter the verification packet.</p>
                 </div>
 
-                <div className="grid gap-6">
+                <div className="grid gap-3">
                   {poll.type === 'GENERAL' ? (
-                    <div className="grid gap-4">
-                      {poll.options.map(opt => (
-                        <button 
-                          key={opt} 
-                          onClick={() => setVotingData({...votingData, option_selected: opt, candidate_id: null})}
-                          className={`p-8 rounded-[2.5rem] border-4 text-left flex items-center justify-between transition-all ${votingData.option_selected === opt ? 'border-primary-600 bg-primary-50 shadow-xl scale-[1.02]' : 'border-slate-100 bg-white hover:border-slate-200'}`}
-                        >
-                          <span className="text-xl font-black text-slate-800">{opt}</span>
-                          <div className={`w-8 h-8 rounded-full border-4 flex items-center justify-center ${votingData.option_selected === opt ? 'border-primary-600' : 'border-slate-200'}`}>
-                            {votingData.option_selected === opt && <div className="w-4 h-4 bg-primary-600 rounded-full" />}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
+                    poll.options.map(opt => (
+                      <button 
+                        key={opt} 
+                        onClick={() => setVotingData({...votingData, option_selected: opt, candidate_id: null})}
+                        className={`p-4 border text-left flex items-center justify-between transition-all ${votingData.option_selected === opt ? 'bg-[#f6f7f7] border-[#2271b1] ring-1 ring-[#2271b1]' : 'bg-white border-[#dcdcde] hover:bg-[#f6f7f7]'}`}
+                      >
+                        <span className="text-sm font-bold text-[#1d2327]">{opt}</span>
+                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${votingData.option_selected === opt ? 'border-[#2271b1]' : 'border-[#dcdcde]'}`}>
+                          {votingData.option_selected === opt && <div className="w-2.5 h-2.5 bg-[#2271b1] rounded-full" />}
+                        </div>
+                      </button>
+                    ))
                   ) : (
-                    <div className="grid gap-6">
+                    <div className="grid gap-4">
                       {poll.candidates?.map(cand => (
                         <div 
                           key={cand.id} 
                           onClick={() => setVotingData({...votingData, candidate_id: cand.id, option_selected: null})}
-                          className={`p-8 rounded-[3rem] border-4 transition-all cursor-pointer flex flex-col md:flex-row gap-8 ${votingData.candidate_id === cand.id ? 'border-primary-600 bg-primary-50 shadow-2xl scale-[1.02]' : 'border-slate-100 bg-white hover:border-slate-200'}`}
+                          className={`p-4 border transition-all cursor-pointer flex gap-6 ${votingData.candidate_id === cand.id ? 'bg-[#f6f7f7] border-[#2271b1] ring-1 ring-[#2271b1]' : 'bg-white border-[#dcdcde] hover:bg-[#f6f7f7]'}`}
                         >
-                          <div className="w-32 h-32 bg-slate-100 rounded-[2.5rem] overflow-hidden flex-shrink-0 border-4 border-white shadow-xl">
-                            {cand.photo_url ? <img src={cand.photo_url} alt={cand.name} className="w-full h-full object-cover" /> : <User className="w-full h-full p-8 text-slate-300" />}
+                          <div className="w-20 h-20 bg-[#f0f0f1] border border-[#dcdcde] flex-shrink-0">
+                            {cand.photo_url ? <img src={cand.photo_url} alt="" className="w-full h-full object-cover" /> : <User className="w-full h-full p-5 text-[#a7aaad]" />}
                           </div>
-                          <div className="flex-1 min-w-0 flex flex-col">
-                            <div className="flex items-center justify-between mb-4">
-                              <h5 className="text-2xl font-black uppercase tracking-tightest text-slate-900">{cand.name}</h5>
-                              <div className={`w-8 h-8 rounded-full border-4 flex items-center justify-center ${votingData.candidate_id === cand.id ? 'border-primary-600' : 'border-slate-200'}`}>
-                                {votingData.candidate_id === cand.id && <div className="w-4 h-4 bg-primary-600 rounded-full" />}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between mb-2">
+                              <h5 className="text-sm font-black uppercase text-[#1d2327]">{cand.name}</h5>
+                              <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${votingData.candidate_id === cand.id ? 'border-[#2271b1]' : 'border-[#dcdcde]'}`}>
+                                {votingData.candidate_id === cand.id && <div className="w-2.5 h-2.5 bg-[#2271b1] rounded-full" />}
                               </div>
                             </div>
-                            <p className="text-sm text-slate-500 font-medium italic leading-relaxed mb-6 line-clamp-2">"{cand.manifesto}"</p>
-                            <div className="mt-auto pt-6 border-t border-slate-100 flex items-center justify-between">
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); setSelectedCandidate(cand); setShowCandidateModal(true); }}
-                                className="text-[10px] font-black text-primary-600 uppercase tracking-widest hover:underline"
-                              >
-                                View Detailed Intelligence
-                              </button>
-                            </div>
+                            <p className="text-xs text-[#646970] italic line-clamp-2 leading-relaxed mb-2">"{cand.manifesto}"</p>
+                            <button 
+                              onClick={(e) => { e.stopPropagation(); setSelectedCandidate(cand); setShowCandidateModal(true); }}
+                              className="text-[10px] font-bold text-[#2271b1] hover:underline uppercase"
+                            >
+                              View Intelligence
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -284,13 +266,13 @@ const PollVotingPage = () => {
                   )}
                 </div>
 
-                <div className="pt-10 border-t-2 border-dashed border-slate-100 space-y-10">
-                  <div className="space-y-4 text-center max-w-sm mx-auto">
-                    <label className="block text-[10px] font-black text-primary-600 uppercase tracking-[0.4em] text-center">Authorization Packet</label>
+                <div className="pt-8 border-t border-[#dcdcde] space-y-8">
+                  <div className="max-w-xs mx-auto space-y-2">
+                    <label className="block text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest text-center">Enter OTP</label>
                     <input 
                       type="text" 
                       maxLength="6" 
-                      className="w-full px-6 py-8 bg-slate-50 border border-slate-200 rounded-[2.5rem] text-center font-black tracking-[1.2em] text-5xl focus:ring-8 focus:ring-primary-100 outline-none shadow-inner transition-all" 
+                      className="w-full px-4 py-3 bg-[#f6f7f7] border border-[#8c8f94] focus:border-[#2271b1] focus:ring-1 focus:ring-[#2271b1] outline-none font-bold text-2xl tracking-[0.5em] shadow-inner text-center" 
                       placeholder="000000" 
                       value={votingData.otp} 
                       onChange={(e) => setVotingData({...votingData, otp: e.target.value})} 
@@ -301,85 +283,78 @@ const PollVotingPage = () => {
                     <button 
                       onClick={handleCastVote} 
                       disabled={actionLoading || votingData.otp.length !== 6 || (!votingData.option_selected && !votingData.candidate_id)} 
-                      className="w-full py-8 bg-green-600 text-white text-sm font-black rounded-[2.5rem] uppercase tracking-[0.4em] shadow-2xl shadow-green-900/30 hover:bg-green-700 transition-all active:scale-95 transform disabled:opacity-50"
+                      className="w-full py-3 bg-[#2271b1] hover:bg-[#135e96] text-white font-bold rounded-sm uppercase tracking-widest text-sm border-b-2 border-[#135e96] transition-all disabled:opacity-50"
                     >
-                      {actionLoading ? <RefreshCw className="w-6 h-6 animate-spin mx-auto" /> : 'Finalize Decision Ledger'}
+                      {actionLoading ? <RefreshCw className="w-4 h-4 animate-spin mx-auto" /> : 'Submit Vote'}
                     </button>
                     
                     <button 
                       onClick={() => { setOtpSent(false); setVotingData({...votingData, otp: ''}); }}
-                      className="w-full text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-all"
+                      className="w-full text-[10px] font-bold text-[#646970] hover:text-[#2271b1] uppercase tracking-widest"
                     >
-                      Back to Step 1: Change Number
+                      Back to Step 1: Change Identifier
                     </button>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* VIEWING MODE (FOR ALREADY VOTED) */}
+            {/* VIEWING MODE */}
             {otpSent && isViewing && (
-              <div className="pt-10 space-y-10 animate-in slide-in-from-bottom-4">
-                <div className="space-y-4 text-center max-w-sm mx-auto">
-                  <label className="block text-[10px] font-black text-primary-600 uppercase tracking-[0.4em] text-center">Identity Confirmation</label>
+              <div className="space-y-8 animate-in fade-in duration-500">
+                <div className="max-w-xs mx-auto space-y-4 text-center">
+                  <label className="block text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Confirmation Packet</label>
                   <input 
                     type="text" 
                     maxLength="6" 
-                    className="w-full px-6 py-8 bg-slate-50 border border-slate-200 rounded-[2.5rem] text-center font-black tracking-[1.2em] text-5xl focus:ring-8 focus:ring-primary-100 outline-none shadow-inner transition-all" 
+                    className="w-full px-4 py-3 bg-[#f6f7f7] border border-[#8c8f94] focus:border-[#2271b1] outline-none font-bold text-2xl tracking-[0.5em] text-center" 
                     placeholder="000000" 
                     value={votingData.otp} 
                     onChange={(e) => setVotingData({...votingData, otp: e.target.value})} 
                   />
+                  <button 
+                    onClick={handleCastVote} 
+                    disabled={actionLoading || votingData.otp.length !== 6} 
+                    className="w-full py-3 bg-[#2271b1] hover:bg-[#135e96] text-white font-bold rounded-sm uppercase tracking-widest text-sm border-b-2 border-[#135e96] shadow-sm"
+                  >
+                    Retrieve My Decision
+                  </button>
                 </div>
-                <button 
-                  onClick={handleCastVote} 
-                  disabled={actionLoading || votingData.otp.length !== 6} 
-                  className="w-full py-8 bg-primary-600 text-white text-sm font-black rounded-[2.5rem] uppercase tracking-[0.4em] shadow-2xl shadow-primary-900/30 hover:bg-primary-700 transition-all active:scale-95 transform disabled:opacity-50"
-                >
-                  {actionLoading ? <RefreshCw className="w-6 h-6 animate-spin mx-auto" /> : 'Decrypt & View My Decision'}
-                </button>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Candidate Profile Modal */}
+      {/* Candidate Modal */}
       {showCandidateModal && selectedCandidate && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-2xl rounded-[3rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
-            <div className="relative h-64 bg-slate-100">
-              {selectedCandidate.photo_url ? (
-                <img src={selectedCandidate.photo_url} alt={selectedCandidate.name} className="w-full h-full object-cover grayscale-[50%]" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-slate-200 bg-slate-900"><User className="w-24 h-24" /></div>
-              )}
-              <button 
-                onClick={() => setShowCandidateModal(false)}
-                className="absolute top-6 right-6 p-3 bg-white/10 backdrop-blur-md text-white rounded-2xl hover:bg-white/20 transition-all"
-              >
-                <X className="w-6 h-6" />
-              </button>
-              <div className="absolute bottom-0 left-0 right-0 p-10 bg-gradient-to-t from-white to-transparent pt-20">
-                <h4 className="text-3xl font-black text-slate-900 uppercase tracking-tighter">{selectedCandidate.name}</h4>
-                <p className="text-primary-600 font-black text-[10px] uppercase tracking-[0.2em]">Profile Document Alpha-7</p>
-              </div>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white w-full max-w-xl shadow-2xl border border-[#dcdcde] animate-in zoom-in-95">
+            <div className="flex items-center justify-between px-4 py-2 border-b border-[#dcdcde] bg-[#f6f7f7]">
+              <h4 className="text-sm font-semibold">Intelligence Profile</h4>
+              <button onClick={() => setShowCandidateModal(false)} className="p-1 text-[#646970] hover:text-[#d63638]"><X className="w-5 h-5" /></button>
             </div>
-            <div className="p-10 space-y-8">
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Manifesto Alpha</label>
-                <p className="text-lg text-slate-700 font-black leading-tight italic">"{selectedCandidate.manifesto}"</p>
+            <div className="p-8">
+              <div className="flex gap-8 mb-8">
+                <div className="w-32 h-32 bg-[#f0f0f1] border border-[#dcdcde] flex-shrink-0">
+                  {selectedCandidate.photo_url ? <img src={selectedCandidate.photo_url} alt="" className="w-full h-full object-cover" /> : <User className="w-full h-full p-8 text-[#a7aaad]" />}
+                </div>
+                <div className="flex-1">
+                  <h5 className="text-2xl font-bold text-[#1d2327] mb-1">{selectedCandidate.name}</h5>
+                  <p className="text-[10px] font-bold text-[#2271b1] uppercase tracking-widest">Profile Document Node</p>
+                </div>
               </div>
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Biographical Node</label>
-                <p className="text-sm text-slate-500 font-medium leading-relaxed">{selectedCandidate.biography}</p>
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest border-b border-[#f0f0f1] block pb-1">Manifesto Alpha</label>
+                  <p className="text-base text-[#3c434a] font-medium leading-relaxed italic">"{selectedCandidate.manifesto}"</p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest border-b border-[#f0f0f1] block pb-1">Biographical Stream</label>
+                  <p className="text-sm text-[#646970] font-medium leading-relaxed">{selectedCandidate.biography}</p>
+                </div>
               </div>
-              <button 
-                onClick={() => setShowCandidateModal(false)}
-                className="w-full py-5 bg-slate-900 text-white font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:bg-slate-800 transition-all"
-              >
-                Close Intelligence Profile
-              </button>
+              <button onClick={() => setShowCandidateModal(false)} className="w-full mt-10 py-3 bg-[#1d2327] text-white text-xs font-bold uppercase tracking-widest hover:bg-[#2c3338]">Close Profile</button>
             </div>
           </div>
         </div>

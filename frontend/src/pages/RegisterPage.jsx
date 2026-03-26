@@ -5,7 +5,7 @@ import api from '../services/api';
 import axios from 'axios';
 import { 
   User, Mail, Phone, Lock, Shield, CheckCircle, 
-  ArrowRight, MapPin, Globe, Building, Navigation
+  ArrowRight, MapPin, Globe, Building, Navigation, Zap, ArrowLeft
 } from 'lucide-react';
 
 const RegisterPage = () => {
@@ -30,7 +30,7 @@ const RegisterPage = () => {
   const [states, setStates] = useState([]);
   const [districts, setDistricts] = useState([]);
   
-  const { register } = useAuth();
+  const { register, siteName } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -137,128 +137,150 @@ const RegisterPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-2xl">
-        <div className="bg-white rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col md:flex-row">
-          {/* Left Side: Branding */}
-          <div className="bg-primary-600 md:w-1/3 p-10 text-white flex flex-col justify-between relative overflow-hidden">
-            <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-primary-500/20 rounded-full blur-3xl"></div>
-            <div className="relative z-10">
-              <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center mb-6">
-                <Shield className="w-6 h-6 text-white" />
-              </div>
-              <h2 className="text-3xl font-black leading-tight tracking-tight uppercase">Join the decision network</h2>
-            </div>
-            <div className="relative z-10">
-              <div className="space-y-4">
-                {[1, 2, 3].map(s => (
-                  <div key={s} className="flex items-center gap-3">
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black border-2 ${step >= s ? 'bg-white text-primary-600 border-white shadow-lg' : 'border-white/30 text-white/50'}`}>{s}</div>
-                    <span className={`text-[10px] font-black uppercase tracking-widest ${step >= s ? 'text-white' : 'text-white/40'}`}>{s === 1 ? 'Verify Identity' : s === 2 ? 'Secure Access' : 'Awaiting Approval'}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Right Side: Form */}
-          <div className="flex-1 p-10 md:p-12">
-            {error && (
-              <div className="mb-8 p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 text-red-700 animate-in fade-in duration-300">
-                <Shield className="w-5 h-5 flex-shrink-0" />
-                <p className="text-xs font-bold">{error}</p>
-              </div>
-            )}
-
-            {step === 1 && (
-              <div>
-                <h3 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-tight">Identity Proofing</h3>
-                <p className="text-slate-500 text-sm font-medium mb-10 leading-relaxed">Verifying your WhatsApp identity creates a cryptographic anchor for your session.</p>
-                <form onSubmit={otpSent ? handleVerifyOtp : handleSendOtp} className="space-y-6">
-                  <div className="relative">
-                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                    <input name="phone_number" required type="tel" className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-primary-600 focus:bg-white outline-none transition-all text-sm font-bold shadow-inner" placeholder="WhatsApp (e.g. 91)" value={formData.phone_number} onChange={handleChange} disabled={otpSent} />
-                  </div>
-                  {otpSent && (
-                    <div className="relative animate-in slide-in-from-top-4 duration-300">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                      <input name="otp" required maxLength="6" type="text" className="w-full pl-12 pr-4 py-4 bg-slate-50 border-2 border-slate-100 rounded-2xl focus:border-primary-600 focus:bg-white outline-none transition-all text-center tracking-[0.5em] text-xl font-black shadow-inner" placeholder="000000" value={formData.otp} onChange={handleChange} />
-                    </div>
-                  )}
-                  <button type="submit" disabled={loading} className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl hover:bg-primary-600 transition-all shadow-xl shadow-slate-200 flex items-center justify-center gap-3 group disabled:opacity-50">
-                    {loading ? 'Sending...' : 'Send OTP'} <ArrowRight className="w-6 h-6" />
-                  </button>
-                </form>
-              </div>
-            )}
-
-            {step === 2 && (
-              <div>
-                <h3 className="text-2xl font-black text-slate-900 mb-2 uppercase tracking-tight">Access Credentials</h3>
-                <p className="text-slate-500 text-sm font-medium mb-8">Establish your secure portal access and local identifying information.</p>
-                <form onSubmit={handleFinalRegister} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="relative">
-                      <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <input name="name" required className="w-full pl-11 pr-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-primary-600 outline-none transition-all text-sm font-bold" placeholder="Full Name" value={formData.name} onChange={handleChange} />
-                    </div>
-                    <div className="relative">
-                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                      <input name="email" required type="email" className="w-full pl-11 pr-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-primary-600 outline-none transition-all text-sm font-bold" placeholder="Email" value={formData.email} onChange={handleChange} />
-                    </div>
-                  </div>
-                  <div className="relative">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input name="password" required type="password" className="w-full pl-11 pr-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-primary-600 outline-none transition-all text-sm font-bold" placeholder="Password" value={formData.password} onChange={handleChange} />
-                  </div>
-                  
-                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] border-b border-slate-100 pb-2 mt-6">Locality Information</h4>
-                  <div className="relative">
-                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <input name="address" required className="w-full pl-11 pr-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-primary-600 focus:bg-white outline-none transition-all text-sm font-bold" placeholder="Address" value={formData.address} onChange={handleChange} />
-                  </div>
-                  <div className="relative">
-                    <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <select name="country" required className="w-full pl-11 pr-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-primary-600 outline-none appearance-none text-sm font-bold" value={formData.country} onChange={handleChange}>
-                      <option value="">Country</option>
-                      {countries.map(c => <option key={c.iso2 || c.name} value={c.name}>{c.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <select name="state" required className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-primary-600 outline-none appearance-none text-sm font-bold" value={formData.state} onChange={handleChange} disabled={!formData.country}>
-                      <option value="">State</option>
-                      {states.map(s => <option key={s.state_code || s.name} value={s.name}>{s.name}</option>)}
-                    </select>
-                    <select name="district" required className="w-full px-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-xl focus:border-primary-600 outline-none appearance-none text-sm font-bold" value={formData.district} onChange={handleChange} disabled={!formData.state}>
-                      <option value="">District</option>
-                      {districts.map(d => <option key={typeof d === 'string' ? d : d.name} value={typeof d === 'string' ? d : d.name}>{typeof d === 'string' ? d : d.name}</option>)}
-                    </select>
-                  </div>
-                  <button type="submit" disabled={loading} className="w-full py-4 bg-primary-600 text-white font-black rounded-2xl hover:bg-slate-900 transition-all shadow-xl shadow-primary-100 flex items-center justify-center gap-3 mt-6 disabled:opacity-50">
-                    {loading ? 'Finalizing...' : 'Register Account'} <ArrowRight className="w-6 h-6" />
-                  </button>
-                </form>
-              </div>
-            )}
-
-            {step === 3 && (
-              <div className="text-center py-10 animate-in zoom-in-95 duration-500">
-                <div className="w-20 h-20 bg-green-50 text-green-600 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-inner ring-8 ring-green-50/50">
-                  <CheckCircle className="w-10 h-10" />
-                </div>
-                <h3 className="text-3xl font-black text-slate-900 mb-4 uppercase tracking-tight">Request Logged</h3>
-                <p className="text-slate-500 font-medium mb-10 leading-relaxed px-4">Your registration is complete. A system administrator will review your credentials and activate your dashboard access within 24 hours.</p>
-                <Link to="/login" className="inline-flex items-center gap-2 px-10 py-4 bg-slate-900 text-white font-black rounded-2xl hover:bg-primary-600 transition-all shadow-xl">
-                  Back to Portal <ArrowRight className="w-5 h-5" />
-                </Link>
-              </div>
-            )}
-
-            <div className="mt-10 pt-8 border-t border-slate-100 text-center">
-              <p className="text-slate-500 font-medium">Already a member? <Link to="/login" className="text-primary-600 font-black hover:underline">Sign In</Link></p>
-            </div>
-          </div>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-[#f0f0f1] p-4 font-sans text-[#3c434a]">
+      {/* Branding */}
+      <div className="mb-6 flex flex-col items-center gap-2 group cursor-pointer" onClick={() => navigate('/')}>
+        <div className="w-12 h-12 bg-[#1d2327] rounded-full flex items-center justify-center shadow-lg transition-transform group-hover:scale-110">
+          <Zap className="w-6 h-6 text-white" />
         </div>
+        <h1 className="text-xl font-bold text-[#1d2327] tracking-tight">{siteName}</h1>
+      </div>
+
+      <div className="w-full max-w-[400px] bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.24)] border border-[#dcdcde]">
+        {error && (
+          <div className="p-3 mb-4 text-[#d63638] bg-white border-l-4 border-[#d63638] shadow-[0_1px_1px_rgba(0,0,0,0.04)] text-xs font-medium">
+            {error}
+          </div>
+        )}
+
+        {/* Progress Tracker */}
+        <div className="flex justify-center gap-2 mb-8">
+          {[1, 2, 3].map(s => (
+            <div key={s} className={`w-8 h-1 rounded-full ${step >= s ? 'bg-[#2271b1]' : 'bg-[#dcdcde]'}`}></div>
+          ))}
+        </div>
+
+        {step === 1 && (
+          <div>
+            <h2 className="text-sm font-bold text-[#1d2327] mb-4 uppercase tracking-wider text-center">Step 1: Verify Phone</h2>
+            <form onSubmit={otpSent ? handleVerifyOtp : handleSendOtp} className="space-y-4">
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-[#3c434a]">WhatsApp Number</label>
+                <input 
+                  name="phone_number" 
+                  required 
+                  type="tel" 
+                  className="w-full px-3 py-2 bg-white border border-[#8c8f94] focus:border-[#2271b1] focus:ring-1 focus:ring-[#2271b1] outline-none text-sm shadow-inner transition-all" 
+                  placeholder="91XXXXXXXXXX" 
+                  value={formData.phone_number} 
+                  onChange={handleChange} 
+                  disabled={otpSent} 
+                />
+              </div>
+              {otpSent && (
+                <div className="space-y-1 animate-in slide-in-from-top-2">
+                  <label className="block text-xs font-medium text-[#3c434a]">OTP</label>
+                  <input 
+                    name="otp" 
+                    required 
+                    maxLength="6" 
+                    type="text" 
+                    className="w-full px-3 py-2 bg-white border border-[#8c8f94] focus:border-[#2271b1] focus:ring-1 focus:ring-[#2271b1] outline-none text-sm text-center font-bold tracking-[0.5em] shadow-inner" 
+                    placeholder="000000" 
+                    value={formData.otp} 
+                    onChange={handleChange} 
+                  />
+                </div>
+              )}
+              <button 
+                type="submit" 
+                disabled={loading} 
+                className="w-full py-2 bg-[#2271b1] hover:bg-[#135e96] text-white font-semibold rounded-sm shadow-sm transition-all text-sm border-b-2 border-[#135e96] disabled:opacity-50"
+              >
+                {loading ? 'Processing...' : (otpSent ? 'Verify & Continue' : 'Send OTP')}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div>
+            <h2 className="text-sm font-bold text-[#1d2327] mb-4 uppercase tracking-wider text-center">Step 2: Profile Details</h2>
+            <form onSubmit={handleFinalRegister} className="space-y-4">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-[#3c434a]">Full Name</label>
+                  <input name="name" required className="w-full px-3 py-2 bg-white border border-[#8c8f94] focus:border-[#2271b1] outline-none text-sm" value={formData.name} onChange={handleChange} />
+                </div>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-[#3c434a]">Email</label>
+                  <input name="email" required type="email" className="w-full px-3 py-2 bg-white border border-[#8c8f94] focus:border-[#2271b1] outline-none text-sm" value={formData.email} onChange={handleChange} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-[#3c434a]">Account Password</label>
+
+                <input name="password" required type="password" className="w-full px-3 py-2 bg-white border border-[#8c8f94] focus:border-[#2271b1] outline-none text-sm" value={formData.password} onChange={handleChange} />
+              </div>
+              
+              <div className="space-y-3 pt-2">
+                <p className="text-[10px] font-bold text-[#a7aaad] uppercase border-b border-[#f0f0f1] pb-1">Location Details</p>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-[#3c434a]">Primary Address</label>
+                  <input name="address" required className="w-full px-3 py-2 bg-white border border-[#8c8f94] focus:border-[#2271b1] outline-none text-sm" value={formData.address} onChange={handleChange} />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <select name="country" required className="w-full px-3 py-2 bg-white border border-[#8c8f94] focus:border-[#2271b1] outline-none text-xs" value={formData.country} onChange={handleChange}>
+                    <option value="">Select Country</option>
+                    {countries.map(c => <option key={c.iso2 || c.name} value={c.name}>{c.name}</option>)}
+                  </select>
+                  <select name="state" required className="w-full px-3 py-2 bg-white border border-[#8c8f94] focus:border-[#2271b1] outline-none text-xs" value={formData.state} onChange={handleChange} disabled={!formData.country}>
+                    <option value="">Select State</option>
+                    {states.map(s => <option key={s.state_code || s.name} value={s.name}>{s.name}</option>)}
+                  </select>
+                </div>
+                <select name="district" required className="w-full px-3 py-2 bg-white border border-[#8c8f94] focus:border-[#2271b1] outline-none text-xs" value={formData.district} onChange={handleChange} disabled={!formData.state}>
+                  <option value="">Select District</option>
+                  {districts.map(d => <option key={typeof d === 'string' ? d : d.name} value={typeof d === 'string' ? d : d.name}>{typeof d === 'string' ? d : d.name}</option>)}
+                </select>
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={loading} 
+                className="w-full py-2 bg-[#2271b1] hover:bg-[#135e96] text-white font-semibold rounded-sm shadow-sm transition-all text-sm border-b-2 border-[#135e96] mt-4"
+              >
+                {loading ? 'Finalizing Node...' : 'Initialize Account'}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="text-center py-6 animate-in zoom-in-95">
+            <div className="w-16 h-16 bg-[#edfaef] text-[#00a32a] rounded-full flex items-center justify-center mx-auto mb-6 border-2 border-[#00a32a]">
+              <CheckCircle className="w-10 h-10" />
+            </div>
+            <h2 className="text-sm font-bold text-[#1d2327] mb-2 uppercase">Request Successfully Queued</h2>
+            <p className="text-xs text-[#646970] mb-8 leading-relaxed">Your registration has been logged. A system administrator will review your credentials and activate your dashboard access shortly.</p>
+            <Link to="/login" className="w-full py-2 bg-[#2271b1] hover:bg-[#135e96] text-white font-semibold rounded-sm block shadow-sm text-sm border-b-2 border-[#135e96]">
+              Return to Login
+            </Link>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-6 flex flex-col items-center gap-3">
+        <div className="flex gap-4">
+          <Link to="/login" className="text-xs text-[#646970] hover:text-[#2271b1]">Log in instead?</Link>
+        </div>
+        <Link to="/" className="text-xs text-[#646970] hover:text-[#2271b1] flex items-center gap-1 font-medium">
+          <ArrowLeft className="w-3 h-3" /> Back to {siteName}
+        </Link>
+      </div>
+      
+      <div className="mt-12 text-[10px] text-[#a7aaad] font-bold uppercase tracking-widest">
+        Secure Registration Portal
       </div>
     </div>
   );

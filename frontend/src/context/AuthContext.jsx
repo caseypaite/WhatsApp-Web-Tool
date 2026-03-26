@@ -7,7 +7,7 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [siteName, setSiteName] = useState('AppStack');
+  const [siteName, setSiteName] = useState('Portal');
   const [publicConfig, setPublicConfig] = useState({});
 
   const fetchPublicConfig = async () => {

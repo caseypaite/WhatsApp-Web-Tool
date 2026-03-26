@@ -182,7 +182,7 @@ class WhatsappService {
             const isValid = await otpService.verifyOtp(sender.replace('@c.us', ''), msg.body);
             if (isValid) {
               await db.query("UPDATE group_gatekeeper_logs SET status = 'VERIFIED' WHERE participant_id = $1", [sender]);
-              return msg.reply('✅ *Identity Verified!* Your access to the group has been permanently anchored.');
+              return msg.reply('✅ *Identity Verified!*\n\nYour access has been secured and confirmed by our systems.');
             }
           }
         } catch (err) {
@@ -214,8 +214,9 @@ class WhatsappService {
       console.log('[WHATSAPP] New group participant:', notification.recipientIds);
       try {
         const groupId = notification.chatId;
+        const siteName = await settingsService.get('site_name') || 'Portal';
         for (const participantId of notification.recipientIds) {
-          const welcomeMsg = `👋 *Welcome to the group!*\n\nThis is a secure community.\n\nTo remain in this group, please verify your identity within 10 minutes:\n1. Visit: ${process.env.WEBSITE_DOMAIN || 'app.kcdev.qzz.io'}\n2. Sign in or Register\n3. Reply to this message with your *Verification Packet Code*.`;
+          const welcomeMsg = `👋 *Welcome to the group!*\n\nThis is a secure community managed by *${siteName}*.\n\nTo remain in this group, please verify your identity within 10 minutes:\n1. Visit: ${process.env.WEBSITE_DOMAIN || 'app.kcdev.qzz.io'}\n2. Sign in or Register\n3. Reply to this message with your *OTP Verification Code*.`;
           
           await this.client.sendMessage(participantId, welcomeMsg);
           
@@ -451,9 +452,11 @@ class WhatsappService {
   async sendMessage(number, message, mediaOptions = null) {
     if (!this.isReady) throw new Error('WhatsApp client not ready');
     
-    // Format message with Site Name and Admin Message prefix
-    const siteName = process.env.SITE_NAME || 'AppStack';
-    const formattedMessage = `*${siteName}*\nAdmin Message:\n${message}`;
+    // Fetch dynamic Site Name from settings
+    const siteName = await settingsService.get('site_name') || 'Identity Portal';
+    
+    // Generate professional message template
+    const formattedMessage = `🏛️ *${siteName.toUpperCase()}*\n\n${message}\n\n_System generated notification_`;
 
     let finalJid = number.toString();
     if (!finalJid.includes('@')) {

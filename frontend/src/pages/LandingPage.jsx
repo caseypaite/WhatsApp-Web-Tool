@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import authService from '../services/auth.service';
-import { ArrowRight, Shield, Zap, Layout as LayoutIcon, Cpu, User, BarChart2 } from 'lucide-react';
+import { ArrowRight, Shield, Zap, Layout as LayoutIcon, Cpu, User, BarChart2, Globe, MessageSquare, ShieldCheck, Activity } from 'lucide-react';
 
 const LandingPage = () => {
   const { user, loading, logout, siteName } = useAuth();
@@ -41,26 +41,30 @@ const LandingPage = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white font-sans text-[#3c434a]">
       {/* Hero Section */}
-      <section className="relative py-20 overflow-hidden bg-white">
+      <section className="relative pt-20 pb-32 overflow-hidden border-b border-[#dcdcde]">
         <div className="container px-6 mx-auto">
           <div className="flex flex-wrap items-center -mx-4">
             <div className="w-full px-4 lg:w-1/2">
-              <div className="max-w-xl">
-                <h1 className="mb-6 text-5xl font-extrabold leading-tight tracking-tight text-slate-900 md:text-6xl">
+              <div className="max-w-2xl">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#f0f0f1] border border-[#dcdcde] rounded-sm mb-8">
+                  <ShieldCheck className="w-4 h-4 text-[#2271b1]" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#1d2327]">Secure Voting Platform</span>
+                </div>
+                <h1 className="mb-8 text-5xl font-extrabold leading-[1.1] tracking-tight text-[#1d2327] md:text-7xl">
                   {content.hero_text}
                 </h1>
-                <p className="mb-10 text-xl text-slate-600">
-                  A comprehensive stack for identity management, verifiable credentials, and secure role-based access control.
+                <p className="mb-12 text-xl text-[#646970] leading-relaxed max-w-lg font-medium">
+                  A sophisticated ecosystem for distributed governance, secure identity propagation, and organizational unit management.
                 </p>
-                <div className="flex flex-wrap gap-4 min-h-[64px] items-center">
+                <div className="flex flex-wrap gap-4 items-center">
                   {loading ? (
-                    <div className="w-10 h-10 border-4 border-primary-600 border-t-transparent rounded-full animate-spin ml-4"></div>
+                    <div className="w-10 h-10 border-4 border-[#2271b1] border-t-transparent rounded-full animate-spin"></div>
                   ) : !user ? (
                     <button 
                       onClick={() => navigate('/login')}
-                      className="inline-flex items-center px-8 py-4 text-lg font-semibold text-white transition duration-200 bg-primary-600 rounded-xl hover:bg-primary-700 shadow-lg shadow-primary-200"
+                      className="inline-flex items-center px-10 py-4 text-base font-bold text-white transition-all bg-[#2271b1] rounded-sm hover:bg-[#135e96] shadow-md border-b-2 border-[#135e96] active:scale-95"
                     >
                       {content.cta_text}
                       <ArrowRight className="ml-2 w-5 h-5" />
@@ -69,42 +73,50 @@ const LandingPage = () => {
                     <div className="flex flex-wrap gap-4">
                       <button 
                         onClick={() => navigate('/dashboard')}
-                        className="inline-flex items-center px-8 py-4 text-lg font-semibold text-white transition duration-200 bg-primary-600 rounded-xl hover:bg-primary-700 shadow-lg shadow-primary-200"
+                        className="inline-flex items-center px-10 py-4 text-base font-bold text-white transition-all bg-[#2271b1] rounded-sm hover:bg-[#135e96] shadow-md border-b-2 border-[#135e96]"
                       >
-                        Go to Dashboard
+                        Launch Portal
                         <User className="ml-2 w-5 h-5" />
                       </button>
                       <button 
                         onClick={() => logout()}
-                        className="inline-flex items-center px-8 py-4 text-lg font-semibold text-slate-700 transition duration-200 bg-slate-100 rounded-xl hover:bg-slate-200"
+                        className="inline-flex items-center px-10 py-4 text-base font-bold text-[#1d2327] transition-all bg-[#f0f0f1] border border-[#dcdcde] rounded-sm hover:bg-[#dcdcde]"
                       >
-                        Logout
+                        Terminate Session
                       </button>
                     </div>
                   )}
                   {!loading && !user && (
-                    <button className="inline-flex items-center px-8 py-4 text-lg font-semibold text-slate-700 transition duration-200 bg-slate-100 rounded-xl hover:bg-slate-200">
-                      Learn More
+                    <button 
+                      onClick={() => navigate('/about')}
+                      className="inline-flex items-center px-10 py-4 text-base font-bold text-[#1d2327] transition-all bg-white border border-[#dcdcde] rounded-sm hover:bg-[#f6f7f7]"
+                    >
+                      Technical Overview
                     </button>
                   )}
                 </div>
               </div>
             </div>
-            <div className="w-full px-4 mt-12 lg:w-1/2 lg:mt-0">
-              <div className="relative">
-                <img 
-                  src={content.image_url} 
-                  alt="Identity and Technology" 
-                  className="rounded-3xl shadow-2xl w-full object-cover aspect-[4/3]"
-                />
-                <div className="absolute -bottom-6 -left-6 p-6 bg-white rounded-2xl shadow-xl hidden md:block">
+            <div className="w-full px-4 mt-16 lg:w-1/2 lg:mt-0">
+              <div className="relative group">
+                <div className="absolute inset-0 bg-[#2271b1] rounded-sm blur-3xl opacity-10 group-hover:opacity-20 transition-opacity"></div>
+                <div className="relative bg-white p-2 border border-[#dcdcde] shadow-2xl rounded-sm">
+                  <img 
+                    src={content.image_url} 
+                    alt="Network Infrastructure" 
+                    className="w-full object-cover aspect-[4/3] grayscale-[0.2] group-hover:grayscale-0 transition-all duration-700"
+                  />
+                </div>
+                
+                {/* Floating Meta-info */}
+                <div className="absolute -bottom-8 -right-8 p-6 bg-[#1d2327] text-white shadow-2xl rounded-sm border border-white/10 hidden md:block animate-in slide-in-from-bottom-4 duration-1000">
                   <div className="flex items-center gap-4">
-                    <div className="p-3 bg-green-100 text-green-600 rounded-lg">
-                      <Shield className="w-6 h-6" />
+                    <div className="p-3 bg-[#2271b1] rounded-sm">
+                      <Zap className="w-6 h-6 text-white" />
                     </div>
                     <div>
-                      <p className="font-bold text-slate-900">{siteName}</p>
-                      <p className="text-sm text-slate-500">Verified Platform</p>
+                      <p className="text-xs font-black uppercase tracking-widest text-[#72aee6]">Status</p>
+                      <p className="text-xl font-bold">Node {siteName || 'Active'}</p>
                     </div>
                   </div>
                 </div>
@@ -114,78 +126,122 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Active Polls Section */}
-      <section className="py-24 bg-slate-50">
+      {/* Analytics / Stats Banner */}
+      <section className="bg-[#f6f7f7] border-b border-[#dcdcde] py-12">
         <div className="container px-6 mx-auto">
-          <div className="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
-            <div>
-              <h2 className="text-3xl font-black text-slate-900 md:text-4xl tracking-tight">Community Decisions</h2>
-              <p className="mt-4 text-lg text-slate-600 font-medium">Join the conversation and cast your vote on active public polls.</p>
-            </div>
-            <button 
-              onClick={() => navigate('/login')}
-              className="text-primary-600 font-bold uppercase tracking-widest text-sm flex items-center gap-2 hover:translate-x-1 transition-transform"
-            >
-              View All Polls <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          {activePolls.length > 0 ? (
-            <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
-              {activePolls.map(poll => (
-                <div key={poll.id} className="p-8 bg-white rounded-[2.5rem] border border-slate-100 hover:shadow-2xl transition-all duration-500 group flex flex-col h-full">
-                  <div className="flex justify-between items-start mb-8">
-                    <div className="w-14 h-14 bg-slate-50 text-primary-600 rounded-2xl flex items-center justify-center shadow-inner group-hover:bg-primary-600 group-hover:text-white transition-colors duration-500">
-                      <BarChart2 className="w-7 h-7" />
-                    </div>
-                    <span className="px-3 py-1 bg-green-100 text-green-700 text-[10px] font-black rounded-full uppercase tracking-widest border border-green-200">Active</span>
-                  </div>
-                  <h3 className="text-xl font-black text-slate-900 mb-3 tracking-tight group-hover:text-primary-600 transition-colors">{poll.title}</h3>
-                  <p className="text-slate-500 text-sm font-medium leading-relaxed mb-10 line-clamp-3">{poll.description}</p>
-
-                  <div className="mt-auto flex items-center justify-between pt-6 border-t border-slate-200/60">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{poll.created_at ? new Date(poll.created_at).toLocaleDateString() : 'N/A'}</span>
-                    <button 
-                      onClick={() => navigate(`/poll/${poll.id}`)}
-                      className="px-6 py-3 bg-slate-900 text-white text-[10px] font-black rounded-xl uppercase tracking-widest hover:bg-primary-600 transition-all shadow-lg active:scale-95"
-                    >
-                      Vote Now
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-slate-200 shadow-inner">
-              <BarChart2 className="w-16 h-16 text-slate-200 mx-auto mb-6" />
-              <h3 className="text-lg font-bold text-slate-400 uppercase tracking-widest">No public polls currently active</h3>
-              <p className="text-slate-400 text-sm mt-2">Check back later or sign in to create a new decision unit.</p>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Features */}
-      <section className="py-24 bg-white">
-        <div className="container px-6 mx-auto text-center">
-          <h2 className="mb-16 text-3xl font-bold text-slate-900 md:text-4xl">Powering Secure Experiences</h2>
-          <div className="grid gap-12 md:grid-cols-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {[
-              { icon: Shield, title: 'Secure Auth', desc: 'Custom registration and login with local JWT storage.' },
-              { icon: LayoutIcon, title: 'Full RBAC', desc: 'Granular access control for Admins, Editors, and Users.' },
-              { icon: Cpu, title: 'Two-Step Activation', desc: 'OTP verification followed by manual admin approval.' }
-            ].map((feature, i) => (
-              <div key={i} className="p-8 bg-white border border-slate-100 rounded-3xl transition duration-200 hover:shadow-xl group">
-                <div className="inline-flex items-center justify-center w-16 h-16 mb-6 text-primary-600 bg-primary-50 rounded-2xl transition duration-200 group-hover:bg-primary-600 group-hover:text-white">
-                  <feature.icon className="w-8 h-8" />
-                </div>
-                <h3 className="mb-4 text-xl font-bold text-slate-900">{feature.title}</h3>
-                <p className="text-slate-600 leading-relaxed">{feature.desc}</p>
+              { label: 'Secure Nodes', val: '2.4k+' },
+              { label: 'Integrations', val: '150+' },
+              { label: 'Uptime Protocol', val: '99.9%' },
+              { label: 'Unit Registry', val: 'Secure' }
+            ].map((stat, i) => (
+              <div key={i} className="text-center md:text-left border-l border-[#dcdcde] pl-6 first:border-0 first:pl-0">
+                <p className="text-[10px] font-black text-[#a7aaad] uppercase tracking-[0.2em] mb-1">{stat.label}</p>
+                <p className="text-2xl font-bold text-[#1d2327]">{stat.val}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
+
+      {/* Decision Streams */}
+      <section className="py-32 bg-white">
+        <div className="container px-6 mx-auto">
+          <div className="max-w-3xl mb-20">
+            <h2 className="text-[11px] font-black text-[#2271b1] uppercase tracking-[0.4em] mb-4">Governance Layer</h2>
+            <h3 className="text-4xl font-extrabold text-[#1d2327] mb-6 tracking-tight">Community Polls</h3>
+            <p className="text-lg text-[#646970] font-medium leading-relaxed">Cast your encrypted vote on active organizational inquiries and shape the collective future.</p>
+          </div>
+
+          {activePolls.length > 0 ? (
+            <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+              {activePolls.map(poll => (
+                <div key={poll.id} className="bg-white border border-[#dcdcde] shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full group">
+                  <div className="p-6 border-b border-[#f0f0f1] bg-[#f6f7f7]/50 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <BarChart2 className="w-4 h-4 text-[#2271b1]" />
+                      <span className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Active Node</span>
+                    </div>
+                    <span className="w-2 h-2 bg-[#00a32a] rounded-full shadow-[0_0_8px_#00a32a]"></span>
+                  </div>
+                  <div className="p-8 flex-1">
+                    <h4 className="text-xl font-bold text-[#1d2327] mb-4 group-hover:text-[#2271b1] transition-colors line-clamp-2">{poll.title}</h4>
+                    <p className="text-sm text-[#646970] leading-relaxed italic line-clamp-3 mb-8">"{poll.description}"</p>
+                    
+                    <div className="flex items-center justify-between pt-6 border-t border-[#f0f0f1]">
+                      <div className="flex items-center gap-2 text-[10px] font-black text-[#a7aaad] uppercase tracking-tighter">
+                        <Globe className="w-3 h-3" />
+                        Public Access
+                      </div>
+                      <button 
+                        onClick={() => navigate(`/poll/${poll.id}`)}
+                        className="px-6 py-2.5 bg-[#1d2327] text-white text-[10px] font-bold uppercase tracking-widest rounded-sm hover:bg-[#2271b1] transition-all shadow-md active:scale-95"
+                      >
+                        Participate
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="py-24 bg-[#f6f7f7] border border-dashed border-[#dcdcde] text-center flex flex-col items-center">
+              <div className="w-16 h-16 bg-white border border-[#dcdcde] rounded-full flex items-center justify-center mb-6 shadow-sm">
+                <Activity className="w-8 h-8 text-[#a7aaad]" />
+              </div>
+              <h4 className="text-sm font-bold text-[#1d2327] uppercase tracking-[0.2em]">No Active Polls</h4>
+              <p className="text-xs text-[#646970] mt-2 max-w-xs mx-auto font-medium">No public decision nodes are currently broadcasting. Access the secured portal for internal operations.</p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Feature Architecture */}
+      <section className="py-32 bg-[#1d2327] text-white overflow-hidden relative">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-[#2271b1] rounded-full blur-[120px] opacity-10 -mr-48 -mt-48"></div>
+        <div className="container px-6 mx-auto relative z-10">
+          <div className="text-center max-w-3xl mx-auto mb-24">
+            <h2 className="text-[11px] font-black text-[#72aee6] uppercase tracking-[0.5em] mb-6">Core Infrastructure</h2>
+            <h3 className="text-4xl font-extrabold mb-8 tracking-tight">Engineered for Absolute Integrity</h3>
+            <div className="h-1.5 w-24 bg-[#2271b1] mx-auto rounded-full"></div>
+          </div>
+
+          <div className="grid gap-16 md:grid-cols-3">
+            {[
+              { icon: Shield, title: 'Cryptographic Auth', desc: 'Hardware-anchored identity verification using the WhatsApp Propagation Protocol.' },
+              { icon: LayoutIcon, title: 'Granular RBAC', desc: 'Matrix-based access control for administrative, operational, and observer units.' },
+              { icon: MessageSquare, title: 'Interaction Audit', desc: 'Full stream log of all node communications with immutable timestamping.' }
+            ].map((feature, i) => (
+              <div key={i} className="group cursor-default">
+                <div className="inline-flex items-center justify-center w-16 h-16 mb-8 text-[#72aee6] bg-white/5 border border-white/10 rounded-sm group-hover:bg-[#2271b1] group-hover:text-white transition-all duration-500 group-hover:rotate-[360deg]">
+                  <feature.icon className="w-8 h-8" />
+                </div>
+                <h4 className="mb-4 text-xl font-bold tracking-tight">{feature.title}</h4>
+                <p className="text-[#a7aaad] leading-relaxed font-medium">{feature.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-white border-t border-[#dcdcde] py-12">
+        <div className="container px-6 mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-[#1d2327] rounded-full flex items-center justify-center">
+              <Zap className="w-4 h-4 text-white" />
+            </div>
+            <span className="text-sm font-bold text-[#1d2327] tracking-tighter">{siteName} Enterprise</span>
+          </div>
+          <div className="flex gap-8">
+            <button onClick={() => navigate('/about')} className="text-[10px] font-bold uppercase tracking-widest text-[#646970] hover:text-[#2271b1] transition-colors">Intelligence</button>
+            <button onClick={() => navigate('/login')} className="text-[10px] font-bold uppercase tracking-widest text-[#646970] hover:text-[#2271b1] transition-colors">Node Access</button>
+            <button className="text-[10px] font-bold uppercase tracking-widest text-[#646970] hover:text-[#2271b1] transition-colors">Protocol Specs</button>
+          </div>
+          <p className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-[0.2em]">© 2026 Identity Propagation Lab</p>
+        </div>
+      </footer>
     </div>
   );
 };

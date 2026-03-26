@@ -30,7 +30,7 @@ class SettingsController {
     try {
       const vite_api_base_url = await settingsService.get('vite_api_base_url');
       const website_domain = await settingsService.get('website_domain');
-      const site_name = await settingsService.get('site_name') || 'AppStack';
+      const site_name = await settingsService.get('site_name') || 'Identity Portal';
       
       res.json({
         VITE_API_BASE_URL: vite_api_base_url,

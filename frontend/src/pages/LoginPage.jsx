@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import authService from '../services/auth.service';
-import { Lock, Mail, Phone, AlertCircle, ArrowLeft, Key } from 'lucide-react';
+import { Lock, Mail, Phone, AlertCircle, ArrowLeft, Key, Zap } from 'lucide-react';
 
 const LoginPage = () => {
   const [loginMode, setLoginMode] = useState('email'); // 'email', 'phone', 'forgot'
@@ -108,212 +108,176 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-slate-50 p-4">
-      <div className="w-full max-w-md p-8 bg-white rounded-3xl shadow-xl">
-        <div className="text-center mb-10">
-          <h1 className="text-3xl font-bold text-slate-900">
-            {loginMode === 'forgot' ? 'Reset Password' : `Welcome to ${siteName}`}
-          </h1>
-          <p className="text-slate-500 mt-2">
-            {loginMode === 'forgot' ? 'Set a new password for your account' : 'Sign in to continue'}
-          </p>
+    <div className="flex flex-col items-center justify-center min-h-screen bg-[#f0f0f1] p-4 font-sans text-[#3c434a]">
+      {/* WP Logo Placeholder */}
+      <div className="mb-6 flex flex-col items-center gap-2 group cursor-pointer" onClick={() => navigate('/')}>
+        <div className="w-12 h-12 bg-[#1d2327] rounded-full flex items-center justify-center shadow-lg transition-transform group-hover:scale-110">
+          <Zap className="w-6 h-6 text-white" />
         </div>
+        <h1 className="text-xl font-bold text-[#1d2327] tracking-tight">{siteName}</h1>
+      </div>
 
-        {/* Tabs */}
-        {loginMode !== 'forgot' && (
-          <div className="flex bg-slate-100 p-1 rounded-2xl mb-8">
-            <button
-              onClick={() => { setLoginMode('email'); setOtpSent(false); }}
-              className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-all ${loginMode === 'email' ? 'bg-white shadow-sm text-primary-600' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              Email
-            </button>
-            <button
-              onClick={() => { setLoginMode('phone'); setOtpSent(false); }}
-              className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-all ${loginMode === 'phone' ? 'bg-white shadow-sm text-primary-600' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              Phone (OTP)
-            </button>
+      <div className="w-full max-w-[320px] bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.24)] border border-[#dcdcde]">
+        {error && (
+          <div className="p-3 mb-4 text-[#d63638] bg-white border-l-4 border-[#d63638] shadow-[0_1px_1px_rgba(0,0,0,0.04)] text-xs font-medium">
+            {error}
           </div>
         )}
 
-        {error && (
-          <div className="flex items-center gap-3 p-4 mb-6 text-red-700 bg-red-50 border border-red-100 rounded-xl">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            <p className="text-sm">{error}</p>
+        {/* Auth Mode Toggle */}
+        {loginMode !== 'forgot' && !otpSent && (
+          <div className="flex mb-6 border-b border-[#f0f0f1]">
+            <button
+              onClick={() => { setLoginMode('email'); setError(''); }}
+              className={`flex-1 pb-2 text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'email' ? 'border-b-2 border-[#2271b1] text-[#2271b1]' : 'text-[#a7aaad] hover:text-[#3c434a]'}`}
+            >
+              Email Login
+            </button>
+            <button
+              onClick={() => { setLoginMode('phone'); setError(''); }}
+              className={`flex-1 pb-2 text-[10px] font-black uppercase tracking-widest transition-all ${loginMode === 'phone' ? 'border-b-2 border-[#2271b1] text-[#2271b1]' : 'text-[#a7aaad] hover:text-[#3c434a]'}`}
+            >
+              OTP Login
+            </button>
           </div>
         )}
 
         {loginMode === 'email' && (
-          <form onSubmit={handleEmailLogin} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">Email Address</label>
-              <div className="relative">
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input
-                  type="email"
-                  required
-                  className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-                  placeholder="name@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
+          <form onSubmit={handleEmailLogin} className="space-y-4">
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-[#3c434a]">Username or Email Address</label>
+              <input
+                type="email"
+                required
+                className="w-full px-3 py-2 bg-white border border-[#8c8f94] focus:border-[#2271b1] focus:ring-1 focus:ring-[#2271b1] outline-none text-sm shadow-inner transition-all"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
             </div>
-            <div>
-              <div className="flex justify-between mb-2">
-                <label className="block text-sm font-medium text-slate-700">Password</label>
-                <button 
-                  type="button" 
-                  onClick={() => { setLoginMode('forgot'); setOtpSent(false); }}
-                  className="text-xs font-bold text-primary-600 hover:underline"
-                >
-                  Forgot?
-                </button>
-              </div>
-              <div className="relative">
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                <input
-                  type="password"
-                  required
-                  className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
+            <div className="space-y-1">
+              <label className="block text-xs font-medium text-[#3c434a]">Password</label>
+              <input
+                type="password"
+                required
+                className="w-full px-3 py-2 bg-white border border-[#8c8f94] focus:border-[#2271b1] focus:ring-1 focus:ring-[#2271b1] outline-none text-sm shadow-inner transition-all"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-2 py-2">
+              <input type="checkbox" id="rememberme" className="w-3.5 h-3.5 border-[#8c8f94] rounded-sm text-[#2271b1] focus:ring-[#2271b1]" />
+              <label htmlFor="rememberme" className="text-xs text-[#3c434a]">Remember Me</label>
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-4 bg-primary-600 text-white font-semibold rounded-xl hover:bg-primary-700 transition duration-200 shadow-lg shadow-primary-200 disabled:opacity-50"
+              className="w-full py-2 bg-[#2271b1] hover:bg-[#135e96] text-white font-semibold rounded-sm shadow-sm transition-all text-sm border-b-2 border-[#135e96] disabled:opacity-50"
             >
-              {loading ? 'Signing in...' : 'Sign In'}
+              {loading ? 'Authenticating...' : 'Log In'}
             </button>
           </form>
         )}
 
         {loginMode === 'phone' && (
-          <form onSubmit={otpSent ? handlePhoneVerify : handlePhoneRequest} className="space-y-6">
+          <form onSubmit={otpSent ? handlePhoneVerify : handlePhoneRequest} className="space-y-4">
             {!otpSent ? (
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Phone Number</label>
-                <div className="relative">
-                  <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input
-                    type="tel"
-                    required
-                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-                    placeholder="919988776655"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                  />
-                </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-[#3c434a]">Phone Number (WhatsApp)</label>
+                <input
+                  type="tel"
+                  required
+                  className="w-full px-3 py-2 bg-white border border-[#8c8f94] focus:border-[#2271b1] focus:ring-1 focus:ring-[#2271b1] outline-none text-sm shadow-inner transition-all"
+                  placeholder="91XXXXXXXXXX"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
               </div>
             ) : (
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Verification Code</label>
-                <div className="relative">
-                  <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input
-                    type="text"
-                    required
-                    maxLength="6"
-                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-                    placeholder="6-digit code"
-                    value={otp}
-                    onChange={(e) => setOtp(e.target.value)}
-                  />
-                </div>
-                <button 
-                  type="button" 
-                  onClick={() => setOtpSent(false)} 
-                  className="mt-2 text-xs font-bold text-slate-500 hover:text-primary-600"
-                >
-                  Change number
-                </button>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-[#3c434a]">OTP</label>
+                <input
+                  type="text"
+                  required
+                  maxLength="6"
+                  className="w-full px-3 py-2 bg-white border border-[#8c8f94] focus:border-[#2271b1] focus:ring-1 focus:ring-[#2271b1] outline-none text-sm text-center font-bold tracking-[0.5em] shadow-inner"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                />
+                <button type="button" onClick={() => setOtpSent(false)} className="text-[10px] text-[#2271b1] hover:underline mt-1">Change Number</button>
               </div>
             )}
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-4 bg-primary-600 text-white font-semibold rounded-xl hover:bg-primary-700 transition duration-200 shadow-lg shadow-primary-200 disabled:opacity-50"
+              className="w-full py-2 bg-[#2271b1] hover:bg-[#135e96] text-white font-semibold rounded-sm shadow-sm transition-all text-sm border-b-2 border-[#135e96] disabled:opacity-50"
             >
-              {loading ? (otpSent ? 'Verifying...' : 'Sending OTP...') : (otpSent ? 'Login' : 'Send OTP')}
+              {loading ? 'Processing...' : (otpSent ? 'Log In' : 'Get OTP')}
             </button>
           </form>
         )}
 
         {loginMode === 'forgot' && (
-          <form onSubmit={otpSent ? handleForgotReset : handleForgotRequest} className="space-y-6">
+          <form onSubmit={otpSent ? handleForgotReset : handleForgotRequest} className="space-y-4">
             {!otpSent ? (
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Email or Phone</label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                  <input
-                    type="text"
-                    required
-                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-all"
-                    placeholder="Email or Phone"
-                    value={email || phone}
-                    onChange={(e) => { setEmail(e.target.value); setPhone(e.target.value); }}
-                  />
-                </div>
+              <div className="space-y-1">
+                <label className="block text-xs font-medium text-[#3c434a]">Email or Phone</label>
+                <input
+                  type="text"
+                  required
+                  className="w-full px-3 py-2 bg-white border border-[#8c8f94] focus:border-[#2271b1] focus:ring-1 focus:ring-[#2271b1] outline-none text-sm shadow-inner transition-all"
+                  value={email || phone}
+                  onChange={(e) => { setEmail(e.target.value); setPhone(e.target.value); }}
+                />
               </div>
             ) : (
               <>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">OTP</label>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-[#3c434a]">OTP</label>
                   <input
                     type="text"
                     required
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none"
-                    placeholder="6-digit code"
+                    className="w-full px-3 py-2 bg-white border border-[#8c8f94] focus:border-[#2271b1] focus:ring-1 focus:ring-[#2271b1] outline-none text-sm shadow-inner"
                     value={otp}
                     onChange={(e) => setOtp(e.target.value)}
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-2">New Password</label>
+                <div className="space-y-1">
+                  <label className="block text-xs font-medium text-[#3c434a]">New Security Password</label>
                   <input
                     type="password"
                     required
-                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary-500 outline-none"
-                    placeholder="••••••••"
+                    className="w-full px-3 py-2 bg-white border border-[#8c8f94] focus:border-[#2271b1] focus:ring-1 focus:ring-[#2271b1] outline-none text-sm shadow-inner"
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                   />
                 </div>
               </>
             )}
-            <div className="flex gap-4">
-              <button
-                type="button"
-                onClick={() => { setLoginMode('email'); setOtpSent(false); }}
-                className="flex-1 py-4 bg-slate-100 text-slate-700 font-semibold rounded-xl hover:bg-slate-200 transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex-[2] py-4 bg-primary-600 text-white font-semibold rounded-xl hover:bg-primary-700 shadow-lg shadow-primary-200 disabled:opacity-50"
-              >
-                {loading ? 'Processing...' : (otpSent ? 'Reset' : 'Request OTP')}
-              </button>
-            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2 bg-[#2271b1] hover:bg-[#135e96] text-white font-semibold rounded-sm shadow-sm transition-all text-sm border-b-2 border-[#135e96] disabled:opacity-50"
+            >
+              {loading ? 'Processing...' : (otpSent ? 'Reset Password' : 'Get New Password')}
+            </button>
+            <button type="button" onClick={() => { setLoginMode('email'); setOtpSent(false); }} className="w-full text-xs text-[#2271b1] hover:underline py-1">Back to Login</button>
           </form>
         )}
+      </div>
 
-        <div className="mt-8 text-center">
-          <p className="text-slate-500">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-primary-600 font-semibold hover:underline">
-              Register now
-            </Link>
-          </p>
+      <div className="mt-6 flex flex-col items-center gap-3">
+        <div className="flex gap-4">
+          <button onClick={() => setLoginMode('forgot')} className="text-xs text-[#646970] hover:text-[#2271b1]">Lost your password?</button>
+          <span className="text-[#dcdcde]">|</span>
+          <Link to="/register" className="text-xs text-[#646970] hover:text-[#2271b1]">Register account</Link>
         </div>
+        <Link to="/" className="text-xs text-[#646970] hover:text-[#2271b1] flex items-center gap-1 font-medium">
+          <ArrowLeft className="w-3 h-3" /> Back to {siteName}
+        </Link>
+      </div>
+      
+      <div className="mt-12 text-[10px] text-[#a7aaad] font-bold uppercase tracking-widest">
+        Secured by Secure Portal
       </div>
     </div>
   );
