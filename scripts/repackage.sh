@@ -27,12 +27,12 @@ echo "🔄 Syncing Backend to Production..."
 mkdir -p "$PROD_DIR/backend/src"
 rsync -av --delete "$ROOT_DIR/backend/src/" "$PROD_DIR/backend/src/"
 
-echo "🛡️  Minifying Backend Code..."
-# Minify each JS file in production/backend/src
-find "$PROD_DIR/backend/src" -name "*.js" -type f | while read file; do
-    echo "  Minifying $file..."
-    javascript-obfuscator "$file" --output "$file" --compact true --self-defending false --string-array true --string-array-encoding 'rc4'
-done
+# echo "🛡️  Minifying Backend Code..."
+# # Minify each JS file in production/backend/src
+# find "$PROD_DIR/backend/src" -name "*.js" -type f | while read file; do
+#     echo "  Minifying $file..."
+#     javascript-obfuscator "$file" --output "$file" --compact true --self-defending false --string-array true --string-array-encoding 'rc4'
+# done
 
 # 3. Copy other essential files
 echo "📄 Syncing other essential files..."

@@ -362,17 +362,15 @@ const AdminDashboard = () => {
 
   const loadData = async () => {
     setLoading(true);
-    // Fetch CRITICAL data first to show the dashboard
+    // Fetch ONLY most critical data first
     try {
-      await Promise.all([
-        fetchWaStatus(),
-        fetchUsers(),
-        fetchSettings()
-      ]);
+      await fetchWaStatus();
       setLoading(false);
 
-      // Fetch the rest in the background
+      // Fetch everything else in the background
       Promise.all([
+        fetchUsers(),
+        fetchSettings(),
         fetchWaData(),
         fetchGroups(),
         fetchLandingContent(),
@@ -1254,7 +1252,7 @@ const AdminDashboard = () => {
 
                         {showPairingForm ? (
                           <div className="space-y-6">
-                            {!pairingCode ? (
+                            {!(pairingCode || waStatus.pairingCode) ? (
                               <form onSubmit={handleRequestPairingCode} className="space-y-4">
                                 <div className="space-y-1">
                                   <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Phone Number</label>
@@ -1265,12 +1263,12 @@ const AdminDashboard = () => {
                             ) : (
                               <div className="text-center py-4">
                                 <div className="flex justify-center gap-2 mb-8">
-                                  {pairingCode.split('').map((char, i) => (
+                                  {(pairingCode || waStatus.pairingCode).split('').map((char, i) => (
                                     <div key={i} className="w-8 h-12 bg-[#1d2327] text-white flex items-center justify-center text-xl font-black shadow-md">{char}</div>
                                   ))}
                                 </div>
                                 <p className="text-xs text-[#646970] italic mb-4">Enter this code in WhatsApp {'>'} Linked Devices {'>'} Link with phone number.</p>
-                                <button onClick={() => setPairingCode('')} className="text-[10px] text-[#2271b1] font-bold hover:underline">Reset Request</button>
+                                <button onClick={() => { setPairingCode(''); waStatus.pairingCode = null; }} className="text-[10px] text-[#2271b1] font-bold hover:underline">Reset Request</button>
                               </div>
                             )}
                           </div>
@@ -1913,6 +1911,25 @@ const AdminDashboard = () => {
                                 </select>
                             </div>
                          </div>
+
+                         {settings.find(s => s.key === 'ai_provider')?.value === 'mistral' ? (
+                           <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Mistral API Key</label>
+                              <div className="flex gap-2">
+                                 <input type="password" underline="false" className="flex-1 wp-input font-mono" value={settings.find(s => s.key === 'mistral_api_key')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'mistral_api_key' ? {...s, value: e.target.value} : s))} />
+                                 <button onClick={() => handleUpdateSetting('mistral_api_key', settings.find(s => s.key === 'mistral_api_key')?.value)} className="px-6 wp-button-primary">Save</button>
+                              </div>
+                           </div>
+                         ) : (
+                           <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Gemini API Key</label>
+                              <div className="flex gap-2">
+                                 <input type="password" underline="false" className="flex-1 wp-input font-mono" value={settings.find(s => s.key === 'gemini_api_key')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'gemini_api_key' ? {...s, value: e.target.value} : s))} />
+                                 <button onClick={() => handleUpdateSetting('gemini_api_key', settings.find(s => s.key === 'gemini_api_key')?.value)} className="px-6 wp-button-primary">Save</button>
+                              </div>
+                           </div>
+                         )}
+
                          <div className="space-y-1">
                             <label className="text-[10px] font-bold text-[#a7aaad] uppercase">System Instruction Prompt</label>
                             <textarea rows="4" className="w-full wp-input resize-none italic" value={settings.find(s => s.key === 'ai_custom_prompt')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'ai_custom_prompt' ? {...s, value: e.target.value} : s))} />
@@ -1920,7 +1937,6 @@ const AdminDashboard = () => {
                          </div>
                       </div>
                     )}
-                    
                     {activeSettingsTab === 'otp' && (
                       <div className="space-y-6">
                         <div className="p-6 bg-[#fcf9e8] border border-[#dba617]">

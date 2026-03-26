@@ -9,13 +9,17 @@ class SettingsService {
    * Retrieves a setting value. Priority: Database > Process Env.
    */
   async get(key) {
+    if (this.cache[key]) return this.cache[key];
     try {
       const res = await db.query('SELECT value FROM system_settings WHERE key = $1', [key]);
       if (res.rows.length > 0) {
+        this.cache[key] = res.rows[0].value;
         return res.rows[0].value;
       }
       // Fallback to process.env
-      return process.env[key.toUpperCase()] || null;
+      const val = process.env[key.toUpperCase()] || null;
+      if (val) this.cache[key] = val;
+      return val;
     } catch (err) {
       console.error(`Error fetching setting ${key}:`, err.message);
       return process.env[key.toUpperCase()] || null;
@@ -69,6 +73,7 @@ class SettingsService {
         'INSERT INTO system_settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = CURRENT_TIMESTAMP',
         [key, value]
       );
+      this.cache[key] = value;
     } catch (err) {
       console.error(`Error setting ${key}:`, err.message);
       throw err;
