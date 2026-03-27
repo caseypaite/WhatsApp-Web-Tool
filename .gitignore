@@ -8,6 +8,7 @@ production/
 temp_release/
 temp_repackage/
 *.tar.gz
+releases/
 backend/uploads/
 **/backend.env
 **/frontend.env

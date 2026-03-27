@@ -9,7 +9,10 @@ set -e
 VERSION="1.5.2"
 ROOT_DIR="/home/ubuntu/AppStack"
 PROD_DIR="$ROOT_DIR/production"
-RELEASE_FILE="release-v$VERSION.tar.gz"
+RELEASE_DIR="$ROOT_DIR/releases"
+RELEASE_FILE="$RELEASE_DIR/release-v$VERSION.tar.gz"
+
+mkdir -p "$RELEASE_DIR"
 
 echo "🚀 Starting AppStack Repackaging & Deployment (Alpha v$VERSION)..."
 
