@@ -55,7 +55,12 @@ const Modal = ({ isOpen, onClose, title, subtitle, children, maxWidth = 'max-w-l
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const { updateSiteName, siteName } = useAuth();
+  const { updateSiteName, siteName, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
   const [activeTab, setActiveTab] = useState('users');
   const [automationTab, setAutomationTab] = useState('responders');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -996,12 +1001,11 @@ const AdminDashboard = () => {
                 <Home className="w-4 h-4 flex-shrink-0" />
                 {!isSidebarCollapsed && <span>User Dashboard</span>}
               </button>
-              <button 
-                onClick={() => authService.logout()} 
+              <button
+                onClick={handleLogout}
                 className={`w-full wp-sidebar-link hover:text-[#d63638] ${isSidebarCollapsed ? 'justify-center' : ''}`}
                 title="Logout"
-              >
-                <LogOut className="w-4 h-4 flex-shrink-0" />
+              >                <LogOut className="w-4 h-4 flex-shrink-0" />
                 {!isSidebarCollapsed && <span>Logout</span>}
               </button>
             </div>
@@ -1331,7 +1335,7 @@ const AdminDashboard = () => {
                           {/* GROUPS */}
                           {waChats.filter(c => c?.isAdmin && c?.isGroup).length > 0 && (
                             <div className="space-y-2">
-                               <h4 className="px-2 text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest border-l-2 border-[#2271b1]">Verified Groups</h4>
+                               <h4 className="px-2 text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest border-l-2 border-[#2271b1]">Managed Groups</h4>
                                <div className="space-y-1">
                                   {waChats.filter(c => c?.isAdmin && c?.isGroup).map(chat => (
                                     <div key={chat?.id?._serialized} className="p-3 bg-white border border-[#dcdcde] flex items-center justify-between group hover:bg-[#f6f7f7] transition-all">
@@ -1355,11 +1359,11 @@ const AdminDashboard = () => {
                           )}
 
                           {/* CHANNELS */}
-                          {waChats.filter(c => c?.isAdmin && !c?.isGroup).length > 0 && (
+                          {waChats.filter(c => c?.isAdmin && c?.isNewsletter).length > 0 && (
                             <div className="space-y-2">
-                               <h4 className="px-2 text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest border-l-2 border-[#1d2327]">Broadcast Channels</h4>
+                               <h4 className="px-2 text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest border-l-2 border-[#1d2327]">Managed Channels</h4>
                                <div className="space-y-1">
-                                  {waChats.filter(c => c?.isAdmin && !c?.isGroup).map(chat => (
+                                  {waChats.filter(c => c?.isAdmin && c?.isNewsletter).map(chat => (
                                     <div key={chat?.id?._serialized} className="p-3 bg-white border border-[#dcdcde] flex items-center justify-between group hover:bg-[#f6f7f7] transition-all">
                                        <div className="flex items-center gap-3">
                                           {chat?.iconUrl ? <img src={chat.iconUrl} className="w-10 h-10 object-cover rounded-sm" alt="" /> : <div className="w-10 h-10 bg-[#f6f7f7] text-[#a7aaad] border border-[#dcdcde] flex items-center justify-center font-bold">{chat?.name?.[0]}</div>}
@@ -1396,7 +1400,7 @@ const AdminDashboard = () => {
                       <div className="space-y-2">
                          <h4 className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Target Selection</h4>
                          <div className="space-y-1 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                            {waChats.filter(c => c?.isAdmin).map(chat => (
+                            {waChats.filter(c => c?.isAdmin && (c?.isGroup || c?.isNewsletter)).map(chat => (
                               <button key={chat?.id?._serialized} onClick={() => !selectedTargets.find(t => t.id === chat?.id?._serialized) && setSelectedTargets([...selectedTargets, { id: chat?.id?._serialized, name: chat?.name, type: chat?.isGroup ? 'group' : 'channel' }])} className="w-full p-2 bg-[#f6f7f7] border border-[#dcdcde] flex items-center justify-between hover:border-[#2271b1] transition-all group">
                                 <span className="text-xs font-bold text-[#1d2327] truncate">{chat?.name}</span>
                                 <Plus className="w-3 h-3 text-[#2271b1]" />
@@ -1623,11 +1627,10 @@ const AdminDashboard = () => {
                                     const chat = waChats.find(c => c.id?._serialized === e.target.value);
                                     if (chat && !newScheduled.targets.find(t => t.id === chat.id?._serialized)) {
                                       setNewScheduled({ ...newScheduled, targets: [...newScheduled.targets, { id: chat.id?._serialized, name: chat.name, type: chat.isGroup ? 'group' : 'channel' }] });
-                                    }
-                                    e.target.value = '';
+                                    }                                    e.target.value = '';
                                   }}>
                                     <option value="">+ Add Group</option>
-                                    {waChats.filter(c => c.isAdmin).map(chat => <option key={chat.id?._serialized} value={chat.id?._serialized}>{chat.name}</option>)}
+                                    {waChats.filter(c => c.isAdmin && (c.isGroup || c.isNewsletter)).map(chat => <option key={chat.id?._serialized} value={chat.id?._serialized}>{chat.name}</option>)}
                                   </select>
                                </div>
                             </div>
@@ -2154,10 +2157,15 @@ const AdminDashboard = () => {
                             {p.profilePic ? <img src={p.profilePic} className="w-full h-full object-cover" /> : (p.name?.[0] || 'U')}
                           </div>
                           <div>
-                            <p className="text-xs font-bold text-[#1d2327]">{p.name}</p>
+                            <p className="text-xs font-bold text-[#1d2327]">
+                              {p.name}
+                              {p.pushname && p.pushname !== p.name && (
+                                <span className="ml-2 text-[9px] font-normal text-[#646970]">(@{p.pushname})</span>
+                              )}
+                            </p>
                             <div className="flex items-center gap-2">
                               <span className={`text-[8px] font-bold uppercase px-1 py-0.5 border ${p.isAdmin ? 'bg-[#fcf9e8] text-[#dba617] border-[#dba617]' : 'bg-[#f6f7f7] text-[#646970] border-[#dcdcde]'}`}>{p.isAdmin ? 'Admin' : 'Participant'}</span>
-                              <span className="text-[9px] font-mono text-[#a7aaad]">+{p.number}</span>
+                              <span className="text-[9px] font-mono text-[#a7aaad]">+{p.phoneNumber || p.id.user}</span>
                             </div>
                           </div>
                         </div>

@@ -276,26 +276,142 @@ class WhatsappService {
     if (!this.isReady) throw new Error('WhatsApp client not ready');
     try {
       const chats = await this.client.getChats();
-      // Enhanced chat data
-      const results = await Promise.all(chats.map(async chat => {
+      
+      // Try to fetch channels (newsletters) separately if the method exists
+      let channels = [];
+      try {
+        if (typeof this.client.getChannels === 'function') {
+          channels = await this.client.getChannels();
+        } else if (typeof this.client.getNewsletters === 'function') {
+          channels = await this.client.getNewsletters();
+        }
+      } catch (err) {
+        // Manual fallback using page.evaluate if the library methods fail
+        try {
+          const manualNewsletters = await this.client.pupPage.evaluate(async () => {
+            if (!window.Store) return [];
+            
+            const newsletterStore = window.Store.WAWebNewsletterCollection;
+            const metadataStore = window.Store.WAWebNewsletterMetadataCollection;
+            
+            let newsletters = [];
+            if (newsletterStore && typeof newsletterStore.getModelsArray === 'function') {
+               newsletters = newsletterStore.getModelsArray().map(n => {
+                 const idStr = n.id?._serialized || n.id;
+                 let metaData = null;
+                 
+                 if (metadataStore && typeof metadataStore.get === 'function') {
+                    const meta = metadataStore.get(idStr);
+                    if (meta) {
+                       metaData = {
+                         viewerRole: meta.viewerRole,
+                         isMember: meta.isMember,
+                         isOwner: meta.isOwner,
+                         membership: meta.membership
+                       };
+                    }
+                 }
+
+                 return {
+                   idStr: idStr,
+                   name: n.name || n.subject || n.formattedTitle || 'Unnamed Channel',
+                   capabilities: n.capabilities,
+                   metaData: metaData,
+                   role: n.role
+                 };
+               });
+            }
+            return newsletters;
+          });
+
+          if (manualNewsletters && manualNewsletters.length > 0) {
+            channels = manualNewsletters.map(n => {
+               // Default to true for newsletters we are subscribed to/see in our collection,
+               // as we want to allow broadcasting to them if they appear in our list.
+               let isManaged = true; 
+               
+               if (n.metaData) {
+                  if (n.metaData.viewerRole) {
+                     isManaged = (n.metaData.viewerRole === 'ADMIN' || n.metaData.viewerRole === 'OWNER');
+                  }
+               }
+
+               return {
+                 id: {
+                   _serialized: n.idStr,
+                   server: 'newsletter',
+                   user: n.idStr.split('@')[0]
+                 },
+                 name: n.name,
+                 isGroup: false,
+                 isNewsletter: true,
+                 isAdmin: isManaged
+               };
+            });
+          }
+        } catch (pupErr) {
+          console.error('[WHATSAPP] Puppeteer manual newsletter fetch failed:', pupErr.message);
+        }
+      }
+      
+      // Merge unique chats and channels
+      const combined = [...chats];
+      if (Array.isArray(channels)) {
+        for (const channel of channels) {
+          if (channel && channel.id && !combined.find(c => (c.id?._serialized || c.id) === (channel.id?._serialized || channel.id))) {
+            combined.push(channel);
+          }
+        }
+      }
+
+      // Map and filter chats to only include managed Groups and Channels
+      const mappedResults = await Promise.all(combined.map(async chat => {
+        if (!chat || !chat.id) return null;
+
+        const idStr = chat.id?._serialized || (typeof chat.id === 'string' ? chat.id : '');
+        const isGroup = !!chat.isGroup;
+        const isNewsletter = !!(idStr.endsWith('@newsletter') || chat.id?.server === 'newsletter' || chat.isNewsletter);
+        
+        let isAdmin = false;
+        if (isGroup) {
+          try {
+            const meId = this.me?.wid?._serialized || this.me?.id?._serialized;
+            const participants = chat.groupMetadata?.participants || [];
+            const meParticipant = participants.find(p => p.id?._serialized === meId);
+            isAdmin = !!meParticipant?.isAdmin;
+          } catch (e) {
+            isAdmin = false;
+          }
+        } else if (isNewsletter) {
+          // If we got it from manual retrieval, it might already have isAdmin
+          isAdmin = chat.isAdmin !== undefined ? chat.isAdmin : true;
+        }
+
+        if (!isAdmin || (!isGroup && !isNewsletter)) return null;
+
         let iconUrl = null;
         try {
-          iconUrl = await chat.getContact().then(c => c.getProfilePicUrl()).catch(() => null);
+          if (typeof chat.getContact === 'function') {
+            const contact = await chat.getContact();
+            iconUrl = await contact.getProfilePicUrl();
+          }
         } catch (e) {}
-        
+
         return {
           id: chat.id,
-          name: chat.name,
-          isGroup: chat.isGroup,
-          unreadCount: chat.unreadCount,
-          timestamp: chat.timestamp,
+          name: chat.name || 'Unknown',
+          isGroup: isGroup,
+          isNewsletter: isNewsletter,
+          unreadCount: chat.unreadCount || 0,
+          timestamp: chat.timestamp || 0,
           iconUrl: iconUrl,
-          isAdmin: chat.isGroup ? chat.groupMetadata?.participants.find(p => p.id._serialized === this.me.wid._serialized)?.isAdmin : true
+          isAdmin: isAdmin
         };
       }));
-      return results;
+
+      return mappedResults.filter(Boolean);
     } catch (err) {
-      console.error('[WHATSAPP] Get chats error:', err.message);
+      console.error('[WHATSAPP] Get managed chats error:', err.message);
       throw err;
     }
   }
@@ -368,7 +484,34 @@ class WhatsappService {
     if (!this.isReady) throw new Error('WhatsApp client not ready');
     try {
       const chat = await this.client.getChatById(groupId);
-      return chat.groupMetadata;
+      if (!chat.isGroup) throw new Error('Not a group');
+      
+      const metadata = chat.groupMetadata;
+      
+      // Enrich participants with contact details
+      const enrichedParticipants = await Promise.all(metadata.participants.map(async p => {
+        try {
+          const contact = await this.client.getContactById(p.id._serialized);
+          return {
+            ...p,
+            name: contact.name || contact.pushname || contact.number,
+            pushname: contact.pushname,
+            phoneNumber: contact.number,
+            profilePic: await contact.getProfilePicUrl().catch(() => null)
+          };
+        } catch (e) {
+          return {
+            ...p,
+            name: p.id.user,
+            phoneNumber: p.id.user
+          };
+        }
+      }));
+
+      return {
+        ...metadata,
+        participants: enrichedParticipants
+      };
     } catch (err) {
       console.error('[WHATSAPP] Get metadata error:', err.message);
       throw err;
