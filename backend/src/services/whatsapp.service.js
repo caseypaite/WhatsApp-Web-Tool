@@ -304,10 +304,7 @@ class WhatsappService {
                     const meta = metadataStore.get(idStr);
                     if (meta) {
                        metaData = {
-                         viewerRole: meta.viewerRole,
-                         isMember: meta.isMember,
-                         isOwner: meta.isOwner,
-                         membership: meta.membership
+                         membershipType: meta.membershipType || meta.__x_membershipType
                        };
                     }
                  }
@@ -315,7 +312,6 @@ class WhatsappService {
                  return {
                    idStr: idStr,
                    name: n.name || n.subject || n.formattedTitle || 'Unnamed Channel',
-                   capabilities: n.capabilities,
                    metaData: metaData,
                    role: n.role
                  };
@@ -326,13 +322,20 @@ class WhatsappService {
 
           if (manualNewsletters && manualNewsletters.length > 0) {
             channels = manualNewsletters.map(n => {
-               // Default to true for newsletters we are subscribed to/see in our collection,
-               // as we want to allow broadcasting to them if they appear in our list.
-               let isManaged = true; 
+               // Filter for managed channels where membershipType is owner, admin, or creator
+               let isManaged = false;
                
-               if (n.metaData) {
-                  if (n.metaData.viewerRole) {
-                     isManaged = (n.metaData.viewerRole === 'ADMIN' || n.metaData.viewerRole === 'OWNER');
+               if (n.metaData && n.metaData.membershipType) {
+                  const mt = n.metaData.membershipType;
+                  if (mt === 'admin' || mt === 'owner' || mt === 'creator') {
+                     isManaged = true;
+                  }
+               }
+               
+               // Fallback: Check n.role if metaData is missing
+               if (!isManaged && n.role) {
+                  if (n.role === 'admin' || n.role === 'owner' || n.role === 'creator') {
+                     isManaged = true;
                   }
                }
 

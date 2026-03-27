@@ -178,6 +178,26 @@ CREATE TABLE IF NOT EXISTS system_settings (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- WhatsApp Gatekeeper Logs
+CREATE TABLE IF NOT EXISTS group_gatekeeper_logs (
+    id SERIAL PRIMARY KEY,
+    group_jid VARCHAR(255) NOT NULL,
+    participant_id VARCHAR(255) NOT NULL,
+    status VARCHAR(50) DEFAULT 'PENDING', -- PENDING, VERIFIED, EXPIRED
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- WhatsApp Native Polls Tracking
+CREATE TABLE IF NOT EXISTS whatsapp_polls (
+    id SERIAL PRIMARY KEY,
+    poll_id VARCHAR(255) UNIQUE NOT NULL,
+    question TEXT NOT NULL,
+    options JSONB NOT NULL,
+    target_jid VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Performance Indexes
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);

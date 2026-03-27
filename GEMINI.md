@@ -84,6 +84,21 @@ Configuration is managed via `.env` files. **NEVER** commit `.env` files to sour
 - **Versioning Policy**: Always increment the version number by the smallest possible value (e.g., v1.4.3 -> v1.4.4).
 - **WhatsApp Session**: Managed via `.wwebjs_auth`. Do not delete this folder unless a fresh login is required.
 - **Daily Heartbeat**: Monitor the daily system health reports sent to Super Admins.
-- **Repackaging**: When creating releases, exclude `node_modules`, `.env`, and session files.
+- Repackaging: When creating releases, exclude `node_modules`, `.env`, and session files.
+
+## 7. Technical Implementation Reference
+
+### Entity Management (isAdmin Logic)
+The system uses specific logic to determine administrative authority over WhatsApp entities, which is foundational for management and broadcasting features.
+
+- **WhatsApp Groups:**
+    - Implementation: Dynamically verified by searching for the bot's own ID (`this.me.wid._serialized`) within the `chat.groupMetadata.participants` array.
+    - Criteria: The `isAdmin` boolean flag associated with the bot's participant entry must be `true`.
+
+- **WhatsApp Channels (Newsletters):**
+    - Implementation: Retrieved via Puppeteer injection into the internal `window.Store`. It specifically scrapes `WAWebNewsletterCollection` and cross-references with `WAWebNewsletterMetadataCollection`.
+    - Criteria: Role detection is performed using a case-sensitive check on the `membershipType` property. Access is granted only if the role is exactly `'admin'`, `'owner'`, or `'creator'`.
+    - Normalization: Channel IDs are normalized to the standard object format `{ _serialized, server, user }` to ensure frontend compatibility.
+
 ---
 *GEMINI.md generated on March 23, 2026.*
