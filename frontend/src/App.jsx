@@ -27,6 +27,12 @@ const ProtectedRoute = ({ children, roles }) => {
 };
 
 function AppRoutes() {
+  const { siteName } = useAuth();
+
+  React.useEffect(() => {
+    document.title = siteName || 'WhatsApp Web Tool';
+  }, [siteName]);
+
   return (
     <Router>
       <Navbar />

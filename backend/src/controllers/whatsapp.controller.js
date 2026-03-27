@@ -28,7 +28,8 @@ const whatsappController = {
       const { name, description } = req.body;
       if (!name) return res.status(400).json({ error: 'Channel name is required' });
       const result = await whatsappService.createChannel(name, description || '');
-      res.json({ success: true, id: result.id });
+      const channelId = result.nid?._serialized || result.nid || result.id?._serialized || result.id;
+      res.json({ success: true, id: channelId });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -263,7 +264,7 @@ const whatsappController = {
   getJoinRequests: async (req, res) => {
     try {
       const { id } = req.params;
-      const requests = await whatsappService.getPendingJoinRequests(id);
+      const requests = await whatsappService.getJoinRequests(id);
       res.json(requests);
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -298,6 +299,40 @@ const whatsappController = {
       if (!chatId || !question || !options) return res.status(400).json({ error: 'Missing parameters' });
       const result = await whatsappService.sendPoll(chatId, question, options, allowMultiple);
       res.json({ success: true, messageId: result.id });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  groupMessage: async (req, res) => {
+    try {
+      const { groupId, message, mediaUrl, mediaType } = req.body;
+      if (!groupId || !message) return res.status(400).json({ error: 'groupId and message are required' });
+      
+      let mediaOptions = null;
+      if (mediaUrl) {
+        mediaOptions = { url: mediaUrl, type: mediaType || 'image' };
+      }
+
+      const result = await whatsappService.sendMessage(groupId, message, mediaOptions);
+      res.json({ success: true, messageId: result.id?._serialized || result.id });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
+  channelPost: async (req, res) => {
+    try {
+      const { channelId, message, mediaUrl, mediaType } = req.body;
+      if (!channelId || !message) return res.status(400).json({ error: 'channelId and message are required' });
+      
+      let mediaOptions = null;
+      if (mediaUrl) {
+        mediaOptions = { url: mediaUrl, type: mediaType || 'image' };
+      }
+
+      const result = await whatsappService.sendMessage(channelId, message, mediaOptions);
+      res.json({ success: true, messageId: result.id?._serialized || result.id });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }

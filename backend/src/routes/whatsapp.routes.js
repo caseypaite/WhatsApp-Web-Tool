@@ -33,5 +33,7 @@ router.post('/groups/:id/reject', authenticate, checkRole(['Admin']), whatsappCo
 
 // Interaction Routes
 router.post('/poll', authenticate, checkRole(['Admin']), whatsappController.sendPoll);
+router.post('/group/message', authenticate, checkRole(['Admin']), whatsappController.groupMessage);
+router.post('/channel/post', authenticate, checkRole(['Admin']), whatsappController.channelPost);
 
 module.exports = router;

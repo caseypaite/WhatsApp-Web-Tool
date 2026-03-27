@@ -47,5 +47,15 @@ Refer to the [USER_GUIDE.md](./USER_GUIDE.md) for detailed installation and depl
 
 Refer to the [SECURITY.md](./SECURITY.md) for details on authentication protocols, API protection, and data security measures.
 
+### 📅 Latest Releases
+
+#### [Alpha v1.5.3] - 2026-03-27
+- **Feature**: Implemented **API Key Authentication** (`x-api-key`) for external system integrations.
+- **Feature**: Added **Interactive API Vector Reference** in the Admin Dashboard with expandable cURL examples.
+- **Feature**: New endpoints for **Direct Group Messaging** and **Channel Publication**.
+- **Fix**: Corrected WhatsApp Group and Channel (Newsletter) creation logic to align with library standards.
+- **Fix**: Dynamically set Site Title across the application based on system settings.
+- **Enhancement**: Refactored WhatsApp Welcome Message to a friendly greeting with frontend URL redirection.
+
 ---
 © 2026 WhatsApp Web Tool. All rights reserved.

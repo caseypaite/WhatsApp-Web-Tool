@@ -90,7 +90,8 @@ const userController = {
       if (user.status !== 'ACTIVE') return res.status(403).json({ error: 'Account not active', status: user.status, userId: user.id });
       const isMatch = await bcrypt.compare(password, user.password);
       if (!isMatch) return res.status(401).json({ error: 'Invalid credentials.' });
-      const jwtSecret = await settingsService.get('jwt_secret') || process.env.JWT_SECRET || 'your_fallback_jwt_secret';
+      const jwtSecret = await settingsService.get('jwt_secret') || process.env.JWT_SECRET;
+      if (!jwtSecret) throw new Error('JWT_SECRET not configured');
       const token = jwt.sign({ sub: user.id, email: user.email, roles: user.roles }, jwtSecret, { expiresIn: '24h' });
       delete user.password;
       res.json({ token, user });
@@ -188,7 +189,8 @@ const userController = {
       if (user.status !== 'ACTIVE') return res.status(403).json({ error: 'Account not active', status: user.status, userId: user.id });
       const isValid = await otpService.verifyOtp(user.id, otp);
       if (!isValid) return res.status(400).json({ error: 'Invalid OTP.' });
-      const jwtSecret = await settingsService.get('jwt_secret') || process.env.JWT_SECRET || 'your_fallback_jwt_secret';
+      const jwtSecret = await settingsService.get('jwt_secret') || process.env.JWT_SECRET;
+      if (!jwtSecret) throw new Error('JWT_SECRET not configured');
       const token = jwt.sign({ sub: user.id, email: user.email, roles: user.roles }, jwtSecret, { expiresIn: '24h' });
       delete user.password;
       res.json({ token, user });

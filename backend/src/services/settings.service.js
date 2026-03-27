@@ -37,6 +37,7 @@ class SettingsService {
       'otp_expiration_minutes', 
       'otp_max_retries',
       'jwt_secret',
+      'api_key',
       'vite_api_base_url',
       'ai_enabled',
       'ai_provider',

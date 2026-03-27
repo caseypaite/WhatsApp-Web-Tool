@@ -96,4 +96,12 @@ Use these commands for manual management:
 - **Service Stability:** The frontend is hardened against initialization errors. If a "Blank Page" occurs, clear your browser cache and ensure the backend service is responding.
 
 ---
+
+## 📅 Release History
+
+### Alpha v1.5.3 (2026-03-27)
+- **External Integration**: Configure an **API Key** in *Settings > Security* to allow external systems to trigger broadcasts and group messages.
+- **Documentation**: Access the **API Vector Reference** sidebar in *Settings* for live-updating cURL examples.
+- **Infrastructure**: Fixed WhatsApp node creation (Groups/Channels) and modernized the group welcome flow.
+
 © 2026 WhatsApp Web Tool Team. All rights reserved.

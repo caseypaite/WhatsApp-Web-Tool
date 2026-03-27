@@ -78,7 +78,7 @@ const AdminDashboard = () => {
   const [testSuccess, setTestSuccess] = useState('');
   const [gatewayResponse, setGatewayResponse] = useState(null);
   const [isDebugExpanded, setIsDebugExpanded] = useState(false);
-
+  const [expandedEndpoint, setExpandedEndpoint] = useState(null);
   // WhatsApp Management State
   const [newEntity, setNewEntity] = useState({ name: '', description: '', participants: '' });
   const [waActionLoading, setWaActionLoading] = useState(false);
@@ -122,6 +122,9 @@ const AdminDashboard = () => {
   // Auto-Responder State
   const [responders, setResponders] = useState([]);
   const [newResponder, setNewResponder] = useState({ keyword: '', response: '', match_type: 'EXACT' });
+  const [blacklist, setBlacklist] = useState([]);
+  const [interactions, setInteractions] = useState([]);
+  const [newBlacklist, setNewBlacklist] = useState({ phone_number: '', reason: '' });
 
   // Scheduled Messages State
   const [scheduledMessages, setScheduledMessages] = useState([]);
@@ -329,6 +332,49 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchBlacklist = async () => {
+    try {
+      const res = await api.get('/responders/blacklist');
+      setBlacklist(res.data || []);
+    } catch (err) {
+      console.error('Failed to fetch blacklist');
+    }
+  };
+
+  const fetchInteractions = async () => {
+    try {
+      const res = await api.get('/responders/interactions');
+      setInteractions(res.data || []);
+    } catch (err) {
+      console.error('Failed to fetch interactions');
+    }
+  };
+
+  const handleAddToBlacklist = async (e) => {
+    e.preventDefault();
+    setWaActionLoading(true);
+    try {
+      await api.post('/responders/blacklist', newBlacklist);
+      showFlash('Number blacklisted successfully');
+      setNewBlacklist({ phone_number: '', reason: '' });
+      fetchBlacklist();
+    } catch (err) {
+      showFlash('Failed to blacklist number', 'error');
+    } finally {
+      setWaActionLoading(false);
+    }
+  };
+
+  const handleRemoveFromBlacklist = async (phone) => {
+    try {
+      await api.delete(`/responders/blacklist/${phone}`);
+      showFlash('Number removed from blacklist');
+      fetchBlacklist();
+    } catch (err) {
+      showFlash('Failed to remove number', 'error');
+    }
+  };
+
   const fetchScheduledMessages = async () => {
     try {
       const data = await authService.getScheduledMessages();
@@ -381,6 +427,8 @@ const AdminDashboard = () => {
         fetchLandingContent(),
         fetchTemplates(),
         fetchResponders(),
+        fetchBlacklist(),
+        fetchInteractions(),
         fetchScheduledMessages(),
         fetchAuditLogs(),
         fetchPollResults()
@@ -1527,12 +1575,14 @@ const AdminDashboard = () => {
                 <div className="wp-card">
                    <div className="flex border-b border-[#dcdcde] bg-[#f6f7f7]">
                       <button onClick={() => setAutomationTab('responders')} className={`px-6 py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all ${automationTab === 'responders' ? 'border-[#2271b1] text-[#2271b1] bg-white' : 'border-transparent text-[#a7aaad] hover:text-[#1d2327]'}`}>Auto-Responders</button>
+                      <button onClick={() => setAutomationTab('blacklist')} className={`px-6 py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all ${automationTab === 'blacklist' ? 'border-[#2271b1] text-[#2271b1] bg-white' : 'border-transparent text-[#a7aaad] hover:text-[#1d2327]'}`}>Blacklist</button>
                       <button onClick={() => setAutomationTab('scheduled')} className={`px-6 py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all ${automationTab === 'scheduled' ? 'border-[#2271b1] text-[#2271b1] bg-white' : 'border-transparent text-[#a7aaad] hover:text-[#1d2327]'}`}>Scheduled Tasks</button>
                    </div>
                    <div className="p-4 flex justify-end">
-                      {automationTab === 'responders' ? (
+                      {automationTab === 'responders' && (
                         <button onClick={() => { setShowResponderForm(!showResponderForm); setEditingResponder(null); }} className="wp-button-primary">Initialize Responder</button>
-                      ) : (
+                      )}
+                      {automationTab === 'scheduled' && (
                         <button onClick={() => { setShowScheduledForm(!showScheduledForm); setEditingScheduled(null); }} className="wp-button-primary">Queue Task</button>
                       )}
                    </div>
@@ -1605,6 +1655,105 @@ const AdminDashboard = () => {
                          </table>
                       </div>
                    </div>
+                )}
+
+                {automationTab === 'blacklist' && (
+                  <div className="space-y-6">
+                    <div className="grid lg:grid-cols-3 gap-6">
+                      <div className="lg:col-span-1">
+                        <div className="wp-card">
+                          <div className="px-4 py-3 border-b border-[#dcdcde] bg-[#f6f7f7]">
+                            <h3 className="text-sm font-semibold">Add to Blacklist</h3>
+                          </div>
+                          <div className="p-4">
+                            <form onSubmit={handleAddToBlacklist} className="space-y-4">
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Phone Number</label>
+                                <input type="text" required className="w-full wp-input" placeholder="91XXXXXXXXXX" value={newBlacklist.phone_number} onChange={(e) => setNewBlacklist({...newBlacklist, phone_number: e.target.value})} />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Reason (Optional)</label>
+                                <textarea className="w-full wp-input resize-none" rows="2" placeholder="Spamming, manual, etc..." value={newBlacklist.reason} onChange={(e) => setNewBlacklist({...newBlacklist, reason: e.target.value})} />
+                              </div>
+                              <button type="submit" disabled={waActionLoading} className="w-full wp-button-primary">Add to Blacklist</button>
+                            </form>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="lg:col-span-2">
+                        <div className="wp-card">
+                          <div className="px-4 py-3 border-b border-[#dcdcde] bg-[#f6f7f7]">
+                            <h3 className="text-sm font-semibold">Active Blacklist</h3>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="wp-list-table w-full text-left border-collapse">
+                              <thead>
+                                <tr className="bg-[#f6f7f7] border-b border-[#dcdcde]">
+                                  <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">Phone</th>
+                                  <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">Reason</th>
+                                  <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">Type</th>
+                                  <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase text-right">Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {blacklist.length === 0 ? (
+                                  <tr><td colSpan="4" className="px-4 py-8 text-center text-xs text-[#a7aaad] italic">No blacklisted numbers.</td></tr>
+                                ) : blacklist.map(item => (
+                                  <tr key={item.id} className="border-b border-[#f0f0f1] hover:bg-[#f6f7f7] transition-colors">
+                                    <td className="px-4 py-3 text-xs font-bold text-[#2271b1]">+{item.phone_number}</td>
+                                    <td className="px-4 py-3 text-xs text-[#646970]">{item.reason || 'No reason provided'}</td>
+                                    <td className="px-4 py-3">
+                                      {item.is_auto_blacklisted ? (
+                                        <span className="px-2 py-0.5 bg-[#fcf0f1] text-[#d63638] border border-[#d63638] text-[9px] font-bold uppercase rounded-sm">Auto</span>
+                                      ) : (
+                                        <span className="px-2 py-0.5 bg-[#f6f7f7] text-[#1d2327] border border-[#dcdcde] text-[9px] font-bold uppercase rounded-sm">Manual</span>
+                                      )}
+                                    </td>
+                                    <td className="px-4 py-3 text-right">
+                                      <button onClick={() => handleRemoveFromBlacklist(item.phone_number)} className="p-1.5 text-[#d63638] hover:underline" title="Remove"><Trash2 className="w-4 h-4" /></button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="wp-card">
+                      <div className="px-4 py-3 border-b border-[#dcdcde] bg-[#f6f7f7] flex items-center justify-between">
+                        <h3 className="text-sm font-semibold">AI Interaction Nodes</h3>
+                        <button onClick={fetchInteractions} className="p-1 text-[#2271b1] hover:rotate-180 transition-all duration-500"><RefreshCw className="w-4 h-4" /></button>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="wp-list-table w-full text-left border-collapse">
+                          <thead>
+                            <tr className="bg-[#f6f7f7] border-b border-[#dcdcde]">
+                              <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">Phone</th>
+                              <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase text-center">Interactions</th>
+                              <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">Last Transmission</th>
+                              <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase text-right">Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {interactions.length === 0 ? (
+                              <tr><td colSpan="4" className="px-4 py-8 text-center text-xs text-[#a7aaad] italic">No AI interactions logged.</td></tr>
+                            ) : interactions.map(item => (
+                              <tr key={item.phone_number} className="border-b border-[#f0f0f1] hover:bg-[#f6f7f7] transition-colors">
+                                <td className="px-4 py-3 text-xs font-bold text-[#2271b1]">+{item.phone_number}</td>
+                                <td className="px-4 py-3 text-xs font-bold text-center">{item.interaction_count}</td>
+                                <td className="px-4 py-3 text-xs text-[#646970]">{new Date(item.last_interaction).toLocaleString()}</td>
+                                <td className="px-4 py-3 text-right">
+                                  <button onClick={() => setNewBlacklist({...newBlacklist, phone_number: item.phone_number})} className="px-3 py-1 bg-[#1d2327] text-white text-[10px] font-bold uppercase tracking-widest rounded-sm">Mark for Blacklist</button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
                 )}
 
                 {automationTab === 'scheduled' && (
@@ -1842,117 +1991,280 @@ const AdminDashboard = () => {
 
             {/* GLOBAL SETTINGS */}
             {activeTab === 'settings' && (
-              <div className="wp-card max-w-3xl">
-                 <div className="flex border-b border-[#dcdcde] bg-[#f6f7f7]">
-                    {['general', 'ai', 'security', 'otp'].map(t => (
-                      <button key={t} onClick={() => setActiveSettingsTab(t)} className={`px-6 py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all ${activeSettingsTab === t ? 'border-[#2271b1] text-[#2271b1] bg-white' : 'border-transparent text-[#a7aaad] hover:text-[#1d2327]'}`}>{t}</button>
-                    ))}
-                 </div>
-                 <div className="p-8">
-                    {activeSettingsTab === 'general' && (
-                      <div className="space-y-6">
-                         <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Application Identifier (Site Name)</label>
-                            <div className="flex gap-2">
-                               <input type="text" className="flex-1 wp-input" value={settings.find(s => s.key === 'site_name')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'site_name' ? {...s, value: e.target.value} : s))} />
-                               <button onClick={() => handleUpdateSetting('site_name', settings.find(s => s.key === 'site_name')?.value)} className="px-6 wp-button-primary">Save</button>
-                            </div>
-                         </div>
-                         <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Vite Backend Vector (API URL)</label>
-                            <div className="flex gap-2">
-                               <input type="text" className="flex-1 wp-input font-mono" value={settings.find(s => s.key === 'vite_api_base_url')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'vite_api_base_url' ? {...s, value: e.target.value} : s))} />
-                               <button onClick={() => handleUpdateSetting('vite_api_base_url', settings.find(s => s.key === 'vite_api_base_url')?.value)} className="px-6 wp-button-primary">Save</button>
-                            </div>
-                         </div>
-                         <div className="flex items-center justify-between p-4 bg-[#f6f7f7] border border-[#dcdcde]">
-                            <div>
-                               <p className="text-sm font-bold text-[#1d2327]">WhatsApp OTP Node</p>
-                               <p className="text-[10px] text-[#646970] italic">Enable 2FA via WhatsApp Engine.</p>
-                            </div>
-                            <button onClick={() => handleUpdateSetting('otp_enabled', settings.find(s => s.key === 'otp_enabled')?.value === 'true' ? 'false' : 'true')} className={`w-12 h-6 rounded-full relative transition-all ${settings.find(s => s.key === 'otp_enabled')?.value === 'true' ? 'bg-[#2271b1]' : 'bg-[#dcdcde]'}`}>
-                               <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.find(s => s.key === 'otp_enabled')?.value === 'true' ? 'left-7' : 'left-1'}`} />
-                            </button>
-                         </div>
-                      </div>
-                    )}
-
-                    {activeSettingsTab === 'ai' && (
-                      <div className="space-y-6">
-                        <div className="flex items-center justify-between p-4 bg-[#f6f7f7] border border-[#dcdcde]">
-                            <div>
-                               <p className="text-sm font-bold text-[#1d2327]">Autonomous Assistant</p>
-                               <p className="text-[10px] text-[#646970] italic">Enable LLM-driven query resolution.</p>
-                            </div>
-                            <button onClick={() => handleUpdateSetting('ai_enabled', settings.find(s => s.key === 'ai_enabled')?.value === 'true' ? 'false' : 'true')} className={`w-12 h-6 rounded-full relative transition-all ${settings.find(s => s.key === 'ai_enabled')?.value === 'true' ? 'bg-[#2271b1]' : 'bg-[#dcdcde]'}`}>
-                               <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.find(s => s.key === 'ai_enabled')?.value === 'true' ? 'left-7' : 'left-1'}`} />
-                            </button>
-                         </div>
-                         <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-1">
-                               <label className="text-[10px] font-bold text-[#a7aaad] uppercase">AI Provider</label>
-                               <select className="w-full wp-input appearance-none" value={settings.find(s => s.key === 'ai_provider')?.value || 'gemini'} onChange={(e) => { handleUpdateSetting('ai_provider', e.target.value); const def = e.target.value === 'mistral' ? 'mistral-tiny' : 'gemini-1.5-flash'; handleUpdateSetting('ai_model', def); }}>
-                                  <option value="gemini">Google Gemini</option>
-                                  <option value="mistral">Mistral AI</option>
-                               </select>
-                            </div>
-                            <div className="space-y-1">
-                               <label className="text-[10px] font-bold text-[#a7aaad] uppercase">LLM Model Node</label>
-                               <select className="w-full wp-input appearance-none" value={settings.find(s => s.key === 'ai_model')?.value || ''} onChange={(e) => handleUpdateSetting('ai_model', e.target.value)}>
-                                  {settings.find(s => s.key === 'ai_provider')?.value === 'mistral' ? (
-                                    <>
-                                      <option value="mistral-tiny">Tiny</option>
-                                      <option value="mistral-medium">Medium</option>
-                                      <option value="mistral-large-latest">Large</option>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <option value="gemini-1.5-flash">1.5 Flash</option>
-                                      <option value="gemini-1.5-pro">1.5 Pro</option>
-                                    </>
-                                  )}
-                                </select>
-                            </div>
-                         </div>
-
-                         {settings.find(s => s.key === 'ai_provider')?.value === 'mistral' ? (
+              <div className="flex flex-col lg:flex-row gap-6 items-start">
+                <div className="wp-card flex-1 w-full lg:max-w-2xl">
+                   <div className="flex border-b border-[#dcdcde] bg-[#f6f7f7]">
+                      {['general', 'ai', 'security'].map(t => (
+                        <button key={t} onClick={() => setActiveSettingsTab(t)} className={`px-6 py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all ${activeSettingsTab === t ? 'border-[#2271b1] text-[#2271b1] bg-white' : 'border-transparent text-[#a7aaad] hover:text-[#1d2327]'}`}>{t}</button>
+                      ))}                   </div>
+                   <div className="p-8">
+                      {activeSettingsTab === 'general' && (
+                        <div className="space-y-6">
                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Mistral API Key</label>
+                              <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Application Identifier (Site Name)</label>
                               <div className="flex gap-2">
-                                 <input type="password" underline="false" className="flex-1 wp-input font-mono" value={settings.find(s => s.key === 'mistral_api_key')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'mistral_api_key' ? {...s, value: e.target.value} : s))} />
-                                 <button onClick={() => handleUpdateSetting('mistral_api_key', settings.find(s => s.key === 'mistral_api_key')?.value)} className="px-6 wp-button-primary">Save</button>
+                                 <input type="text" className="flex-1 wp-input" value={settings.find(s => s.key === 'site_name')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'site_name' ? {...s, value: e.target.value} : s))} />
+                                 <button onClick={() => handleUpdateSetting('site_name', settings.find(s => s.key === 'site_name')?.value)} className="px-6 wp-button-primary">Save</button>
                               </div>
                            </div>
-                         ) : (
                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Gemini API Key</label>
+                              <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Vite Backend Vector (API URL)</label>
                               <div className="flex gap-2">
-                                 <input type="password" underline="false" className="flex-1 wp-input font-mono" value={settings.find(s => s.key === 'gemini_api_key')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'gemini_api_key' ? {...s, value: e.target.value} : s))} />
-                                 <button onClick={() => handleUpdateSetting('gemini_api_key', settings.find(s => s.key === 'gemini_api_key')?.value)} className="px-6 wp-button-primary">Save</button>
+                                 <input type="text" className="flex-1 wp-input font-mono" value={settings.find(s => s.key === 'vite_api_base_url')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'vite_api_base_url' ? {...s, value: e.target.value} : s))} />
+                                 <button onClick={() => handleUpdateSetting('vite_api_base_url', settings.find(s => s.key === 'vite_api_base_url')?.value)} className="px-6 wp-button-primary">Save</button>
                               </div>
                            </div>
-                         )}
-
-                         <div className="space-y-1">
-                            <label className="text-[10px] font-bold text-[#a7aaad] uppercase">System Instruction Prompt</label>
-                            <textarea rows="4" className="w-full wp-input resize-none italic" value={settings.find(s => s.key === 'ai_custom_prompt')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'ai_custom_prompt' ? {...s, value: e.target.value} : s))} />
-                            <button onClick={() => handleUpdateSetting('ai_custom_prompt', settings.find(s => s.key === 'ai_custom_prompt')?.value)} className="w-full wp-button-primary py-3">Update System Prompt</button>
-                         </div>
-                      </div>
-                    )}
-                    {activeSettingsTab === 'otp' && (
-                      <div className="space-y-6">
-                        <div className="p-6 bg-[#fcf9e8] border border-[#dba617]">
-                           <h4 className="text-xs font-bold text-[#dba617] uppercase mb-4">Transmission Diagnostic</h4>
-                           <form onSubmit={handleSendTest} className="flex gap-2">
-                              <input type="tel" required className="flex-1 wp-input" placeholder="91XXXXXXXXXX" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} />
-                              <button type="submit" disabled={testLoading} className="px-6 wp-button-primary">{testLoading ? <RefreshCw className="w-4 h-4 animate-spin mx-auto" /> : 'Send Test OTP'}</button>
-                           </form>
+                           <div className="flex items-center justify-between p-4 bg-[#f6f7f7] border border-[#dcdcde]">
+                              <div>
+                                 <p className="text-sm font-bold text-[#1d2327]">WhatsApp OTP Node</p>
+                                 <p className="text-[10px] text-[#646970] italic">Enable 2FA via WhatsApp Engine.</p>
+                              </div>
+                              <button onClick={() => handleUpdateSetting('otp_enabled', settings.find(s => s.key === 'otp_enabled')?.value === 'true' ? 'false' : 'true')} className={`w-12 h-6 rounded-full relative transition-all ${settings.find(s => s.key === 'otp_enabled')?.value === 'true' ? 'bg-[#2271b1]' : 'bg-[#dcdcde]'}`}>
+                                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.find(s => s.key === 'otp_enabled')?.value === 'true' ? 'left-7' : 'left-1'}`} />
+                              </button>
+                           </div>
                         </div>
-                        {testSuccess && <div className="p-3 bg-[#edfaef] text-[#00a32a] text-xs font-bold uppercase tracking-widest border-l-4 border-[#00a32a]">Acknowledge: OTP Delivered</div>}
+                      )}
+
+                      {activeSettingsTab === 'ai' && (
+                        <div className="space-y-6">
+                          <div className="flex items-center justify-between p-4 bg-[#f6f7f7] border border-[#dcdcde]">
+                              <div>
+                                 <p className="text-sm font-bold text-[#1d2327]">Autonomous Assistant</p>
+                                 <p className="text-[10px] text-[#646970] italic">Enable LLM-driven query resolution.</p>
+                              </div>
+                              <button onClick={() => handleUpdateSetting('ai_enabled', settings.find(s => s.key === 'ai_enabled')?.value === 'true' ? 'false' : 'true')} className={`w-12 h-6 rounded-full relative transition-all ${settings.find(s => s.key === 'ai_enabled')?.value === 'true' ? 'bg-[#2271b1]' : 'bg-[#dcdcde]'}`}>
+                                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.find(s => s.key === 'ai_enabled')?.value === 'true' ? 'left-7' : 'left-1'}`} />
+                              </button>
+                           </div>
+                           <div className="grid grid-cols-2 gap-4">
+                              <div className="space-y-1">
+                                 <label className="text-[10px] font-bold text-[#a7aaad] uppercase">AI Provider</label>
+                                 <select className="w-full wp-input appearance-none" value={settings.find(s => s.key === 'ai_provider')?.value || 'gemini'} onChange={(e) => { handleUpdateSetting('ai_provider', e.target.value); const def = e.target.value === 'mistral' ? 'mistral-tiny' : 'gemini-1.5-flash'; handleUpdateSetting('ai_model', def); }}>
+                                    <option value="gemini">Google Gemini</option>
+                                    <option value="mistral">Mistral AI</option>
+                                 </select>
+                              </div>
+                              <div className="space-y-1">
+                                 <label className="text-[10px] font-bold text-[#a7aaad] uppercase">LLM Model Node</label>
+                                 <select className="w-full wp-input appearance-none" value={settings.find(s => s.key === 'ai_model')?.value || ''} onChange={(e) => handleUpdateSetting('ai_model', e.target.value)}>
+                                    {settings.find(s => s.key === 'ai_provider')?.value === 'mistral' ? (
+                                      <>
+                                        <option value="mistral-tiny">Tiny</option>
+                                        <option value="mistral-medium">Medium</option>
+                                        <option value="mistral-large-latest">Large</option>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <option value="gemini-1.5-flash">1.5 Flash</option>
+                                        <option value="gemini-1.5-pro">1.5 Pro</option>
+                                      </>
+                                    )}
+                                  </select>
+                              </div>
+                           </div>
+
+                           {settings.find(s => s.key === 'ai_provider')?.value === 'mistral' ? (
+                             <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Mistral API Key</label>
+                                <div className="flex gap-2">
+                                   <input type="password" underline="false" className="flex-1 wp-input font-mono" value={settings.find(s => s.key === 'mistral_api_key')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'mistral_api_key' ? {...s, value: e.target.value} : s))} />
+                                   <button onClick={() => handleUpdateSetting('mistral_api_key', settings.find(s => s.key === 'mistral_api_key')?.value)} className="px-6 wp-button-primary">Save</button>
+                                </div>
+                             </div>
+                           ) : (
+                             <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Gemini API Key</label>
+                                <div className="flex gap-2">
+                                   <input type="password" underline="false" className="flex-1 wp-input font-mono" value={settings.find(s => s.key === 'gemini_api_key')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'gemini_api_key' ? {...s, value: e.target.value} : s))} />
+                                   <button onClick={() => handleUpdateSetting('gemini_api_key', settings.find(s => s.key === 'gemini_api_key')?.value)} className="px-6 wp-button-primary">Save</button>
+                                </div>
+                             </div>
+                           )}
+
+                           <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-[#a7aaad] uppercase">System Instruction Prompt</label>
+                              <textarea rows="4" className="w-full wp-input resize-none italic" value={settings.find(s => s.key === 'ai_custom_prompt')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'ai_custom_prompt' ? {...s, value: e.target.value} : s))} />
+                              <button onClick={() => handleUpdateSetting('ai_custom_prompt', settings.find(s => s.key === 'ai_custom_prompt')?.value)} className="w-full wp-button-primary py-3">Update System Prompt</button>
+                           </div>
+                        </div>
+                      )}
+                      {activeSettingsTab === 'security' && (
+                        <div className="space-y-6">
+                          <div className="space-y-4">
+                             <div className="space-y-1">
+                                <label className="text-[10px] font-bold text-[#a7aaad] uppercase">System API Access Key</label>
+                                <div className="flex gap-2">
+                                   <input type="text" className="flex-1 wp-input font-mono" value={settings.find(s => s.key === 'api_key')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'api_key' ? {...s, value: e.target.value} : s))} placeholder="Enter custom API key..." />
+                                   <button onClick={() => handleUpdateSetting('api_key', settings.find(s => s.key === 'api_key')?.value)} className="px-6 wp-button-primary">Save</button>
+                                </div>
+                                <p className="text-[10px] text-[#646970] italic">This key allows external systems to trigger broadcasts and interact with the WhatsApp engine via the <code>x-api-key</code> header.</p>
+                             </div>
+
+                             <div className="p-4 bg-[#f6f7f7] border border-[#dcdcde] space-y-3">
+                                <h4 className="text-[10px] font-bold text-[#1d2327] uppercase tracking-widest border-b border-[#dcdcde] pb-2">API Documentation (cURL)</h4>
+
+                                <div className="space-y-2">
+                                   <p className="text-[10px] font-bold text-[#646970] uppercase">Check Status</p>
+                                   <pre className="p-2 bg-[#262c33] text-[#72aee6] text-[9px] overflow-x-auto rounded-sm">
+                                     {`curl -X GET "${window.location.origin}/api/whatsapp/status" \\\n  -H "x-api-key: ${settings.find(s => s.key === 'api_key')?.value || 'YOUR_KEY'}"`}
+                                   </pre>
+                                </div>
+
+                                <div className="space-y-2">
+                                   <p className="text-[10px] font-bold text-[#646970] uppercase">Send Broadcast</p>
+                                   <pre className="p-2 bg-[#262c33] text-[#72aee6] text-[9px] overflow-x-auto rounded-sm">
+                                     {`curl -X POST "${window.location.origin}/api/whatsapp/broadcast" \\\n  -H "x-api-key: ${settings.find(s => s.key === 'api_key')?.value || 'YOUR_KEY'}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"targets": [{"id": "91XXXXXXXXXX@c.us", "type": "individual"}], "message": "Hello from API"}'`}
+                                   </pre>
+                                </div>
+
+                                <div className="space-y-2">
+                                   <p className="text-[10px] font-bold text-[#646970] uppercase">Group Node Message</p>
+                                   <pre className="p-2 bg-[#262c33] text-[#72aee6] text-[9px] overflow-x-auto rounded-sm">
+                                     {`curl -X POST "${window.location.origin}/api/whatsapp/group/message" \\\n  -H "x-api-key: ${settings.find(s => s.key === 'api_key')?.value || 'YOUR_KEY'}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"groupId": "120363XXXXXXXXXXXX@g.us", "message": "Automated update to group"}'`}
+                                   </pre>
+                                </div>
+
+                                <div className="space-y-2">
+                                   <p className="text-[10px] font-bold text-[#646970] uppercase">Channel Post (Newsletter)</p>
+                                   <pre className="p-2 bg-[#262c33] text-[#72aee6] text-[9px] overflow-x-auto rounded-sm">
+                                     {`curl -X POST "${window.location.origin}/api/whatsapp/channel/post" \\\n  -H "x-api-key: ${settings.find(s => s.key === 'api_key')?.value || 'YOUR_KEY'}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"channelId": "120363XXXXXXXXXXXX@newsletter", "message": "New channel publication"}'`}
+                                   </pre>
+                                </div>
+                             </div>
+                          </div>
+
+                          <div className="p-6 bg-[#fcf9e8] border border-[#dba617]">
+                             <h4 className="text-xs font-bold text-[#dba617] uppercase mb-4">Transmission Diagnostic</h4>
+                             <form onSubmit={handleSendTest} className="flex gap-2">
+                                <input type="tel" required className="flex-1 wp-input" placeholder="91XXXXXXXXXX" value={testPhone} onChange={(e) => setTestPhone(e.target.value)} />
+                                <button type="submit" disabled={testLoading} className="px-6 wp-button-primary">{testLoading ? <RefreshCw className="w-4 h-4 animate-spin mx-auto" /> : 'Send Test OTP'}</button>
+                             </form>
+                          </div>
+                          {testSuccess && <div className="p-3 bg-[#edfaef] text-[#00a32a] text-xs font-bold uppercase tracking-widest border-l-4 border-[#00a32a]">Acknowledge: OTP Delivered</div>}
+                        </div>
+                      )}                   </div>
+                </div>
+
+                {/* API ENDPOINT REFERENCE */}
+                <div className="wp-card flex-1 w-full lg:max-w-md h-[600px] flex flex-col">
+                  <div className="p-4 border-b border-[#dcdcde] bg-[#f6f7f7]">
+                    <h3 className="text-[10px] font-bold text-[#1d2327] uppercase tracking-widest">API Vector Reference</h3>
+                    <p className="text-[9px] text-[#646970] mt-1 italic">Unified Endpoint Registry (Click to expand cURL)</p>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
+                    <section className="space-y-3">
+                      <h4 className="text-[9px] font-bold text-[#2271b1] uppercase tracking-widest border-l-2 border-[#2271b1] pl-2">WhatsApp Engine</h4>
+                      <div className="space-y-2">
+                        {[
+                          { m: 'GET', p: '/whatsapp/status', k: true, d: 'Check connection status' },
+                          { m: 'POST', p: '/whatsapp/broadcast', k: true, d: 'Send message to multiple targets', b: '{"targets": [{"id": "91XXXXXXXXXX@c.us", "type": "individual"}], "message": "Broadcast content", "mediaUrl": "https://example.com/img.jpg"}' },
+                          { m: 'POST', p: '/whatsapp/group/message', k: true, d: 'Direct message to a group node', b: '{"groupId": "120363XXXXXXXXXXXX@g.us", "message": "Group update", "mediaUrl": "https://example.com/file.pdf", "mediaType": "document"}' },
+                          { m: 'POST', p: '/whatsapp/channel/post', k: true, d: 'Publish to a channel newsletter', b: '{"channelId": "120363XXXXXXXXXXXX@newsletter", "message": "Channel publication"}' },
+                          { m: 'POST', p: '/whatsapp/poll', k: true, d: 'Deploy a native WhatsApp poll', b: '{"chatId": "91XXXXXXXXXX@c.us", "question": "Are you ready?", "options": ["Yes", "No"], "allowMultiple": false}' },
+                          { m: 'GET', p: '/whatsapp/chats', k: true, d: 'Retrieve all managed chats' },
+                          { m: 'POST', p: '/whatsapp/groups', k: true, d: 'Create a new group node', b: '{"name": "New Team", "participants": ["91XXXXXXXXXX"]}' },
+                          { m: 'POST', p: '/whatsapp/channels', k: true, d: 'Create a new channel newsletter', b: '{"name": "System News", "description": "Official updates"}' }
+                        ].map(api => (
+                          <div key={api.p} className="flex flex-col border-b border-[#f0f0f1] pb-1.5">
+                            <button 
+                              onClick={() => setExpandedEndpoint(expandedEndpoint === api.p ? null : api.p)}
+                              className="w-full flex flex-col items-start text-left hover:bg-[#f6f7f7] p-1 rounded-sm transition-colors"
+                            >
+                              <div className="w-full flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[8px] font-bold px-1 rounded-sm ${api.m === 'GET' ? 'bg-[#edfaef] text-[#00a32a]' : 'bg-[#fcf0f1] text-[#d63638]'}`}>{api.m}</span>
+                                  <code className="text-[9px] font-mono text-[#1d2327]">{api.p}</code>
+                                </div>
+                                {api.k && <span className="text-[7px] font-bold text-[#dba617] uppercase tracking-tighter">Key Auth</span>}
+                              </div>
+                              <p className="text-[8px] text-[#646970] mt-0.5">{api.d}</p>
+                            </button>
+                            {expandedEndpoint === api.p && (
+                              <div className="mt-2 p-2 bg-[#262c33] rounded-sm space-y-2">
+                                <p className="text-[7px] font-bold text-[#72aee6] uppercase">cURL Example</p>
+                                <pre className="text-[8px] text-white font-mono whitespace-pre-wrap break-all opacity-90">
+                                  {`curl -X ${api.m} "${window.location.origin}/api${api.p}" \\\n  -H "x-api-key: ${settings.find(s => s.key === 'api_key')?.value || 'YOUR_KEY'}" ${api.b ? `\\\n  -H "Content-Type: application/json" \\\n  -d '${api.b}'` : ''}`}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                    )}
-                 </div>
+                    </section>
+
+                    <section className="space-y-3">
+                      <h4 className="text-[9px] font-bold text-[#2271b1] uppercase tracking-widest border-l-2 border-[#2271b1] pl-2">Identity Hub</h4>
+                      <div className="space-y-2">
+                        {[
+                          { m: 'POST', p: '/user/login', d: 'Authenticate and receive JWT token', b: '{"email": "admin@site.com", "password": "..."}' },
+                          { m: 'POST', p: '/user/register', d: 'Register a new identity node', b: '{"email": "...", "password": "...", "full_name": "...", "phone_number": "..."}' },
+                          { m: 'GET', p: '/user/profile', d: 'Get authenticated user data' },
+                          { m: 'GET', p: '/user/all', d: 'List all registered nodes (Admin)' }
+                        ].map(api => (
+                          <div key={api.p} className="flex flex-col border-b border-[#f0f0f1] pb-1.5">
+                            <button 
+                              onClick={() => setExpandedEndpoint(expandedEndpoint === api.p ? null : api.p)}
+                              className="w-full flex flex-col items-start text-left hover:bg-[#f6f7f7] p-1 rounded-sm transition-colors"
+                            >
+                              <div className="w-full flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[8px] font-bold px-1 rounded-sm ${api.m === 'GET' ? 'bg-[#edfaef] text-[#00a32a]' : 'bg-[#fcf0f1] text-[#d63638]'}`}>{api.m}</span>
+                                  <code className="text-[9px] font-mono text-[#1d2327]">{api.p}</code>
+                                </div>
+                              </div>
+                              <p className="text-[8px] text-[#646970] mt-0.5">{api.d}</p>
+                            </button>
+                            {expandedEndpoint === api.p && (
+                              <div className="mt-2 p-2 bg-[#262c33] rounded-sm space-y-2">
+                                <p className="text-[7px] font-bold text-[#72aee6] uppercase">cURL Example</p>
+                                <pre className="text-[8px] text-white font-mono whitespace-pre-wrap break-all opacity-90">
+                                  {`curl -X ${api.m} "${window.location.origin}/api${api.p}" \\\n  -H "Authorization: Bearer YOUR_JWT_TOKEN" ${api.b ? `\\\n  -H "Content-Type: application/json" \\\n  -d '${api.b}'` : ''}`}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+
+                    <section className="space-y-3">
+                      <h4 className="text-[9px] font-bold text-[#2271b1] uppercase tracking-widest border-l-2 border-[#2271b1] pl-2">System Core</h4>
+                      <div className="space-y-2">
+                        {[
+                          { m: 'GET', p: '/settings/all', d: 'Retrieve system parameters' },
+                          { m: 'PUT', p: '/settings/update', d: 'Modify system configuration', b: '{"key": "site_name", "value": "New Name"}' },
+                          { m: 'POST', p: '/upload', d: 'Vectorize static assets', b: '--form "file=@/path/to/asset.jpg"' }
+                        ].map(api => (
+                          <div key={api.p} className="flex flex-col border-b border-[#f0f0f1] pb-1.5">
+                            <button 
+                              onClick={() => setExpandedEndpoint(expandedEndpoint === api.p ? null : api.p)}
+                              className="w-full flex flex-col items-start text-left hover:bg-[#f6f7f7] p-1 rounded-sm transition-colors"
+                            >
+                              <div className="w-full flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[8px] font-bold px-1 rounded-sm ${api.m === 'GET' ? 'bg-[#edfaef] text-[#00a32a]' : api.m === 'PUT' ? 'bg-[#f0f6fb] text-[#2271b1]' : 'bg-[#fcf0f1] text-[#d63638]'}`}>{api.m}</span>
+                                  <code className="text-[9px] font-mono text-[#1d2327]">{api.p}</code>
+                                </div>
+                              </div>
+                              <p className="text-[8px] text-[#646970] mt-0.5">{api.d}</p>
+                            </button>
+                            {expandedEndpoint === api.p && (
+                              <div className="mt-2 p-2 bg-[#262c33] rounded-sm space-y-2">
+                                <p className="text-[7px] font-bold text-[#72aee6] uppercase">cURL Example</p>
+                                <pre className="text-[8px] text-white font-mono whitespace-pre-wrap break-all opacity-90">
+                                  {api.m === 'POST' && api.p === '/upload' 
+                                    ? `curl -X POST "${window.location.origin}/api/upload" \\\n  -H "Authorization: Bearer YOUR_JWT_TOKEN" \\\n  -F "file=@/path/to/image.jpg"`
+                                    : `curl -X ${api.m} "${window.location.origin}/api${api.p}" \\\n  -H "Authorization: Bearer YOUR_JWT_TOKEN" ${api.b ? `\\\n  -H "Content-Type: application/json" \\\n  -d '${api.b}'` : ''}`}
+                                </pre>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  </div>
+                </div>
               </div>
             )}
           </div>

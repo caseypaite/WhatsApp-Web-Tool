@@ -78,6 +78,7 @@ Configuration is managed via `.env` files. **NEVER** commit `.env` files to sour
 - **API Versioning**: All API routes should be prefixed with `/api/`.
 - **Frontend State**: Use `AuthContext` for session management.
 - **Error Handling**: Use centralized error-handling middleware in the backend.
+- **API Documentation**: Maintain the **API Vector Reference** in `AdminDashboard.jsx` with active cURL examples for all `x-api-key` compatible endpoints.
 
 ## 6. Maintenance Tasks
 - **Release Naming**: **NEVER** tag a release as "Stable". All releases must be tagged as "Alpha" (e.g., "Alpha v1.4.4").

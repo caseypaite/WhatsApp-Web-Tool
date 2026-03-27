@@ -198,6 +198,23 @@ CREATE TABLE IF NOT EXISTS whatsapp_polls (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- AI Responder Blacklist & Interaction Tracking
+CREATE TABLE IF NOT EXISTS chat_blacklist (
+    id SERIAL PRIMARY KEY,
+    phone_number VARCHAR(20) UNIQUE NOT NULL,
+    reason TEXT,
+    is_auto_blacklisted BOOLEAN DEFAULT false,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS ai_interaction_logs (
+    id SERIAL PRIMARY KEY,
+    phone_number VARCHAR(20) NOT NULL,
+    message TEXT,
+    response TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Performance Indexes
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
@@ -207,3 +224,5 @@ CREATE INDEX IF NOT EXISTS idx_poll_votes_poll_id ON poll_votes(poll_id);
 CREATE INDEX IF NOT EXISTS idx_poll_votes_phone ON poll_votes(phone_number);
 CREATE INDEX IF NOT EXISTS idx_message_history_phone ON message_history(phone_number);
 CREATE INDEX IF NOT EXISTS idx_message_history_user ON message_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_ai_interaction_logs_phone ON ai_interaction_logs(phone_number);
+CREATE INDEX IF NOT EXISTS idx_ai_interaction_logs_created ON ai_interaction_logs(created_at);

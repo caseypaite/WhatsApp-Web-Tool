@@ -76,6 +76,54 @@ class ResponderController {
       res.status(500).json({ error: error.message });
     }
   }
+
+  // Blacklist Management
+  async getBlacklist(req, res) {
+    try {
+      const result = await db.query('SELECT * FROM chat_blacklist ORDER BY created_at DESC');
+      res.json(result.rows);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  async addToBlacklist(req, res) {
+    const { phone_number, reason } = req.body;
+    if (!phone_number) return res.status(400).json({ error: 'Phone number is required' });
+    try {
+      const result = await db.query(
+        'INSERT INTO chat_blacklist (phone_number, reason) VALUES ($1, $2) ON CONFLICT (phone_number) DO UPDATE SET reason = EXCLUDED.reason RETURNING *',
+        [phone_number.replace(/\D/g, ''), reason]
+      );
+      res.status(201).json(result.rows[0]);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  async removeFromBlacklist(req, res) {
+    const { phone_number } = req.params;
+    try {
+      await db.query('DELETE FROM chat_blacklist WHERE phone_number = $1', [phone_number]);
+      res.json({ success: true, message: 'Number removed from blacklist' });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
+
+  async getInteractions(req, res) {
+    try {
+      const result = await db.query(`
+        SELECT phone_number, COUNT(*) as interaction_count, MAX(created_at) as last_interaction 
+        FROM ai_interaction_logs 
+        GROUP BY phone_number 
+        ORDER BY last_interaction DESC
+      `);
+      res.json(result.rows);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  }
 }
 
 module.exports = new ResponderController();

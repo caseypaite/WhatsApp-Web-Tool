@@ -30,12 +30,24 @@ const checkRole = (requiredRoles) => {
 const authenticate = async (req, res, next) => {
   const adminSecret = process.env.SIMPLE_AUTH_PASSWORD;
   const providedSecret = req.headers['x-simple-auth'];
+  const providedApiKey = req.headers['x-api-key'];
 
-  // Simple Auth (e.g. for development or special scripts)
+  // 1. Simple Auth (Development/Legacy)
   if (providedSecret && providedSecret === adminSecret) {
     req.user = { id: 0, email: 'admin@simpleauth.local', roles: ['Admin'] };
     req.auth = { payload: { sub: 0, email: 'admin@simpleauth.local', roles: ['Admin'] } };
     return next();
+  }
+
+  // 2. API Key Auth
+  if (providedApiKey) {
+    const configuredApiKey = await settingsService.get('api_key');
+    if (configuredApiKey && providedApiKey === configuredApiKey) {
+      req.user = { id: 0, email: 'api-user@system.local', roles: ['Admin'] };
+      req.auth = { payload: { sub: 0, email: 'api-user@system.local', roles: ['Admin'] } };
+      return next();
+    }
+    return res.status(401).json({ error: 'Unauthorized', message: 'Invalid API Key' });
   }
 
   const authHeader = req.headers.authorization;
@@ -45,7 +57,11 @@ const authenticate = async (req, res, next) => {
 
   const token = authHeader.split(' ')[1];
   try {
-    const jwtSecret = await settingsService.get('jwt_secret') || process.env.JWT_SECRET || 'your_fallback_jwt_secret';
+    const jwtSecret = await settingsService.get('jwt_secret') || process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error('[AUTH] CRITICAL: JWT_SECRET not configured.');
+      return res.status(500).json({ error: 'Internal Server Error', message: 'Auth security failure' });
+    }
     const decoded = jwt.verify(token, jwtSecret);
     
     console.log('[AUTH] Token verified for:', decoded.email);

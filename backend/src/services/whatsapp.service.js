@@ -186,8 +186,48 @@ class WhatsappService {
         const aiEnabled = await settingsService.get('ai_enabled');
         if (aiEnabled === 'true') {
           try {
+            const senderPhone = msg.from.replace('@c.us', '');
+            
+            // 1. Skip Business Numbers
+            const contact = await msg.getContact();
+            if (contact.isBusiness) {
+              console.log(`[WHATSAPP] AI Response skipped: ${senderPhone} is a Business account.`);
+              return;
+            }
+
+            // 2. Check Blacklist
+            const blacklisted = await db.query('SELECT * FROM chat_blacklist WHERE phone_number = $1', [senderPhone]);
+            if (blacklisted.rows.length > 0) {
+              console.log(`[WHATSAPP] AI Response skipped: ${senderPhone} is blacklisted.`);
+              return;
+            }
+
             const reply = await aiService.generateResponse(msg.body);
-            if (reply) return msg.reply(reply);
+            if (reply) {
+              await msg.reply(reply);
+              
+              // Log Interaction
+              await db.query(
+                'INSERT INTO ai_interaction_logs (phone_number, message, response) VALUES ($1, $2, $3)',
+                [senderPhone, msg.body, reply]
+              );
+
+              // Check for Auto-Blacklist (5 messages in 30 seconds)
+              const recentInteractions = await db.query(
+                'SELECT COUNT(*) FROM ai_interaction_logs WHERE phone_number = $1 AND created_at > CURRENT_TIMESTAMP - INTERVAL \'30 seconds\'',
+                [senderPhone]
+              );
+
+              if (parseInt(recentInteractions.rows[0].count) > 5) {
+                await db.query(
+                  'INSERT INTO chat_blacklist (phone_number, reason, is_auto_blacklisted) VALUES ($1, $2, $3) ON CONFLICT (phone_number) DO NOTHING',
+                  [senderPhone, 'Rate limit exceeded: > 5 messages in 30s', true]
+                );
+                console.log(`[WHATSAPP] Auto-blacklisted ${senderPhone} due to rate limiting.`);
+                await this.client.sendMessage(msg.from, '⚠️ *System Notice*\n\nYour interaction rate has exceeded our safety threshold. AI responses have been suspended for this number.');
+              }
+              return;
+            }
           } catch (err) {
             console.error('[WHATSAPP] AI Response error:', err.message);
           }
@@ -196,25 +236,26 @@ class WhatsappService {
     });
 
     this.client.on('group_join', async (notification) => {
-      // 4. Gatekeeper Activation (New Members)
+      // 4. Welcome Message (New Members)
       try {
         const siteName = await settingsService.get('site_name') || 'Portal';
+        const frontendUrl = 'app.kcdev.qzz.io';
         for (const participantId of notification.recipientIds) {
-          const welcomeMsg = `👋 *Welcome to the group!*\n\nThis is a secure community managed by *${siteName}*.\n\nTo remain in this group, please verify your identity within 10 minutes:\n1. Visit: ${process.env.WEBSITE_DOMAIN || 'app.kcdev.qzz.io'}\n2. Sign in or Register\n3. Reply to this message with your *OTP Verification Code*.`;
-          
+          const welcomeMsg = `👋 *Welcome to the group!*\n\nThis is a secure community managed by *${siteName}*.\n\nWe are glad to have you here. If you wish to participate in our digital identity portal and polls, please visit us at:\n🔗 *${frontendUrl}*\n\nEnjoy your stay!`;
+
           await this.client.sendMessage(participantId, welcomeMsg);
-          
-          const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+          // We still log the join but without restrictive expiration/kick logic
+          const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year fallback
           await db.query(
             'INSERT INTO group_gatekeeper_logs (group_jid, participant_id, status, expires_at) VALUES ($1, $2, $3, $4)',
-            [notification.chatId, participantId, 'PENDING', expiresAt]
+            [notification.chatId, participantId, 'JOINED', expiresAt]
           );
         }
       } catch (err) {
-        console.error('[WHATSAPP] Gatekeeper initialization error:', err.message);
+        console.error('[WHATSAPP] Welcome message error:', err.message);
       }
     });
-
     this.client.on('vote', async (vote) => {
       try {
         // Log votes for WhatsApp Polls if needed
@@ -434,11 +475,13 @@ class WhatsappService {
     }
   }
 
-  async createWaGroup(name, participants) {
+  async createGroup(name, participants) {
     if (!this.isReady) throw new Error('WhatsApp client not ready');
     try {
       const pJids = participants.map(p => p.includes('@c.us') ? p : `${p.replace(/\D/g, '')}@c.us`);
+      // title is the parameter name in some versions, name in others, using 'name' as title.
       const result = await this.client.createGroup(name, pJids);
+      console.log('[WHATSAPP] Group created:', result.gid?._serialized || result.gid);
       return result;
     } catch (err) {
       console.error('[WHATSAPP] Create group error:', err.message);
@@ -446,11 +489,15 @@ class WhatsappService {
     }
   }
 
-  async createWaChannel(name, description) {
+  async createChannel(name, description) {
     if (!this.isReady) throw new Error('WhatsApp client not ready');
     try {
-      // whatsapp-web.js uses createNewsletter for Channels
-      const result = await this.client.createNewsletter(name, { description });
+      // whatsapp-web.js uses createChannel for Newsletters
+      if (typeof this.client.createChannel !== 'function') {
+        throw new Error('Channel creation not supported in this version of the library');
+      }
+      const result = await this.client.createChannel(name, { description });
+      console.log('[WHATSAPP] Channel created:', result.nid?._serialized || result.nid || result.id);
       return result;
     } catch (err) {
       console.error('[WHATSAPP] Create channel error:', err.message);
