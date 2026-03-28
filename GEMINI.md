@@ -2,6 +2,13 @@
 
 This document provides foundational context and mandates for the AppStack project. Adhere strictly to these guidelines for all development, maintenance, and architectural tasks.
 
+## Development Testing Constraints
+- **Restricted Targets**: For all development, testing, and diagnostic purposes, ONLY use the following entities. DO NOT send test messages, alerts, or broadcasts to any other IDs.
+    - **Test Group**: `120363424576973245@g.us`
+    - **Test Channel**: `120363426680295156@newsletter`
+    - **Test Individual**: `919560436836@c.us`
+- **Version Control**: The system version is frozen at **1.6.0**. DO NOT increment the version number in package.json or documentation. Use identifying strings (e.g., `1.6.0-patch-xyz`) for Git tags only.
+
 ## 1. Project Overview
 AppStack is a full-stack platform designed for secure identity management, automated WhatsApp communication, and advanced community governance. It integrates WhatsApp automation with a robust RBAC-enabled web portal.
 
