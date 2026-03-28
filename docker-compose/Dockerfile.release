@@ -5,9 +5,15 @@ RUN apt-get update && apt-get install -y curl jq tar --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tmp
-RUN export LATEST_RELEASE=$(curl -s https://api.github.com/repos/caseypaite/WhatsApp-Web-Tool/releases/latest | jq -r '.assets[] | select(.name | contains("release-v")) | .browser_download_url') \
+RUN LATEST_JSON=$(curl -fs -H "User-Agent: Docker-Build" https://api.github.com/repos/caseypaite/WhatsApp-Web-Tool/releases/latest) \
+    && LATEST_RELEASE=$(echo "$LATEST_JSON" | jq -r '.assets[] | select(.name | contains("release-v")) | .browser_download_url' | grep ".tar.gz" | head -n 1) \
+    && if [ -z "$LATEST_RELEASE" ] || [ "$LATEST_RELEASE" = "null" ]; then \
+         echo "Error: Could not find release URL in JSON response:" >&2; \
+         echo "$LATEST_JSON" >&2; \
+         exit 1; \
+       fi \
     && echo "Downloading: $LATEST_RELEASE" \
-    && curl -L -o release.tar.gz "$LATEST_RELEASE" \
+    && curl -fL -o release.tar.gz "$LATEST_RELEASE" \
     && mkdir -p /app-release \
     && tar -xzf release.tar.gz -C /app-release
 
