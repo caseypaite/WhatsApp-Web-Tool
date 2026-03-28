@@ -60,7 +60,7 @@ app.use(cors({
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-simple-auth'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-simple-auth', 'x-api-key'],
   credentials: true
 }));
 app.use(express.json());

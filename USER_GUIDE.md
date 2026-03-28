@@ -99,6 +99,10 @@ Use these commands for manual management:
 
 ## 📅 Release History
 
+### Alpha v1.5.5 (2026-03-28)
+- **Diagnostics**: Introduced an **Interactive Diagnostic Modal** for real-time API testing.
+- **Media**: Enabled support for external **Media URLs** and **Media Types** in all communication vectors.
+
 ### Alpha v1.5.4 (2026-03-28)
 - **UI/UX**: Improved legibility of the **API Vector Reference** by increasing font sizes for documentation and cURL examples.
 

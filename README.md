@@ -49,6 +49,12 @@ Refer to the [SECURITY.md](./SECURITY.md) for details on authentication protocol
 
 ### 📅 Latest Releases
 
+#### [Alpha v1.5.5] - 2026-03-28
+- **Feature**: Implemented **Interactive API Diagnostic Modal** with dynamic parameter forms.
+- **Feature**: Support for **External Media URLs** and **Media Types** across all messaging endpoints.
+- **Enhancement**: Added descriptive node names and improved discoverability in the API Vector Reference.
+- **Fix**: Resolved component render crashes by isolating documentation logic into a dedicated modal.
+
 #### [Alpha v1.5.4] - 2026-03-28
 - **Enhancement**: Increased font sizes in the **API Vector Reference** sidebar for better readability and accessibility.
 - **Maintenance**: Minor UI cleanup and optimization.

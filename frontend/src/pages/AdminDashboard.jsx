@@ -8,7 +8,7 @@ import {
   Globe, Lock, Cpu, Send, Plus, Trash2, History, ChevronDown, 
   ChevronUp, Terminal, MessageSquare, ShieldCheck, Users, 
   Layout, Smartphone, FileText, Menu, LogOut, Activity, BarChart2, Edit2, Link,
-  Image as ImageIcon, File as FileIcon, Music, Video, Search, CheckCircle, Home
+  Image as ImageIcon, File as FileIcon, Music, Video, Search, CheckCircle, Home, Play
 } from 'lucide-react';
 
 const Modal = ({ isOpen, onClose, title, subtitle, children, maxWidth = 'max-w-lg', flash }) => {
@@ -24,7 +24,7 @@ const Modal = ({ isOpen, onClose, title, subtitle, children, maxWidth = 'max-w-l
       >
         <div className="flex items-center justify-between px-4 py-2 border-b border-[#dcdcde] bg-[#f6f7f7]">
           <h2 className="text-sm font-semibold text-[#1d2327]">{title}</h2>
-          <button 
+          <button type="button" 
             onClick={onClose}
             className="p-1 text-[#646970] hover:text-[#d63638] transition-all"
           >
@@ -53,6 +53,197 @@ const Modal = ({ isOpen, onClose, title, subtitle, children, maxWidth = 'max-w-l
   );
 };
 
+const APIEndpointEntry = ({ endpoint, onClick }) => {
+  return (
+    <div className="flex flex-col border-b border-[#f0f0f1] pb-1.5 group">
+      <div className="flex items-center justify-between p-1 hover:bg-[#f6f7f7] rounded-sm transition-colors">
+        <div className="flex flex-col items-start text-left min-w-0 flex-1">
+          <p className="text-[10px] font-black text-[#1d2327] uppercase tracking-tighter mb-1">{endpoint.n || 'API Node'}</p>
+          <div className="flex items-center gap-2 mb-0.5">
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-sm ${endpoint.m === 'GET' ? 'bg-[#edfaef] text-[#00a32a]' : 'bg-[#fcf0f1] text-[#d63638]'}`}>{endpoint.m}</span>
+            <code className="text-xs font-mono text-[#1d2327] font-bold truncate">{endpoint.p}</code>
+          </div>
+          <p className="text-[10px] text-[#646970] font-medium truncate w-full">{endpoint.d}</p>
+        </div>
+        <button 
+          type="button"
+          onClick={() => onClick(endpoint)}
+          className="ml-2 px-3 py-1.5 bg-[#2271b1] text-white text-[9px] font-bold uppercase rounded-sm hover:bg-[#135e96] transition-all shadow-sm flex-shrink-0"
+        >
+          Diagnostics
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const APIEndpointModal = ({ endpoint, isOpen, onClose, onTest, loading, result, settings }) => {
+  const [testPayload, setTestPayload] = useState({});
+
+  useEffect(() => {
+    if (endpoint && endpoint.b) {
+      try {
+        setTestPayload(JSON.parse(endpoint.b));
+      } catch (e) {
+        setTestPayload({});
+      }
+    } else {
+      setTestPayload({});
+    }
+  }, [endpoint]);
+
+  if (!endpoint || !isOpen) return null;
+  
+  const apiBaseUrl = settings.find(s => s.key === 'vite_api_base_url')?.value || import.meta.env.VITE_API_BASE_URL || window.location.origin;
+  const apiUrl = apiBaseUrl.replace(/\/api$/, '');
+  const apiKey = settings.find(s => s.key === 'api_key')?.value || 'YOUR_KEY';
+  
+  const currentPayload = JSON.stringify(testPayload);
+  const fullUrl = `${apiUrl}/api${endpoint.p}`;
+  
+  const curl = endpoint.k 
+    ? `curl -X ${endpoint.m} "${fullUrl}" \\\n  -H "x-api-key: ${apiKey}" ${endpoint.b ? `\\\n  -H "Content-Type: application/json" \\\n  -d '${currentPayload}'` : ''}`
+    : `curl -X ${endpoint.m} "${fullUrl}" \\\n  -H "Authorization: Bearer YOUR_JWT_TOKEN" ${endpoint.b ? `\\\n  -H "Content-Type: application/json" \\\n  -d '${currentPayload}'` : ''}`;
+
+  const handleFieldChange = (key, val) => {
+    setTestPayload(prev => ({ ...prev, [key]: val }));
+  };
+
+  const handleArrayChange = (key, index, subKey, val) => {
+    const arr = [...testPayload[key]];
+    if (typeof arr[index] === 'object') {
+      arr[index] = { ...arr[index], [subKey]: val };
+    } else {
+      arr[index] = val;
+    }
+    setTestPayload(prev => ({ ...prev, [key]: arr }));
+  };
+
+  return (
+    <Modal 
+      isOpen={isOpen} 
+      onClose={onClose} 
+      title="API Node Diagnostics"
+      subtitle={endpoint.d}
+      maxWidth="max-w-2xl"
+    >
+      <div className="space-y-6">
+        {endpoint.b && (
+          <div className="p-4 bg-[#f6f7f7] border border-[#dcdcde] space-y-4">
+            <h4 className="text-[10px] font-bold text-[#1d2327] uppercase tracking-widest border-b border-[#dcdcde] pb-2 text-center">Transmission Parameters</h4>
+            <div className="grid grid-cols-1 gap-4">
+              {Object.keys(testPayload).map(key => {
+                if (key === 'targets' && Array.isArray(testPayload[key])) {
+                  return (
+                    <div key={key} className="space-y-2">
+                      <label className="text-[10px] font-bold text-[#a7aaad] uppercase italic">{key}</label>
+                      {testPayload[key].map((target, idx) => (
+                        <div key={idx} className="flex gap-2 items-center bg-white p-2 border border-[#dcdcde] shadow-sm">
+                          <input type="text" className="flex-1 wp-input font-mono text-[10px] py-1" value={target.id} onChange={(e) => handleArrayChange(key, idx, 'id', e.target.value)} placeholder="Target ID" />
+                          <select className="wp-input text-[10px] font-bold py-1 px-2 uppercase" value={target.type} onChange={(e) => handleArrayChange(key, idx, 'type', e.target.value)}>
+                            <option value="individual">Individual</option>
+                            <option value="group">Group</option>
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }
+                if (key === 'options' && Array.isArray(testPayload[key])) {
+                  return (
+                    <div key={key} className="space-y-2">
+                      <label className="text-[10px] font-bold text-[#a7aaad] uppercase italic">{key}</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {testPayload[key].map((opt, idx) => (
+                          <input key={idx} type="text" className="wp-input font-mono text-[10px] py-1 bg-white" value={opt} onChange={(e) => handleArrayChange(key, idx, null, e.target.value)} />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+                if (key === 'participants' && Array.isArray(testPayload[key])) {
+                  return (
+                    <div key={key} className="space-y-2">
+                      <label className="text-[10px] font-bold text-[#a7aaad] uppercase italic">{key} (CSV)</label>
+                      <input type="text" className="w-full wp-input font-mono text-[10px] py-1 bg-white" value={testPayload[key].join(', ')} onChange={(e) => handleFieldChange(key, e.target.value.split(',').map(p => p.trim()))} />
+                    </div>
+                  );
+                }
+                if (key === 'mediaType') {
+                  return (
+                    <div key={key} className="space-y-1">
+                      <label className="text-[10px] font-bold text-[#a7aaad] uppercase italic">{key}</label>
+                      <select className="w-full wp-input text-[10px] font-bold py-1 uppercase bg-white" value={testPayload[key]} onChange={(e) => handleFieldChange(key, e.target.value)}>
+                        <option value="image">Image</option>
+                        <option value="video">Video</option>
+                        <option value="audio">Audio</option>
+                        <option value="document">Document</option>
+                      </select>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={key} className="space-y-1">
+                    <label className="text-[10px] font-bold text-[#a7aaad] uppercase italic">{key}</label>
+                    {typeof testPayload[key] === 'boolean' ? (
+                      <select className="w-full wp-input text-[10px] font-bold py-1 uppercase bg-white" value={testPayload[key].toString()} onChange={(e) => handleFieldChange(key, e.target.value === 'true')}>
+                        <option value="true">True</option>
+                        <option value="false">False</option>
+                      </select>
+                    ) : (
+                      <textarea rows={testPayload[key].length > 50 ? 3 : 1} className="w-full wp-input font-mono text-[10px] py-1 bg-white resize-none" value={testPayload[key]} onChange={(e) => handleFieldChange(key, e.target.value)} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Vector Transmission Blueprint (cURL)</label>
+            <button 
+              type="button"
+              onClick={() => { navigator.clipboard.writeText(curl); }}
+              className="text-[10px] text-[#2271b1] font-bold hover:underline uppercase"
+            >
+              Copy Blueprint
+            </button>
+          </div>
+          <pre className="p-4 bg-[#262c33] text-white text-xs font-mono rounded-sm whitespace-pre-wrap break-all leading-relaxed shadow-inner border border-black/20">
+            {curl}
+          </pre>
+        </div>
+
+        <div className="flex gap-3">
+          <button 
+            type="button"
+            onClick={() => onTest({ ...endpoint, b: currentPayload })}
+            disabled={loading}
+            className="flex-1 wp-button-primary py-3 flex items-center justify-center gap-2"
+          >
+            {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+            Execute Vector Test
+          </button>
+          <button type="button" onClick={onClose} className="px-8 wp-button-secondary font-bold uppercase tracking-widest">Close</button>
+        </div>
+
+        {result && (
+          <div className={`mt-4 p-4 rounded-sm border-l-4 ${result.success ? 'bg-[#edfaef] border-[#00a32a]' : 'bg-[#fcf0f1] border-[#d63638]'}`}>
+            <div className="flex items-center justify-between mb-3">
+              <span className={`text-xs font-black uppercase tracking-widest ${result.success ? 'text-[#00a32a]' : 'text-[#d63638]'}`}>Transmission Feedback [HTTP ${result.status}]</span>
+            </div>
+            <pre className="text-xs font-mono whitespace-pre-wrap break-all bg-white/50 p-3 rounded-sm border border-black/5 text-[#1d2327] max-h-60 overflow-y-auto custom-scrollbar">
+              {JSON.stringify(result.data, null, 2)}
+            </pre>
+          </div>
+        )}
+      </div>
+    </Modal>
+  );
+};
+
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { updateSiteName, siteName, logout } = useAuth();
@@ -78,7 +269,10 @@ const AdminDashboard = () => {
   const [testSuccess, setTestSuccess] = useState('');
   const [gatewayResponse, setGatewayResponse] = useState(null);
   const [isDebugExpanded, setIsDebugExpanded] = useState(false);
-  const [expandedEndpoint, setExpandedEndpoint] = useState(null);
+  const [activeEndpoint, setActiveEndpoint] = useState(null);
+  const [apiTestResult, setApiTestResult] = useState(null);
+  const [apiTestLoading, setApiTestLoading] = useState(false);
+
   // WhatsApp Management State
   const [newEntity, setNewEntity] = useState({ name: '', description: '', participants: '' });
   const [waActionLoading, setWaActionLoading] = useState(false);
@@ -122,9 +316,6 @@ const AdminDashboard = () => {
   // Auto-Responder State
   const [responders, setResponders] = useState([]);
   const [newResponder, setNewResponder] = useState({ keyword: '', response: '', match_type: 'EXACT' });
-  const [blacklist, setBlacklist] = useState([]);
-  const [interactions, setInteractions] = useState([]);
-  const [newBlacklist, setNewBlacklist] = useState({ phone_number: '', reason: '' });
 
   // Scheduled Messages State
   const [scheduledMessages, setScheduledMessages] = useState([]);
@@ -332,49 +523,6 @@ const AdminDashboard = () => {
     }
   };
 
-  const fetchBlacklist = async () => {
-    try {
-      const res = await api.get('/responders/blacklist');
-      setBlacklist(res.data || []);
-    } catch (err) {
-      console.error('Failed to fetch blacklist');
-    }
-  };
-
-  const fetchInteractions = async () => {
-    try {
-      const res = await api.get('/responders/interactions');
-      setInteractions(res.data || []);
-    } catch (err) {
-      console.error('Failed to fetch interactions');
-    }
-  };
-
-  const handleAddToBlacklist = async (e) => {
-    e.preventDefault();
-    setWaActionLoading(true);
-    try {
-      await api.post('/responders/blacklist', newBlacklist);
-      showFlash('Number blacklisted successfully');
-      setNewBlacklist({ phone_number: '', reason: '' });
-      fetchBlacklist();
-    } catch (err) {
-      showFlash('Failed to blacklist number', 'error');
-    } finally {
-      setWaActionLoading(false);
-    }
-  };
-
-  const handleRemoveFromBlacklist = async (phone) => {
-    try {
-      await api.delete(`/responders/blacklist/${phone}`);
-      showFlash('Number removed from blacklist');
-      fetchBlacklist();
-    } catch (err) {
-      showFlash('Failed to remove number', 'error');
-    }
-  };
-
   const fetchScheduledMessages = async () => {
     try {
       const data = await authService.getScheduledMessages();
@@ -427,8 +575,6 @@ const AdminDashboard = () => {
         fetchLandingContent(),
         fetchTemplates(),
         fetchResponders(),
-        fetchBlacklist(),
-        fetchInteractions(),
         fetchScheduledMessages(),
         fetchAuditLogs(),
         fetchPollResults()
@@ -943,6 +1089,39 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleTestEndpoint = async (apiTarget) => {
+    setApiTestLoading(true);
+    setApiTestResult(null);
+    try {
+      const config = {};
+      if (apiTarget.k) {
+        const apiKey = settings.find(s => s.key === 'api_key')?.value;
+        if (apiKey) config.headers = { 'x-api-key': apiKey };
+      }
+
+      let res;
+      const path = apiTarget.p.startsWith('/') ? apiTarget.p : `/${apiTarget.p}`;
+      
+      if (apiTarget.m === 'GET') {
+        res = await api.get(path, config);
+      } else if (apiTarget.m === 'POST') {
+        res = await api.post(path, JSON.parse(apiTarget.b || '{}'), config);
+      } else if (apiTarget.m === 'PUT') {
+        res = await api.put(path, JSON.parse(apiTarget.b || '{}'), config);
+      }
+
+      setApiTestResult({ status: res.status, data: res.data, success: true });
+    } catch (err) {
+      setApiTestResult({ 
+        status: err.response?.status || 'ERROR', 
+        data: err.response?.data || err.message,
+        success: false 
+      });
+    } finally {
+      setApiTestLoading(false);
+    }
+  };
+
   const handleSendTest = async (e) => {
     e.preventDefault();
     setTestLoading(true);
@@ -1131,7 +1310,7 @@ const AdminDashboard = () => {
                           <td className="px-4 py-4">
                             <div className="font-semibold text-[#2271b1] text-sm">{u.name || 'User'}</div>
                             <div className="text-xs text-[#646970]">{u.email}</div>
-                            <div className="text-xs font-mono text-[#a7aaad] mt-1">+{u.phone_number}</div>
+                            <div className="text-[9px] font-mono text-[#a7aaad] mt-1">+{u.phone_number}</div>
                           </td>
                           <td className="px-4 py-4">
                             <div className="flex flex-wrap gap-1">
@@ -1222,8 +1401,8 @@ const AdminDashboard = () => {
                                   <div className="min-w-0">
                                     <p className="text-xs font-bold text-[#1d2327] truncate">{m.name}</p>
                                     <div className="flex items-center gap-2">
-                                      <span className={`text-[10px] font-bold uppercase px-1 py-0.5 border ${m.role === 'ADMIN' ? 'bg-[#fcf9e8] text-[#dba617] border-[#dba617]' : 'bg-[#f6f7f7] text-[#646970] border-[#dcdcde]'}`}>{m.role}</span>
-                                      <span className="text-xs font-mono text-[#a7aaad]">+{m.phone_number}</span>
+                                      <span className={`text-[8px] font-bold uppercase px-1 py-0.5 border ${m.role === 'ADMIN' ? 'bg-[#fcf9e8] text-[#dba617] border-[#dba617]' : 'bg-[#f6f7f7] text-[#646970] border-[#dcdcde]'}`}>{m.role}</span>
+                                      <span className="text-[9px] font-mono text-[#a7aaad]">+{m.phone_number}</span>
                                     </div>
                                   </div>
                                 </div>
@@ -1391,7 +1570,7 @@ const AdminDashboard = () => {
                                           {chat?.iconUrl ? <img src={chat.iconUrl} className="w-10 h-10 object-cover rounded-sm" alt="" /> : <div className="w-10 h-10 bg-[#f6f7f7] text-[#a7aaad] border border-[#dcdcde] flex items-center justify-center font-bold">{chat?.name?.[0]}</div>}
                                           <div className="min-w-0">
                                              <p className="text-sm font-bold text-[#1d2327] truncate leading-none mb-1">{chat?.name}</p>
-                                             <p className="text-xs font-mono text-[#a7aaad] truncate">{chat?.id?._serialized}</p>
+                                             <p className="text-[9px] font-mono text-[#a7aaad] truncate">{chat?.id?._serialized}</p>
                                           </div>
                                        </div>
                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1417,7 +1596,7 @@ const AdminDashboard = () => {
                                           {chat?.iconUrl ? <img src={chat.iconUrl} className="w-10 h-10 object-cover rounded-sm" alt="" /> : <div className="w-10 h-10 bg-[#f6f7f7] text-[#a7aaad] border border-[#dcdcde] flex items-center justify-center font-bold">{chat?.name?.[0]}</div>}
                                           <div className="min-w-0">
                                              <p className="text-sm font-bold text-[#1d2327] truncate leading-none mb-1">{chat?.name}</p>
-                                             <p className="text-xs font-mono text-[#a7aaad] truncate">{chat?.id?._serialized}</p>
+                                             <p className="text-[9px] font-mono text-[#a7aaad] truncate">{chat?.id?._serialized}</p>
                                           </div>
                                        </div>
                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1460,7 +1639,7 @@ const AdminDashboard = () => {
                          <h4 className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Queued Targets ({selectedTargets.length})</h4>
                          <div className="flex flex-wrap gap-1">
                             {selectedTargets.map(t => (
-                              <span key={t.id} className="px-2 py-1 bg-[#1d2327] text-white text-xs font-bold flex items-center gap-2">
+                              <span key={t.id} className="px-2 py-1 bg-[#1d2327] text-white text-[9px] font-bold flex items-center gap-2">
                                 {t.name}
                                 <button onClick={() => setSelectedTargets(selectedTargets.filter(st => st.id !== t.id))}><X className="w-3 h-3" /></button>
                               </span>
@@ -1575,14 +1754,12 @@ const AdminDashboard = () => {
                 <div className="wp-card">
                    <div className="flex border-b border-[#dcdcde] bg-[#f6f7f7]">
                       <button onClick={() => setAutomationTab('responders')} className={`px-6 py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all ${automationTab === 'responders' ? 'border-[#2271b1] text-[#2271b1] bg-white' : 'border-transparent text-[#a7aaad] hover:text-[#1d2327]'}`}>Auto-Responders</button>
-                      <button onClick={() => setAutomationTab('blacklist')} className={`px-6 py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all ${automationTab === 'blacklist' ? 'border-[#2271b1] text-[#2271b1] bg-white' : 'border-transparent text-[#a7aaad] hover:text-[#1d2327]'}`}>Blacklist</button>
                       <button onClick={() => setAutomationTab('scheduled')} className={`px-6 py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all ${automationTab === 'scheduled' ? 'border-[#2271b1] text-[#2271b1] bg-white' : 'border-transparent text-[#a7aaad] hover:text-[#1d2327]'}`}>Scheduled Tasks</button>
                    </div>
                    <div className="p-4 flex justify-end">
-                      {automationTab === 'responders' && (
+                      {automationTab === 'responders' ? (
                         <button onClick={() => { setShowResponderForm(!showResponderForm); setEditingResponder(null); }} className="wp-button-primary">Initialize Responder</button>
-                      )}
-                      {automationTab === 'scheduled' && (
+                      ) : (
                         <button onClick={() => { setShowScheduledForm(!showScheduledForm); setEditingScheduled(null); }} className="wp-button-primary">Queue Task</button>
                       )}
                    </div>
@@ -1634,13 +1811,13 @@ const AdminDashboard = () => {
                                  <tr key={r.id} className="border-b border-[#f0f0f1] hover:bg-[#f6f7f7] transition-colors group">
                                     <td className="px-4 py-4">
                                        <div className="text-sm font-bold text-[#2271b1]">{r.keyword}</div>
-                                       <div className="text-xs font-bold text-[#a7aaad] uppercase mt-1">Mode: {r.match_type}</div>
+                                       <div className="text-[9px] font-bold text-[#a7aaad] uppercase mt-1">Mode: {r.match_type}</div>
                                     </td>
                                     <td className="px-4 py-4">
                                        <p className="text-xs text-[#3c434a] line-clamp-2 max-w-md leading-relaxed italic">"{r.response}"</p>
                                     </td>
                                     <td className="px-4 py-4">
-                                       <span className={`px-2 py-0.5 text-xs font-bold border ${r.is_active ? 'bg-[#edfaef] text-[#00a32a] border-[#00a32a]' : 'bg-[#f6f7f7] text-[#a7aaad] border-[#dcdcde]'}`}>{r.is_active ? 'ACTIVE' : 'OFFLINE'}</span>
+                                       <span className={`px-2 py-0.5 text-[9px] font-bold border ${r.is_active ? 'bg-[#edfaef] text-[#00a32a] border-[#00a32a]' : 'bg-[#f6f7f7] text-[#a7aaad] border-[#dcdcde]'}`}>{r.is_active ? 'ACTIVE' : 'OFFLINE'}</span>
                                     </td>
                                     <td className="px-4 py-4 text-right">
                                        <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1657,105 +1834,6 @@ const AdminDashboard = () => {
                    </div>
                 )}
 
-                {automationTab === 'blacklist' && (
-                  <div className="space-y-6">
-                    <div className="grid lg:grid-cols-3 gap-6">
-                      <div className="lg:col-span-1">
-                        <div className="wp-card">
-                          <div className="px-4 py-3 border-b border-[#dcdcde] bg-[#f6f7f7]">
-                            <h3 className="text-sm font-semibold">Add to Blacklist</h3>
-                          </div>
-                          <div className="p-4">
-                            <form onSubmit={handleAddToBlacklist} className="space-y-4">
-                              <div className="space-y-1">
-                                <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Phone Number</label>
-                                <input type="text" required className="w-full wp-input" placeholder="91XXXXXXXXXX" value={newBlacklist.phone_number} onChange={(e) => setNewBlacklist({...newBlacklist, phone_number: e.target.value})} />
-                              </div>
-                              <div className="space-y-1">
-                                <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Reason (Optional)</label>
-                                <textarea className="w-full wp-input resize-none" rows="2" placeholder="Spamming, manual, etc..." value={newBlacklist.reason} onChange={(e) => setNewBlacklist({...newBlacklist, reason: e.target.value})} />
-                              </div>
-                              <button type="submit" disabled={waActionLoading} className="w-full wp-button-primary">Add to Blacklist</button>
-                            </form>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="lg:col-span-2">
-                        <div className="wp-card">
-                          <div className="px-4 py-3 border-b border-[#dcdcde] bg-[#f6f7f7]">
-                            <h3 className="text-sm font-semibold">Active Blacklist</h3>
-                          </div>
-                          <div className="overflow-x-auto">
-                            <table className="wp-list-table w-full text-left border-collapse">
-                              <thead>
-                                <tr className="bg-[#f6f7f7] border-b border-[#dcdcde]">
-                                  <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">Phone</th>
-                                  <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">Reason</th>
-                                  <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">Type</th>
-                                  <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase text-right">Actions</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {blacklist.length === 0 ? (
-                                  <tr><td colSpan="4" className="px-4 py-8 text-center text-xs text-[#a7aaad] italic">No blacklisted numbers.</td></tr>
-                                ) : blacklist.map(item => (
-                                  <tr key={item.id} className="border-b border-[#f0f0f1] hover:bg-[#f6f7f7] transition-colors">
-                                    <td className="px-4 py-3 text-xs font-bold text-[#2271b1]">+{item.phone_number}</td>
-                                    <td className="px-4 py-3 text-xs text-[#646970]">{item.reason || 'No reason provided'}</td>
-                                    <td className="px-4 py-3">
-                                      {item.is_auto_blacklisted ? (
-                                        <span className="px-2 py-0.5 bg-[#fcf0f1] text-[#d63638] border border-[#d63638] text-xs font-bold uppercase rounded-sm">Auto</span>
-                                      ) : (
-                                        <span className="px-2 py-0.5 bg-[#f6f7f7] text-[#1d2327] border border-[#dcdcde] text-xs font-bold uppercase rounded-sm">Manual</span>
-                                      )}
-                                    </td>
-                                    <td className="px-4 py-3 text-right">
-                                      <button onClick={() => handleRemoveFromBlacklist(item.phone_number)} className="p-1.5 text-[#d63638] hover:underline" title="Remove"><Trash2 className="w-4 h-4" /></button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="wp-card">
-                      <div className="px-4 py-3 border-b border-[#dcdcde] bg-[#f6f7f7] flex items-center justify-between">
-                        <h3 className="text-sm font-semibold">AI Interaction Nodes</h3>
-                        <button onClick={fetchInteractions} className="p-1 text-[#2271b1] hover:rotate-180 transition-all duration-500"><RefreshCw className="w-4 h-4" /></button>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <table className="wp-list-table w-full text-left border-collapse">
-                          <thead>
-                            <tr className="bg-[#f6f7f7] border-b border-[#dcdcde]">
-                              <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">Phone</th>
-                              <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase text-center">Interactions</th>
-                              <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">Last Transmission</th>
-                              <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase text-right">Actions</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {interactions.length === 0 ? (
-                              <tr><td colSpan="4" className="px-4 py-8 text-center text-xs text-[#a7aaad] italic">No AI interactions logged.</td></tr>
-                            ) : interactions.map(item => (
-                              <tr key={item.phone_number} className="border-b border-[#f0f0f1] hover:bg-[#f6f7f7] transition-colors">
-                                <td className="px-4 py-3 text-xs font-bold text-[#2271b1]">+{item.phone_number}</td>
-                                <td className="px-4 py-3 text-xs font-bold text-center">{item.interaction_count}</td>
-                                <td className="px-4 py-3 text-xs text-[#646970]">{new Date(item.last_interaction).toLocaleString()}</td>
-                                <td className="px-4 py-3 text-right">
-                                  <button onClick={() => setNewBlacklist({...newBlacklist, phone_number: item.phone_number})} className="px-3 py-1 bg-[#1d2327] text-white text-[10px] font-bold uppercase tracking-widest rounded-sm">Mark for Blacklist</button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
                 {automationTab === 'scheduled' && (
                   <div className="space-y-6">
                     {showScheduledForm && (
@@ -1766,7 +1844,7 @@ const AdminDashboard = () => {
                                <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Target Groups</label>
                                <div className="p-2 border border-[#dcdcde] bg-[#f6f7f7] flex flex-wrap gap-1 min-h-[40px]">
                                   {newScheduled.targets.map(t => (
-                                    <span key={t.id} className="px-2 py-1 bg-[#1d2327] text-white text-xs font-bold flex items-center gap-2">
+                                    <span key={t.id} className="px-2 py-1 bg-[#1d2327] text-white text-[9px] font-bold flex items-center gap-2">
                                       {t.name}
                                       <button type="button" onClick={() => setNewScheduled({ ...newScheduled, targets: newScheduled.targets.filter(st => st.id !== t.id) })}><X className="w-3 h-3" /></button>
                                     </span>
@@ -1833,7 +1911,7 @@ const AdminDashboard = () => {
                                   <td className="px-4 py-4">
                                      <div className="flex -space-x-1">
                                         {m.targets.map((t, i) => (
-                                          <div key={i} className="w-6 h-6 bg-[#1d2327] text-white border border-white text-[10px] font-bold flex items-center justify-center uppercase" title={t.name}>{t.name?.[0] || 'T'}</div>
+                                          <div key={i} className="w-6 h-6 bg-[#1d2327] text-white border border-white text-[8px] font-bold flex items-center justify-center uppercase" title={t.name}>{t.name?.[0] || 'T'}</div>
                                         ))}
                                      </div>
                                   </td>
@@ -1880,13 +1958,13 @@ const AdminDashboard = () => {
                                 <td className="px-4 py-4 text-xs font-bold text-[#646970]">{new Date(log.sent_at).toLocaleString()}</td>
                                 <td className="px-4 py-4">
                                    <div className="text-xs font-bold text-[#2271b1]">+{log.phone_number}</div>
-                                   {log.user_name && <div className="text-xs font-bold text-[#a7aaad] uppercase tracking-tighter">{log.user_name}</div>}
+                                   {log.user_name && <div className="text-[9px] font-bold text-[#a7aaad] uppercase tracking-tighter">{log.user_name}</div>}
                                 </td>
                                 <td className="px-4 py-4">
                                    <p className="text-xs text-[#3c434a] max-w-xl truncate italic leading-relaxed">"{log.message}"</p>
                                 </td>
                                 <td className="px-4 py-4 text-right">
-                                   <span className={`px-2 py-0.5 text-xs font-bold uppercase tracking-tighter border ${log.status === 'SUCCESS' ? 'bg-[#edfaef] text-[#00a32a] border-[#00a32a]' : 'bg-[#fcf0f1] text-[#d63638] border-[#d63638]'}`}>{log.status}</span>
+                                   <span className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-tighter border ${log.status === 'SUCCESS' ? 'bg-[#edfaef] text-[#00a32a] border-[#00a32a]' : 'bg-[#fcf0f1] text-[#d63638] border-[#d63638]'}`}>{log.status}</span>
                                 </td>
                              </tr>
                            ))}
@@ -1994,9 +2072,10 @@ const AdminDashboard = () => {
               <div className="flex flex-col lg:flex-row gap-6 items-start">
                 <div className="wp-card flex-1 w-full lg:max-w-2xl">
                    <div className="flex border-b border-[#dcdcde] bg-[#f6f7f7]">
-                      {['general', 'ai', 'security'].map(t => (
+                      {['general', 'ai', 'security', 'otp'].map(t => (
                         <button key={t} onClick={() => setActiveSettingsTab(t)} className={`px-6 py-3 text-[10px] font-bold uppercase tracking-widest border-b-2 transition-all ${activeSettingsTab === t ? 'border-[#2271b1] text-[#2271b1] bg-white' : 'border-transparent text-[#a7aaad] hover:text-[#1d2327]'}`}>{t}</button>
-                      ))}                   </div>
+                      ))}
+                   </div>
                    <div className="p-8">
                       {activeSettingsTab === 'general' && (
                         <div className="space-y-6">
@@ -2089,51 +2168,22 @@ const AdminDashboard = () => {
                            </div>
                         </div>
                       )}
+                      
                       {activeSettingsTab === 'security' && (
                         <div className="space-y-6">
-                          <div className="space-y-4">
-                             <div className="space-y-1">
-                                <label className="text-[10px] font-bold text-[#a7aaad] uppercase">System API Access Key</label>
-                                <div className="flex gap-2">
-                                   <input type="text" className="flex-1 wp-input font-mono" value={settings.find(s => s.key === 'api_key')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'api_key' ? {...s, value: e.target.value} : s))} placeholder="Enter custom API key..." />
-                                   <button onClick={() => handleUpdateSetting('api_key', settings.find(s => s.key === 'api_key')?.value)} className="px-6 wp-button-primary">Save</button>
-                                </div>
-                                <p className="text-[10px] text-[#646970] italic">This key allows external systems to trigger broadcasts and interact with the WhatsApp engine via the <code>x-api-key</code> header.</p>
-                             </div>
+                           <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-[#a7aaad] uppercase">System API Access Key</label>
+                              <div className="flex gap-2">
+                                 <input type="text" className="flex-1 wp-input font-mono" value={settings.find(s => s.key === 'api_key')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'api_key' ? {...s, value: e.target.value} : s))} placeholder="Enter custom API key..." />
+                                 <button onClick={() => handleUpdateSetting('api_key', settings.find(s => s.key === 'api_key')?.value)} className="px-6 wp-button-primary">Save</button>
+                              </div>
+                              <p className="text-[10px] text-[#646970] italic">This key allows external systems to trigger broadcasts and interact with the WhatsApp engine via the <code>x-api-key</code> header.</p>
+                           </div>
+                        </div>
+                      )}
 
-                             <div className="p-4 bg-[#f6f7f7] border border-[#dcdcde] space-y-3">
-                                <h4 className="text-[10px] font-bold text-[#1d2327] uppercase tracking-widest border-b border-[#dcdcde] pb-2">API Documentation (cURL)</h4>
-
-                                <div className="space-y-2">
-                                   <p className="text-[10px] font-bold text-[#646970] uppercase">Check Status</p>
-                                   <pre className="p-2 bg-[#262c33] text-[#72aee6] text-xs overflow-x-auto rounded-sm">
-                                     {`curl -X GET "${window.location.origin}/api/whatsapp/status" \\\n  -H "x-api-key: ${settings.find(s => s.key === 'api_key')?.value || 'YOUR_KEY'}"`}
-                                   </pre>
-                                </div>
-
-                                <div className="space-y-2">
-                                   <p className="text-[10px] font-bold text-[#646970] uppercase">Send Broadcast</p>
-                                   <pre className="p-2 bg-[#262c33] text-[#72aee6] text-xs overflow-x-auto rounded-sm">
-                                     {`curl -X POST "${window.location.origin}/api/whatsapp/broadcast" \\\n  -H "x-api-key: ${settings.find(s => s.key === 'api_key')?.value || 'YOUR_KEY'}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"targets": [{"id": "91XXXXXXXXXX@c.us", "type": "individual"}], "message": "Hello from API"}'`}
-                                   </pre>
-                                </div>
-
-                                <div className="space-y-2">
-                                   <p className="text-[10px] font-bold text-[#646970] uppercase">Group Node Message</p>
-                                   <pre className="p-2 bg-[#262c33] text-[#72aee6] text-xs overflow-x-auto rounded-sm">
-                                     {`curl -X POST "${window.location.origin}/api/whatsapp/group/message" \\\n  -H "x-api-key: ${settings.find(s => s.key === 'api_key')?.value || 'YOUR_KEY'}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"groupId": "120363XXXXXXXXXXXX@g.us", "message": "Automated update to group"}'`}
-                                   </pre>
-                                </div>
-
-                                <div className="space-y-2">
-                                   <p className="text-[10px] font-bold text-[#646970] uppercase">Channel Post (Newsletter)</p>
-                                   <pre className="p-2 bg-[#262c33] text-[#72aee6] text-xs overflow-x-auto rounded-sm">
-                                     {`curl -X POST "${window.location.origin}/api/whatsapp/channel/post" \\\n  -H "x-api-key: ${settings.find(s => s.key === 'api_key')?.value || 'YOUR_KEY'}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"channelId": "120363XXXXXXXXXXXX@newsletter", "message": "New channel publication"}'`}
-                                   </pre>
-                                </div>
-                             </div>
-                          </div>
-
+                      {activeSettingsTab === 'otp' && (
+                        <div className="space-y-6">
                           <div className="p-6 bg-[#fcf9e8] border border-[#dba617]">
                              <h4 className="text-xs font-bold text-[#dba617] uppercase mb-4">Transmission Diagnostic</h4>
                              <form onSubmit={handleSendTest} className="flex gap-2">
@@ -2143,123 +2193,59 @@ const AdminDashboard = () => {
                           </div>
                           {testSuccess && <div className="p-3 bg-[#edfaef] text-[#00a32a] text-xs font-bold uppercase tracking-widest border-l-4 border-[#00a32a]">Acknowledge: OTP Delivered</div>}
                         </div>
-                      )}                   </div>
+                      )}
+                   </div>
                 </div>
 
                 {/* API ENDPOINT REFERENCE */}
                 <div className="wp-card flex-1 w-full lg:max-w-md h-[600px] flex flex-col">
                   <div className="p-4 border-b border-[#dcdcde] bg-[#f6f7f7]">
-                    <h3 className="text-sm font-bold text-[#1d2327] uppercase tracking-widest">API Vector Reference</h3>
-                    <p className="text-xs text-[#646970] mt-1 italic">Unified Endpoint Registry (Click to expand cURL)</p>
-                  </div>
-                  <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
+                    <h3 className="text-sm font-bold text-[#1d2327] uppercase tracking-widest">System API Reference</h3>
+                    <p className="text-[10px] text-[#646970] mt-1 font-bold italic uppercase tracking-tighter">Unified Vector Diagnostics</p>
+                  </div>                  <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
                     <section className="space-y-3">
                       <h4 className="text-xs font-bold text-[#2271b1] uppercase tracking-widest border-l-2 border-[#2271b1] pl-2">WhatsApp Engine</h4>
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         {[
-                          { m: 'GET', p: '/whatsapp/status', k: true, d: 'Check connection status' },
-                          { m: 'POST', p: '/whatsapp/broadcast', k: true, d: 'Send message to multiple targets', b: '{"targets": [{"id": "91XXXXXXXXXX@c.us", "type": "individual"}], "message": "Broadcast content", "mediaUrl": "https://example.com/img.jpg"}' },
-                          { m: 'POST', p: '/whatsapp/group/message', k: true, d: 'Direct message to a group node', b: '{"groupId": "120363XXXXXXXXXXXX@g.us", "message": "Group update", "mediaUrl": "https://example.com/file.pdf", "mediaType": "document"}' },
-                          { m: 'POST', p: '/whatsapp/channel/post', k: true, d: 'Publish to a channel newsletter', b: '{"channelId": "120363XXXXXXXXXXXX@newsletter", "message": "Channel publication"}' },
-                          { m: 'POST', p: '/whatsapp/poll', k: true, d: 'Deploy a native WhatsApp poll', b: '{"chatId": "91XXXXXXXXXX@c.us", "question": "Are you ready?", "options": ["Yes", "No"], "allowMultiple": false}' },
-                          { m: 'GET', p: '/whatsapp/chats', k: true, d: 'Retrieve all managed chats' },
-                          { m: 'POST', p: '/whatsapp/groups', k: true, d: 'Create a new group node', b: '{"name": "New Team", "participants": ["91XXXXXXXXXX"]}' },
-                          { m: 'POST', p: '/whatsapp/channels', k: true, d: 'Create a new channel newsletter', b: '{"name": "System News", "description": "Official updates"}' }
-                        ].map(api => (
-                          <div key={api.p} className="flex flex-col border-b border-[#f0f0f1] pb-1.5">
-                            <button 
-                              onClick={() => setExpandedEndpoint(expandedEndpoint === api.p ? null : api.p)}
-                              className="w-full flex flex-col items-start text-left hover:bg-[#f6f7f7] p-1 rounded-sm transition-colors"
-                            >
-                              <div className="w-full flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-sm ${api.m === 'GET' ? 'bg-[#edfaef] text-[#00a32a]' : 'bg-[#fcf0f1] text-[#d63638]'}`}>{api.m}</span>
-                                  <code className="text-xs font-mono text-[#1d2327] font-bold">{api.p}</code>
-                                </div>
-                                {api.k && <span className="text-[10px] font-bold text-[#dba617] uppercase tracking-tighter">Key Auth</span>}
-                              </div>
-                              <p className="text-xs text-[#646970] mt-1 font-medium">{api.d}</p>
-                            </button>
-                            {expandedEndpoint === api.p && (
-                              <div className="mt-2 p-3 bg-[#262c33] rounded-sm space-y-2">
-                                <p className="text-[10px] font-bold text-[#72aee6] uppercase">cURL Example</p>
-                                <pre className="text-xs text-white font-mono whitespace-pre-wrap break-all opacity-90 leading-relaxed">
-                                  {`curl -X ${api.m} "${window.location.origin}/api${api.p}" \\\n  -H "x-api-key: ${settings.find(s => s.key === 'api_key')?.value || 'YOUR_KEY'}" ${api.b ? `\\\n  -H "Content-Type: application/json" \\\n  -d '${api.b}'` : ''}`}
-                                </pre>
-                              </div>
-                            )}
-                          </div>
+                          { n: 'System Status', m: 'GET', p: '/whatsapp/status', k: true, d: 'Check connection status' },
+                          { n: 'Broadcast Node', m: 'POST', p: '/whatsapp/broadcast', k: true, d: 'Send message to multiple targets', b: '{"targets": [{"id": "91XXXXXXXXXX@c.us", "type": "individual"}], "message": "Broadcast content", "mediaUrl": "", "mediaType": "image"}' },
+                          { n: 'Group Node Message', m: 'POST', p: '/whatsapp/group/message', k: true, d: 'Direct message to a group node', b: '{"groupId": "120363XXXXXXXXXXXX@g.us", "message": "Group update", "mediaUrl": "", "mediaType": "image"}' },
+                          { n: 'Channel Publication', m: 'POST', p: '/whatsapp/channel/post', k: true, d: 'Publish to a channel newsletter', b: '{"channelId": "120363XXXXXXXXXXXX@newsletter", "message": "Channel publication", "mediaUrl": "", "mediaType": "image"}' },
+                          { n: 'Deploy Poll', m: 'POST', p: '/whatsapp/poll', k: true, d: 'Deploy a native WhatsApp poll', b: '{"chatId": "91XXXXXXXXXX@c.us", "question": "Are you ready?", "options": ["Yes", "No"], "allowMultiple": false}' },
+                          { n: 'Chat Registry', m: 'GET', p: '/whatsapp/chats', k: true, d: 'Retrieve all managed chats' },
+                          { n: 'Initialize Group', m: 'POST', p: '/whatsapp/groups', k: true, d: 'Create a new group node', b: '{"name": "New Team", "participants": ["91XXXXXXXXXX"]}' },
+                          { n: 'Initialize Channel', m: 'POST', p: '/whatsapp/channels', k: true, d: 'Create a new channel newsletter', b: '{"name": "System News", "description": "Official updates"}' }
+                        ].map(endpoint => (
+                          <APIEndpointEntry key={endpoint.p} endpoint={endpoint} onClick={setActiveEndpoint} />
                         ))}
                       </div>
                     </section>
 
                     <section className="space-y-3">
                       <h4 className="text-xs font-bold text-[#2271b1] uppercase tracking-widest border-l-2 border-[#2271b1] pl-2">Identity Hub</h4>
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         {[
-                          { m: 'POST', p: '/user/login', d: 'Authenticate and receive JWT token', b: '{"email": "admin@site.com", "password": "..."}' },
-                          { m: 'POST', p: '/user/register', d: 'Register a new identity node', b: '{"email": "...", "password": "...", "full_name": "...", "phone_number": "..."}' },
-                          { m: 'GET', p: '/user/profile', d: 'Get authenticated user data' },
-                          { m: 'GET', p: '/user/all', d: 'List all registered nodes (Admin)' }
-                        ].map(api => (
-                          <div key={api.p} className="flex flex-col border-b border-[#f0f0f1] pb-1.5">
-                            <button 
-                              onClick={() => setExpandedEndpoint(expandedEndpoint === api.p ? null : api.p)}
-                              className="w-full flex flex-col items-start text-left hover:bg-[#f6f7f7] p-1 rounded-sm transition-colors"
-                            >
-                              <div className="w-full flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-sm ${api.m === 'GET' ? 'bg-[#edfaef] text-[#00a32a]' : 'bg-[#fcf0f1] text-[#d63638]'}`}>{api.m}</span>
-                                  <code className="text-xs font-mono text-[#1d2327] font-bold">{api.p}</code>
-                                </div>
-                              </div>
-                              <p className="text-xs text-[#646970] mt-1 font-medium">{api.d}</p>
-                            </button>
-                            {expandedEndpoint === api.p && (
-                              <div className="mt-2 p-2 bg-[#262c33] rounded-sm space-y-2">
-                                <p className="text-[10px] font-bold text-[#72aee6] uppercase">cURL Example</p>
-                                <pre className="text-xs text-white font-mono whitespace-pre-wrap break-all opacity-90">
-                                  {`curl -X ${api.m} "${window.location.origin}/api${api.p}" \\\n  -H "Authorization: Bearer YOUR_JWT_TOKEN" ${api.b ? `\\\n  -H "Content-Type: application/json" \\\n  -d '${api.b}'` : ''}`}
-                                </pre>
-                              </div>
-                            )}
-                          </div>
+                          { n: 'Node Auth', m: 'POST', p: '/user/login', d: 'Authenticate and receive JWT token', b: '{"email": "admin@site.com", "password": "..."}' },
+                          { n: 'Node Registration', m: 'POST', p: '/user/register', d: 'Register a new identity node', b: '{"email": "...", "password": "...", "full_name": "...", "phone_number": "..."}' },
+                          { n: 'Node Profile', m: 'GET', p: '/user/profile', d: 'Get authenticated user data' },
+                          { n: 'Registry List', m: 'GET', p: '/user/all', d: 'List all registered nodes (Admin)' }
+                        ].map(endpoint => (
+                          <APIEndpointEntry key={endpoint.p} endpoint={endpoint} onClick={setActiveEndpoint} />
                         ))}
                       </div>
                     </section>
 
                     <section className="space-y-3">
                       <h4 className="text-xs font-bold text-[#2271b1] uppercase tracking-widest border-l-2 border-[#2271b1] pl-2">System Core</h4>
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         {[
-                          { m: 'GET', p: '/settings/all', d: 'Retrieve system parameters' },
-                          { m: 'PUT', p: '/settings/update', d: 'Modify system configuration', b: '{"key": "site_name", "value": "New Name"}' },
-                          { m: 'POST', p: '/upload', d: 'Vectorize static assets', b: '--form "file=@/path/to/asset.jpg"' }
-                        ].map(api => (
-                          <div key={api.p} className="flex flex-col border-b border-[#f0f0f1] pb-1.5">
-                            <button 
-                              onClick={() => setExpandedEndpoint(expandedEndpoint === api.p ? null : api.p)}
-                              className="w-full flex flex-col items-start text-left hover:bg-[#f6f7f7] p-1 rounded-sm transition-colors"
-                            >
-                              <div className="w-full flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-sm ${api.m === 'GET' ? 'bg-[#edfaef] text-[#00a32a]' : api.m === 'PUT' ? 'bg-[#f0f6fb] text-[#2271b1]' : 'bg-[#fcf0f1] text-[#d63638]'}`}>{api.m}</span>
-                                  <code className="text-xs font-mono text-[#1d2327] font-bold">{api.p}</code>
-                                </div>
-                              </div>
-                              <p className="text-xs text-[#646970] mt-1 font-medium">{api.d}</p>
-                            </button>
-                            {expandedEndpoint === api.p && (
-                              <div className="mt-2 p-2 bg-[#262c33] rounded-sm space-y-2">
-                                <p className="text-[10px] font-bold text-[#72aee6] uppercase">cURL Example</p>
-                                <pre className="text-xs text-white font-mono whitespace-pre-wrap break-all opacity-90">
-                                  {api.m === 'POST' && api.p === '/upload' 
-                                    ? `curl -X POST "${window.location.origin}/api/upload" \\\n  -H "Authorization: Bearer YOUR_JWT_TOKEN" \\\n  -F "file=@/path/to/image.jpg"`
-                                    : `curl -X ${api.m} "${window.location.origin}/api${api.p}" \\\n  -H "Authorization: Bearer YOUR_JWT_TOKEN" ${api.b ? `\\\n  -H "Content-Type: application/json" \\\n  -d '${api.b}'` : ''}`}
-                                </pre>
-                              </div>
-                            )}
-                          </div>
+                          { n: 'System Config', m: 'GET', p: '/settings/all', d: 'Retrieve system parameters' },
+                          { n: 'Node Update', m: 'PUT', p: '/settings/update', d: 'Modify system configuration', b: '{"key": "site_name", "value": "New Name"}' },
+                          { n: 'Vector Upload', m: 'POST', p: '/upload', d: 'Vectorize static assets', b: '--form "file=@/path/to/asset.jpg"' },
+                          { n: 'System Audit', m: 'GET', p: '/audit/messages', d: 'Fetch system transmission logs' },
+                          { n: 'CMS Content', m: 'GET', p: '/cms/landing', d: 'Fetch landing page content' }
+                        ].map(endpoint => (
+                          <APIEndpointEntry key={endpoint.p} endpoint={endpoint} onClick={setActiveEndpoint} />
                         ))}
                       </div>
                     </section>
@@ -2352,7 +2338,7 @@ const AdminDashboard = () => {
           </button>
           {isDebugExpanded && (
             <div className="p-3 bg-black/50 border-t border-[#2c3338] max-h-60 overflow-y-auto custom-scrollbar">
-               <pre className="text-xs font-mono text-[#edfaef] whitespace-pre-wrap">{JSON.stringify(gatewayResponse.data, null, 2)}</pre>
+               <pre className="text-[9px] font-mono text-[#edfaef] whitespace-pre-wrap">{JSON.stringify(gatewayResponse.data, null, 2)}</pre>
             </div>
           )}
         </div>
@@ -2437,7 +2423,7 @@ const AdminDashboard = () => {
                   <div key={req.id._serialized} className="p-3 bg-[#fcf9e8] border border-[#dba617] flex items-center justify-between">
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-[#1d2327] truncate">{req.name || req.id.user}</p>
-                      <p className="text-xs font-mono text-[#646970]">+{req.id.user}</p>
+                      <p className="text-[9px] font-mono text-[#646970]">+{req.id.user}</p>
                     </div>
                     <div className="flex gap-1">
                       <button onClick={() => handleApproveJoin(req.id._serialized)} className="p-1 bg-[#00a32a] text-white rounded-sm hover:bg-[#008a20]"><Check className="w-3.5 h-3.5" /></button>
@@ -2472,12 +2458,12 @@ const AdminDashboard = () => {
                             <p className="text-xs font-bold text-[#1d2327]">
                               {p.name}
                               {p.pushname && p.pushname !== p.name && (
-                                <span className="ml-2 text-xs font-normal text-[#646970]">(@{p.pushname})</span>
+                                <span className="ml-2 text-[9px] font-normal text-[#646970]">(@{p.pushname})</span>
                               )}
                             </p>
                             <div className="flex items-center gap-2">
-                              <span className={`text-[10px] font-bold uppercase px-1 py-0.5 border ${p.isAdmin ? 'bg-[#fcf9e8] text-[#dba617] border-[#dba617]' : 'bg-[#f6f7f7] text-[#646970] border-[#dcdcde]'}`}>{p.isAdmin ? 'Admin' : 'Participant'}</span>
-                              <span className="text-xs font-mono text-[#a7aaad]">+{p.phoneNumber || p.id.user}</span>
+                              <span className={`text-[8px] font-bold uppercase px-1 py-0.5 border ${p.isAdmin ? 'bg-[#fcf9e8] text-[#dba617] border-[#dba617]' : 'bg-[#f6f7f7] text-[#646970] border-[#dcdcde]'}`}>{p.isAdmin ? 'Admin' : 'Participant'}</span>
+                              <span className="text-[9px] font-mono text-[#a7aaad]">+{p.phoneNumber || p.id.user}</span>
                             </div>
                           </div>
                         </div>
@@ -2485,11 +2471,11 @@ const AdminDashboard = () => {
                       <td className="px-4 py-3 text-right">
                         <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                           {p.isAdmin ? (
-                            <button onClick={() => handleDemoteAdmin(p.id._serialized)} className="px-2 py-1 bg-[#f0f0f1] text-[#1d2327] border border-[#dcdcde] text-xs font-bold uppercase hover:bg-[#dcdcde]" title="Demote">Demote</button>
+                            <button onClick={() => handleDemoteAdmin(p.id._serialized)} className="px-2 py-1 bg-[#f0f0f1] text-[#1d2327] border border-[#dcdcde] text-[9px] font-bold uppercase hover:bg-[#dcdcde]" title="Demote">Demote</button>
                           ) : (
-                            <button onClick={() => handlePromoteAdmin(p.id._serialized)} className="px-2 py-1 bg-[#2271b1] text-white border border-[#135e96] text-xs font-bold uppercase hover:bg-[#135e96]" title="Promote">Promote</button>
+                            <button onClick={() => handlePromoteAdmin(p.id._serialized)} className="px-2 py-1 bg-[#2271b1] text-white border border-[#135e96] text-[9px] font-bold uppercase hover:bg-[#135e96]" title="Promote">Promote</button>
                           )}
-                          <button onClick={() => handleRemoveParticipant(p.id._serialized)} className="px-2 py-1 bg-white text-[#d63638] border border-[#d63638] text-xs font-bold uppercase hover:bg-[#fcf0f1]" title="Remove">Expel</button>
+                          <button onClick={() => handleRemoveParticipant(p.id._serialized)} className="px-2 py-1 bg-white text-[#d63638] border border-[#d63638] text-[9px] font-bold uppercase hover:bg-[#fcf0f1]" title="Remove">Expel</button>
                         </div>
                       </td>
                     </tr>
@@ -2501,6 +2487,15 @@ const AdminDashboard = () => {
         </div>
       </Modal>
 
+      <APIEndpointModal 
+        isOpen={!!activeEndpoint} 
+        endpoint={activeEndpoint} 
+        onClose={() => { setActiveEndpoint(null); setApiTestResult(null); }}
+        onTest={handleTestEndpoint}
+        loading={apiTestLoading}
+        result={apiTestResult}
+        settings={settings}
+      />
     </div>
   );
 };
