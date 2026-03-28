@@ -6,7 +6,7 @@
 
 set -e
 
-VERSION="1.5.2"
+VERSION="1.6.0"
 ROOT_DIR="/home/ubuntu/AppStack"
 PROD_DIR="$ROOT_DIR/production"
 RELEASE_DIR="$ROOT_DIR/releases"
@@ -14,7 +14,7 @@ RELEASE_FILE="$RELEASE_DIR/release-v$VERSION.tar.gz"
 
 mkdir -p "$RELEASE_DIR"
 
-echo "🚀 Starting AppStack Repackaging & Deployment (Alpha v$VERSION)..."
+echo "🚀 Starting AppStack Repackaging & Deployment (Beta v$VERSION)..."
 
 # 1. Prepare Frontend
 echo "📦 Building Frontend..."

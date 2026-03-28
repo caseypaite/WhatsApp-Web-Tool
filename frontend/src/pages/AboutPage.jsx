@@ -6,8 +6,11 @@ import { useAuth } from '../context/AuthContext';
 const AboutPage = () => {
   const { siteName } = useAuth();
   const navigate = useNavigate();
-  const version = "1.5.2";
+  const version = "1.6.0";
   const versionHistory = [
+    { tag: "v1.6.0", message: "Official Beta transition with secure cookie auth and modular UI", date: "2026-03-28" },
+    { tag: "v1.5.5", message: "Interactive API diagnostics and external media support", date: "2026-03-28" },
+    { tag: "v1.5.4", message: "Production recovery and sidebar restoration", date: "2026-03-28" },
     { tag: "v1.5.2", message: "Production synchronization and version alignment", date: "2026-03-27" },
     { tag: "v1.5.1", message: "Maintenance release and security patches", date: "2026-03-26" },
     { tag: "v1.5.0", message: "Enterprise UI overhaul with WordPress-Admin theme and unified poll access", date: "2026-03-25" },

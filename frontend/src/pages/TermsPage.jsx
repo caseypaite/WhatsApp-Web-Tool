@@ -25,7 +25,7 @@ const TermsPage = () => {
             </div>
             <div>
               <h1 className="text-3xl font-black uppercase tracking-tighter text-[#1d2327]">Terms of Service</h1>
-              <p className="text-xs font-bold text-[#a7aaad] uppercase tracking-widest mt-1">Operational Protocol v1.5.5</p>
+              <p className="text-xs font-bold text-[#a7aaad] uppercase tracking-widest mt-1">Operational Protocol v1.6.0</p>
             </div>
           </div>
 
