@@ -1,7 +1,7 @@
 # Common base for release downloading
 FROM node:20-slim as release-fetcher
 
-RUN apt-get update && apt-get install -y curl jq tar --no-install-recommends \
+RUN apt-get update && apt-get install -y curl jq tar ca-certificates --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /tmp
