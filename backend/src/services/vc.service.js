@@ -1,3 +1,5 @@
+const settingsService = require('./settings.service');
+
 /**
  * Service for managing Verifiable Credentials (VC) in W3C format.
  */

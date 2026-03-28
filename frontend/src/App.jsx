@@ -10,6 +10,8 @@ import VerifyPage from './pages/VerifyPage.jsx';
 import PollVotingPage from './pages/PollVotingPage.jsx';
 import PollEditPage from './pages/PollEditPage.jsx';
 import AboutPage from './pages/AboutPage.jsx';
+import TermsPage from './pages/TermsPage.jsx';
+import PrivacyPage from './pages/PrivacyPage.jsx';
 import { AuthProvider, useAuth } from './context/AuthContext.jsx';
 import './index.css';
 
@@ -48,6 +50,8 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
         <Route path="/about" element={<AboutPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/admin" element={
           <ProtectedRoute roles={['Admin']}>
             <AdminDashboard />

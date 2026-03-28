@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import authService from '../services/auth.service';
+import DOMPurify from 'dompurify';
 import { ArrowRight, Shield, Zap, Layout as LayoutIcon, Cpu, User, BarChart2, Globe, MessageSquare, ShieldCheck, Activity } from 'lucide-react';
 
 const LandingPage = () => {
@@ -39,6 +40,35 @@ const LandingPage = () => {
     fetchHeroContent();
     fetchPolls();
   }, []);
+
+  const injectVariables = (html) => {
+    if (!html) return '';
+    let result = html;
+    
+    // Escape helper to prevent XSS through settings
+    const escapeHtml = (unsafe) => {
+      if (typeof unsafe !== 'string') return unsafe;
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    };
+
+    const vars = {
+      site_name: escapeHtml(siteName || 'AppStack'),
+      website_domain: escapeHtml(window.location.origin),
+      hero_text: escapeHtml(content.hero_text),
+      cta_text: escapeHtml(content.cta_text)
+    };
+
+    Object.entries(vars).forEach(([key, val]) => {
+      const regex = new RegExp(`{{${key}}}`, 'g');
+      result = result.replace(regex, val);
+    });
+    return result;
+  };
 
   return (
     <div className="min-h-screen bg-white font-sans text-[#3c434a]">
@@ -125,6 +155,18 @@ const LandingPage = () => {
           </div>
         </div>
       </section>
+
+      {/* Dynamic HTML Content Injection */}
+      {content.html_content && (
+        <section className="py-20 border-b border-[#dcdcde]">
+          <div className="container px-6 mx-auto">
+            <div 
+              className="prose prose-slate max-w-none"
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(injectVariables(content.html_content)) }} 
+            />
+          </div>
+        </section>
+      )}
 
       {/* Analytics / Stats Banner */}
       <section className="bg-[#f6f7f7] border-b border-[#dcdcde] py-12">
@@ -236,8 +278,9 @@ const LandingPage = () => {
           </div>
           <div className="flex gap-8">
             <button onClick={() => navigate('/about')} className="text-[10px] font-bold uppercase tracking-widest text-[#646970] hover:text-[#2271b1] transition-colors">Intelligence</button>
+            <button onClick={() => navigate('/terms')} className="text-[10px] font-bold uppercase tracking-widest text-[#646970] hover:text-[#2271b1] transition-colors">Terms</button>
+            <button onClick={() => navigate('/privacy')} className="text-[10px] font-bold uppercase tracking-widest text-[#646970] hover:text-[#2271b1] transition-colors">Privacy</button>
             <button onClick={() => navigate('/login')} className="text-[10px] font-bold uppercase tracking-widest text-[#646970] hover:text-[#2271b1] transition-colors">Node Access</button>
-            <button className="text-[10px] font-bold uppercase tracking-widest text-[#646970] hover:text-[#2271b1] transition-colors">Protocol Specs</button>
           </div>
           <p className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-[0.2em]">© 2026 Identity Propagation Lab</p>
         </div>

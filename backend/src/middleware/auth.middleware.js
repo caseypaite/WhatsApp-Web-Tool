@@ -32,8 +32,8 @@ const authenticate = async (req, res, next) => {
   const providedSecret = req.headers['x-simple-auth'];
   const providedApiKey = req.headers['x-api-key'];
 
-  // 1. Simple Auth (Development/Legacy)
-  if (providedSecret && providedSecret === adminSecret) {
+  // 1. Simple Auth (Development Only)
+  if (process.env.NODE_ENV !== 'production' && providedSecret && providedSecret === adminSecret) {
     req.user = { id: 0, email: 'admin@simpleauth.local', roles: ['Admin'] };
     req.auth = { payload: { sub: 0, email: 'admin@simpleauth.local', roles: ['Admin'] } };
     return next();
@@ -49,15 +49,17 @@ const authenticate = async (req, res, next) => {
     }
     return res.status(401).json({ error: 'Unauthorized', message: 'Invalid API Key' });
   }
+// 3. JWT Auth
+const authHeader = req.headers['authorization'];
+const cookieToken = req.cookies?.token;
 
-  const authHeader = req.headers.authorization;
-  if (!authHeader) {
-    return res.status(401).json({ error: 'Unauthorized', message: 'Authorization header missing' });
-  }
+if (!authHeader && !cookieToken) {
+  return res.status(401).json({ error: 'Unauthorized', message: 'Authentication required' });
+}
 
-  const token = authHeader.split(' ')[1];
-  try {
-    const jwtSecret = await settingsService.get('jwt_secret') || process.env.JWT_SECRET;
+const token = cookieToken || authHeader.split(' ')[1];
+try {
+    const jwtSecret = await settingsService.get('jwt_secret');
     if (!jwtSecret) {
       console.error('[AUTH] CRITICAL: JWT_SECRET not configured.');
       return res.status(500).json({ error: 'Internal Server Error', message: 'Auth security failure' });

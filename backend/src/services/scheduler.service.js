@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const whatsappService = require('./whatsapp.service');
 const reportService = require('../utils/report.service');
+const settingsService = require('./settings.service');
 
 class SchedulerService {
   constructor() {
@@ -14,8 +15,25 @@ class SchedulerService {
     // Check every minute for scheduled messages
     this.interval = setInterval(() => this.processPendingMessages(), 60000);
     
-    // Check every hour for heartbeat (sends once a day at 9 AM)
+    // Check every hour for heartbeat
     this.heartbeatInterval = setInterval(() => this.checkHeartbeat(), 3600000);
+
+    // Run cleanup once a day at 3 AM
+    this.cleanupInterval = setInterval(() => this.checkCleanup(), 3600000);
+  }
+
+  async checkCleanup() {
+    const now = new Date();
+    if (now.getHours() === 3) {
+      console.log('[SCHEDULER] Running log cleanup protocol...');
+      try {
+        const historyRes = await db.query("DELETE FROM message_history WHERE created_at < NOW() - INTERVAL '30 days'");
+        const aiRes = await db.query("DELETE FROM ai_interaction_logs WHERE created_at < NOW() - INTERVAL '30 days'");
+        console.log(`[SCHEDULER] Cleanup finished. History purged: ${historyRes.rowCount}, AI Logs purged: ${aiRes.rowCount}`);
+      } catch (err) {
+        console.error('[SCHEDULER] Cleanup error:', err.message);
+      }
+    }
   }
 
   async processPendingMessages() {
@@ -74,10 +92,15 @@ class SchedulerService {
 
   async checkHeartbeat() {
     const now = new Date();
-    // Send at 9:00 AM daily
+    // Only send at 9:00 AM hour
     if (now.getHours() === 9) {
-      console.log('[SCHEDULER] Generating daily heartbeat...');
       try {
+        const todayStr = now.toISOString().split('T')[0];
+        const lastSent = await settingsService.get('last_heartbeat_sent');
+        
+        if (lastSent === todayStr) return; // Already transmitted today
+
+        console.log('[SCHEDULER] Generating daily heartbeat...');
         const stats = await reportService.getSystemHeartbeat();
         if (!stats) return;
 
@@ -101,6 +124,7 @@ class SchedulerService {
                           `Status: OPERATIONAL`;
           
           await whatsappService.sendMessage(adminPhone, message);
+          await settingsService.set('last_heartbeat_sent', todayStr);
         }
       } catch (err) {
         console.error('[SCHEDULER] Heartbeat error:', err.message);

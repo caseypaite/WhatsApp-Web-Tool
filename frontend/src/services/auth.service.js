@@ -2,8 +2,7 @@ import api from './api';
 
 const login = async (email, password) => {
   const response = await api.post('/user/login', { email, password });
-  if (response.data.token) {
-    localStorage.setItem('token', response.data.token);
+  if (response.data.user) {
     localStorage.setItem('user', JSON.stringify(response.data.user));
   }
   return response.data;
@@ -16,8 +15,7 @@ const loginWithPhoneRequest = async (phone_number) => {
 
 const loginWithPhoneVerify = async (phone_number, otp) => {
   const response = await api.post('/user/login-phone-verify', { phone_number, otp });
-  if (response.data.token) {
-    localStorage.setItem('token', response.data.token);
+  if (response.data.user) {
     localStorage.setItem('user', JSON.stringify(response.data.user));
   }
   return response.data;
@@ -40,12 +38,21 @@ const register = async (userData) => {
 
 const verifyRegistration = async (userId, otp) => {
   const response = await api.post('/user/verify-registration', { userId, otp });
+  if (response.data.user) {
+    localStorage.setItem('user', JSON.stringify(response.data.user));
+  }
   return response.data;
 };
 
-const logout = () => {
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
+const logout = async () => {
+  try {
+    await api.post('/user/logout');
+  } catch (err) {
+    console.error('Logout error:', err);
+  } finally {
+    localStorage.removeItem('token'); // Cleanup legacy tokens
+    localStorage.removeItem('user');
+  }
 };
 
 const getCurrentUser = () => {

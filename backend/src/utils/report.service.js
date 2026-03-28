@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const fs = require('fs');
 const path = require('path');
+const settingsService = require('../services/settings.service');
 
 /**
  * Service to generate system reports (CSV/JSON).
@@ -27,10 +28,14 @@ class ReportService {
 
       fs.writeFileSync(filePath, csv);
       
+      const domain = await settingsService.get('website_domain') || process.env.WEBSITE_DOMAIN || 'localhost:3085';
+      const protocol = domain.includes('localhost') ? 'http' : 'https';
+      const baseUrl = domain.startsWith('http') ? domain : `${protocol}://${domain}`;
+
       return {
         filename,
         filePath,
-        url: `${process.env.WEBSITE_DOMAIN || 'localhost:3085'}/uploads/${filename}`
+        url: `${baseUrl}/uploads/${filename}`
       };
     } catch (err) {
       console.error('[REPORT] Error generating poll report:', err.message);

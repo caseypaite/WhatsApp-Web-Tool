@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const settingsService = require('./settings.service');
+const crypto = require('crypto');
 
 /**
  * Service to handle OTP (One Time Password) lifecycle.
@@ -21,7 +22,7 @@ class OtpService {
 
     const expMinutes = parseInt(await settingsService.get('otp_expiration_minutes')) || 5;
     const expiresAt = new Date(Date.now() + expMinutes * 60 * 1000);
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const code = crypto.randomInt(100000, 999999).toString();
 
     try {
       // Mark previous PENDING OTPs as EXPIRED for this phone or user

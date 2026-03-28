@@ -16,6 +16,7 @@ router.post('/login-phone-verify', (req, res) => userController.loginWithPhoneVe
 router.post('/forgot-password-request', (req, res) => userController.forgotPasswordRequest(req, res));
 router.post('/forgot-password-reset', (req, res) => userController.forgotPasswordReset(req, res));
 router.post('/login', (req, res) => userController.login(req, res));
+router.post('/logout', (req, res) => userController.logout(req, res));
 
 /**
  * Protected Routes

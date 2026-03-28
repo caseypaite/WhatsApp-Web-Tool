@@ -2,6 +2,12 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const compression = require('compression');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+const cookieParser = require('cookie-parser');
+
 const cmsRoutes = require('./routes/cms.routes');
 const userRoutes = require('./routes/user.routes');
 const settingsRoutes = require('./routes/settings.routes');
@@ -11,15 +17,36 @@ const responderRoutes = require('./routes/responder.routes');
 const scheduledRoutes = require('./routes/scheduled.routes');
 const auditRoutes = require('./routes/audit.routes');
 const pollRoutes = require('./routes/poll.routes');
+
 const whatsappService = require('./services/whatsapp.service');
 const schedulerService = require('./services/scheduler.service');
-const multer = require('multer');
-const path = require('path');
+
+const rateLimit = require('express-rate-limit');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Security Middleware
+app.set('trust proxy', 1);
 app.use(compression());
+app.use(cookieParser());
+
+// Basic IP-based Rate Limiter (Protects against automated brute-force)
+const globalApiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300, // Limit each IP to 300 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'High traffic detected node-side. Access restricted for 15 minutes.' }
+});
+
+app.use('/api', globalApiLimiter);
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
 
 // Multer Setup for file uploads
 const storage = multer.diskStorage({
@@ -27,31 +54,44 @@ const storage = multer.diskStorage({
     cb(null, path.join(__dirname, '../uploads/'));
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const uniqueSuffix = crypto.randomBytes(16).toString('hex');
     cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
   }
 });
-const upload = multer({ storage: storage });
+
+const upload = multer({ 
+  storage: storage,
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+      'video/mp4', 'audio/mpeg', 'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword', 'text/plain'
+    ];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Unsafe file type rejected. Allowed: Images, Videos, Audio, PDF, Docs, Text.'));
+    }
+  },
+  limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+});
 
 // Initialize WhatsApp
 whatsappService.initialize();
 // Start Scheduler
 schedulerService.start();
 
-// Middleware
+// CORS Middleware
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',') 
   : [];
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow if no origin (like mobile apps or curl) or if origin is in the allowed list
-    // In development, if no ALLOWED_ORIGINS is set, allow all
     if (!origin || allowedOrigins.includes(origin) || (process.env.NODE_ENV === 'development' && allowedOrigins.length === 0)) {
       callback(null, true);
     } else {
-      console.warn(`[CORS] Rejected origin: ${origin}`);
-      // Instead of failing, let's allow it but log it if in dev
       if (process.env.NODE_ENV === 'development') {
         callback(null, true);
       } else {
@@ -63,12 +103,21 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'x-simple-auth', 'x-api-key'],
   credentials: true
 }));
+
 app.use(express.json());
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// Hardened static serving for uploads (Disable script execution)
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'self';");
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  next();
+}, express.static(path.join(__dirname, '../uploads')));
 
 // Request Logging
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  if (req.url.startsWith('/api')) {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  }
   next();
 });
 
@@ -111,31 +160,16 @@ app.get('/health', (req, res) => {
   res.json({ status: 'up' });
 });
 
-// Mock Registration route to trigger OTP (Demonstration)
-app.post('/api/register', async (req, res) => {
-  const { userId, phoneNumber } = req.body;
-  const otpService = require('./services/otp.service');
-  
-  try {
-    await otpService.generateAndSendOtp(userId, phoneNumber, 'registration');
-    res.json({ message: 'User registered and OTP sent.' });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // 404 Handler for API
 app.use('/api', (req, res) => {
-  console.log(`[404] Unhandled API request: ${req.method} ${req.url}`);
   res.status(404).json({ error: 'Not Found', url: req.url });
 });
 
 // Serve static frontend files from the 'frontend' directory
-// In production, the 'frontend' folder contains the built assets
 const frontendPath = path.join(__dirname, '../../frontend');
 app.use(express.static(frontendPath));
 
-// Handle SPAs - any route that doesn't match an API route or a static file should return index.html
+// Handle SPAs
 app.get(/^(?!\/api).*/, (req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'), (err) => {
     if (err) {

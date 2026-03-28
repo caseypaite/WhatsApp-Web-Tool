@@ -6,6 +6,8 @@ const aiService = require('../utils/ai.service');
 const reportService = require('../utils/report.service');
 const path = require('path');
 const fs = require('fs');
+const { Address4, Address6 } = require('ip-address');
+const dns = require('dns').promises;
 
 class WhatsappService {
   constructor() {
@@ -15,6 +17,36 @@ class WhatsappService {
     this.status = 'DISCONNECTED';
     this.isReady = false;
     this.me = null;
+  }
+
+  async validateUrl(urlStr) {
+    try {
+      const url = new URL(urlStr);
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+      
+      const lookup = await dns.lookup(url.hostname);
+      const ip = lookup.address;
+
+      const isPrivate = (addr) => {
+        try {
+          if (addr.includes(':')) {
+            const v6 = new Address6(addr);
+            return v6.getScope() !== 'Global';
+          } else {
+            const v4 = new Address4(addr);
+            const octets = v4.toArray();
+            if (octets[0] === 10) return true;
+            if (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31) return true;
+            if (octets[0] === 192 && octets[1] === 168) return true;
+            if (octets[0] === 127) return true;
+            if (octets[0] === 169 && octets[1] === 254) return true;
+            return false;
+          }
+        } catch (e) { return true; }
+      };
+
+      return !isPrivate(ip);
+    } catch (e) { return false; }
   }
 
   getBrowserPath() {
@@ -636,6 +668,10 @@ class WhatsappService {
     try {
       let result;
       if (mediaOptions && mediaOptions.url) {
+        // SSRF VALIDATION
+        const isUrlSafe = await this.validateUrl(mediaOptions.url);
+        if (!isUrlSafe) throw new Error('Security Error: Potential SSRF attempt blocked.');
+
         const media = await MessageMedia.fromUrl(mediaOptions.url, { unsafeMime: true });
         result = await this.client.sendMessage(finalJid, media, { caption: formattedMessage, sendMediaAsDocument: mediaOptions.type === 'document' });
       } else {

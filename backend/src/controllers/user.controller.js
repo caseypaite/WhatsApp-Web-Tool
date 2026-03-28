@@ -4,13 +4,7 @@ const jwt = require('jsonwebtoken');
 const otpService = require('../services/otp.service');
 const settingsService = require('../services/settings.service');
 const { validatePassword } = require('../utils/validators');
-
-const normalizePhone = (phone) => {
-  if (!phone) return phone;
-  const cleaned = phone.replace(/\D/g, '');
-  if (cleaned.length === 10) return '91' + cleaned;
-  return cleaned;
-};
+const { normalizePhone } = require('../utils/core.utils');
 
 const getDbUserId = (req) => {
   return req.user?.id || null;
@@ -74,11 +68,30 @@ const userController = {
     try {
       const isValid = await otpService.verifyOtp(userId, otp);
       if (!isValid) return res.status(400).json({ error: 'Invalid OTP.' });
-      await db.query("UPDATE users SET status = 'PENDING_APPROVAL' WHERE id = $1", [userId]);
-      res.json({ message: 'Verified.' });
+      
+      const userRes = await db.query("UPDATE users SET status = 'PENDING_APPROVAL' WHERE id = $1 RETURNING id, email, status", [userId]);
+      const user = userRes.rows[0];
+      
+      const jwtSecret = await settingsService.get('jwt_secret');
+      if (jwtSecret) {
+        const token = jwt.sign({ sub: user.id, email: user.email, roles: ['User'] }, jwtSecret, { expiresIn: '24h' });
+        res.cookie('token', token, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: 'lax',
+          maxAge: 24 * 60 * 60 * 1000
+        });
+      }
+
+      res.json({ message: 'Verified.', user });
     } catch (error) {
       res.status(500).json({ error: 'Error' });
     }
+  },
+
+  logout: async (req, res) => {
+    res.clearCookie('token');
+    res.json({ message: 'Logged out successfully' });
   },
 
   login: async (req, res) => {
@@ -90,9 +103,18 @@ const userController = {
       if (user.status !== 'ACTIVE') return res.status(403).json({ error: 'Account not active', status: user.status, userId: user.id });
       const isMatch = await bcrypt.compare(password, user.password);
       if (!isMatch) return res.status(401).json({ error: 'Invalid credentials.' });
-      const jwtSecret = await settingsService.get('jwt_secret') || process.env.JWT_SECRET;
+      const jwtSecret = await settingsService.get('jwt_secret');
       if (!jwtSecret) throw new Error('JWT_SECRET not configured');
       const token = jwt.sign({ sub: user.id, email: user.email, roles: user.roles }, jwtSecret, { expiresIn: '24h' });
+      
+      // Set secure cookie
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      });
+
       delete user.password;
       res.json({ token, user });
     } catch (error) {
@@ -189,9 +211,18 @@ const userController = {
       if (user.status !== 'ACTIVE') return res.status(403).json({ error: 'Account not active', status: user.status, userId: user.id });
       const isValid = await otpService.verifyOtp(user.id, otp);
       if (!isValid) return res.status(400).json({ error: 'Invalid OTP.' });
-      const jwtSecret = await settingsService.get('jwt_secret') || process.env.JWT_SECRET;
+      const jwtSecret = await settingsService.get('jwt_secret');
       if (!jwtSecret) throw new Error('JWT_SECRET not configured');
       const token = jwt.sign({ sub: user.id, email: user.email, roles: user.roles }, jwtSecret, { expiresIn: '24h' });
+      
+      // Set secure cookie
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+      });
+
       delete user.password;
       res.json({ token, user });
     } catch (error) {

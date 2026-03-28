@@ -12,16 +12,22 @@ class SettingsService {
     if (this.cache[key]) return this.cache[key];
     try {
       const res = await db.query('SELECT value FROM system_settings WHERE key = $1', [key]);
-      if (res.rows.length > 0) {
+      if (res.rows.length > 0 && res.rows[0].value) {
         this.cache[key] = res.rows[0].value;
         return res.rows[0].value;
       }
-      // Fallback to process.env
+      
+      // Critical Key Fallbacks
+      if (key === 'jwt_secret') return process.env.JWT_SECRET;
+      if (key === 'simple_auth_password') return process.env.SIMPLE_AUTH_PASSWORD;
+
+      // Generic Fallback to process.env
       const val = process.env[key.toUpperCase()] || null;
       if (val) this.cache[key] = val;
       return val;
     } catch (err) {
       console.error(`Error fetching setting ${key}:`, err.message);
+      if (key === 'jwt_secret') return process.env.JWT_SECRET;
       return process.env[key.toUpperCase()] || null;
     }
   }

@@ -99,6 +99,12 @@ Use these commands for manual management:
 
 ## 📅 Release History
 
+### Beta v1.6.0 (2026-03-28)
+- **Beta Transition**: Platform officially enters Beta status with significant stability and security improvements.
+- **Security**: Complete transition to **HttpOnly Secure Cookie** authentication.
+- **UI/UX**: Modularized the Admin Dashboard and implemented lazy-loading for all management tabs.
+- **Sanitization**: Integrated **DOMPurify** for secure client-side HTML rendering.
+
 ### Alpha v1.5.5 (2026-03-28)
 - **Diagnostics**: Introduced an **Interactive Diagnostic Modal** for real-time API testing.
 - **Media**: Enabled support for external **Media URLs** and **Media Types** in all communication vectors.

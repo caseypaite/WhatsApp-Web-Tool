@@ -51,7 +51,8 @@ class ScheduledController {
       const otpService = require('../services/otp.service');
 
       if (!whatsappService.me) return res.status(400).json({ error: 'WhatsApp account not connected' });
-      const phone = whatsappService.me.wid.user;
+      const phone = whatsappService.me?.wid?.user;
+      if (!phone) return res.status(400).json({ error: 'Could not determine admin identity' });
 
       const isValid = await otpService.verifyOtp(phone, otp);
       if (!isValid) return res.status(400).json({ error: 'Invalid or expired OTP' });

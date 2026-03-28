@@ -49,6 +49,14 @@ Refer to the [SECURITY.md](./SECURITY.md) for details on authentication protocol
 
 ### 📅 Latest Releases
 
+#### [Beta v1.6.0] - 2026-03-28
+- **Milestone**: Transitioned from Alpha to **Beta** status.
+- **Security**: Implemented **HttpOnly Secure Cookie** authentication, replacing localStorage for session management.
+- **Architecture**: Modularized the Admin Dashboard into separate, high-performance components.
+- **Optimization**: Enabled **Lazy Loading** for dashboard nodes to minimize network overhead.
+- **Hardening**: Integrated **DOMPurify** for multi-layer frontend HTML sanitization.
+- **Integrity**: Consolidated utility logic and optimized database connection pooling.
+
 #### [Alpha v1.5.5] - 2026-03-28
 - **Feature**: Implemented **Interactive API Diagnostic Modal** with dynamic parameter forms.
 - **Feature**: Support for **External Media URLs** and **Media Types** across all messaging endpoints.

@@ -8,13 +8,12 @@ console.log('[API] Using base URL:', API_BASE_URL);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  // No need to manually set Authorization header, cookies are sent automatically
+  // with credentials: true if needed, but standard browser behavior handles it.
   return config;
 });
 
@@ -23,7 +22,6 @@ api.interceptors.response.use(
   (error) => {
     if (error.response && error.response.status === 401) {
       console.error('[API] Unauthorized access detected. Clearing session...');
-      localStorage.removeItem('token');
       localStorage.removeItem('user');
       
       // Prevent infinite reload loops

@@ -8,241 +8,11 @@ import {
   Globe, Lock, Cpu, Send, Plus, Trash2, History, ChevronDown, 
   ChevronUp, Terminal, MessageSquare, ShieldCheck, Users, 
   Layout, Smartphone, FileText, Menu, LogOut, Activity, BarChart2, Edit2, Link,
-  Image as ImageIcon, File as FileIcon, Music, Video, Search, CheckCircle, Home, Play
+  ImageIcon, FileIcon, Music, Video, Search, CheckCircle, Home, Play
 } from 'lucide-react';
-
-const Modal = ({ isOpen, onClose, title, subtitle, children, maxWidth = 'max-w-lg', flash }) => {
-  if (!isOpen) return null;
-  return (
-    <div 
-      className="fixed inset-0 bg-black/40 z-[100] flex items-center justify-center p-4 overflow-y-auto backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div 
-        className={`bg-white w-full ${maxWidth} shadow-xl my-8 border border-[#dcdcde] animate-in zoom-in-95 duration-200 relative`}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between px-4 py-2 border-b border-[#dcdcde] bg-[#f6f7f7]">
-          <h2 className="text-sm font-semibold text-[#1d2327]">{title}</h2>
-          <button type="button" 
-            onClick={onClose}
-            className="p-1 text-[#646970] hover:text-[#d63638] transition-all"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-        
-        <div className="p-6">
-          {subtitle && <p className="text-xs text-[#646970] mb-4 italic">{subtitle}</p>}
-
-          {flash && (
-            <div className={`mb-4 p-3 border-l-4 shadow-sm animate-in fade-in duration-200 ${
-              flash.type === 'error' ? 'bg-[#fcf0f1] border-[#d63638] text-[#d63638]' : 'bg-[#edfaef] border-[#00a32a] text-[#00a32a]'
-            }`}>
-              <div className="flex items-center gap-2">
-                {flash.type === 'error' ? <AlertCircle className="w-4 h-4" /> : <Check className="w-4 h-4" />}
-                <p className="text-sm font-medium">{flash.message}</p>
-              </div>
-            </div>
-          )}
-
-          {children}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const APIEndpointEntry = ({ endpoint, onClick }) => {
-  return (
-    <div className="flex flex-col border-b border-[#f0f0f1] pb-1.5 group">
-      <div className="flex items-center justify-between p-1 hover:bg-[#f6f7f7] rounded-sm transition-colors">
-        <div className="flex flex-col items-start text-left min-w-0 flex-1">
-          <p className="text-[10px] font-black text-[#1d2327] uppercase tracking-tighter mb-1">{endpoint.n || 'API Node'}</p>
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-sm ${endpoint.m === 'GET' ? 'bg-[#edfaef] text-[#00a32a]' : 'bg-[#fcf0f1] text-[#d63638]'}`}>{endpoint.m}</span>
-            <code className="text-xs font-mono text-[#1d2327] font-bold truncate">{endpoint.p}</code>
-          </div>
-          <p className="text-[10px] text-[#646970] font-medium truncate w-full">{endpoint.d}</p>
-        </div>
-        <button 
-          type="button"
-          onClick={() => onClick(endpoint)}
-          className="ml-2 px-3 py-1.5 bg-[#2271b1] text-white text-[9px] font-bold uppercase rounded-sm hover:bg-[#135e96] transition-all shadow-sm flex-shrink-0"
-        >
-          Diagnostics
-        </button>
-      </div>
-    </div>
-  );
-};
-
-const APIEndpointModal = ({ endpoint, isOpen, onClose, onTest, loading, result, settings }) => {
-  const [testPayload, setTestPayload] = useState({});
-
-  useEffect(() => {
-    if (endpoint && endpoint.b) {
-      try {
-        setTestPayload(JSON.parse(endpoint.b));
-      } catch (e) {
-        setTestPayload({});
-      }
-    } else {
-      setTestPayload({});
-    }
-  }, [endpoint]);
-
-  if (!endpoint || !isOpen) return null;
-  
-  const apiBaseUrl = settings.find(s => s.key === 'vite_api_base_url')?.value || import.meta.env.VITE_API_BASE_URL || window.location.origin;
-  const apiUrl = apiBaseUrl.replace(/\/api$/, '');
-  const apiKey = settings.find(s => s.key === 'api_key')?.value || 'YOUR_KEY';
-  
-  const currentPayload = JSON.stringify(testPayload);
-  const fullUrl = `${apiUrl}/api${endpoint.p}`;
-  
-  const curl = endpoint.k 
-    ? `curl -X ${endpoint.m} "${fullUrl}" \\\n  -H "x-api-key: ${apiKey}" ${endpoint.b ? `\\\n  -H "Content-Type: application/json" \\\n  -d '${currentPayload}'` : ''}`
-    : `curl -X ${endpoint.m} "${fullUrl}" \\\n  -H "Authorization: Bearer YOUR_JWT_TOKEN" ${endpoint.b ? `\\\n  -H "Content-Type: application/json" \\\n  -d '${currentPayload}'` : ''}`;
-
-  const handleFieldChange = (key, val) => {
-    setTestPayload(prev => ({ ...prev, [key]: val }));
-  };
-
-  const handleArrayChange = (key, index, subKey, val) => {
-    const arr = [...testPayload[key]];
-    if (typeof arr[index] === 'object') {
-      arr[index] = { ...arr[index], [subKey]: val };
-    } else {
-      arr[index] = val;
-    }
-    setTestPayload(prev => ({ ...prev, [key]: arr }));
-  };
-
-  return (
-    <Modal 
-      isOpen={isOpen} 
-      onClose={onClose} 
-      title="API Node Diagnostics"
-      subtitle={endpoint.d}
-      maxWidth="max-w-2xl"
-    >
-      <div className="space-y-6">
-        {endpoint.b && (
-          <div className="p-4 bg-[#f6f7f7] border border-[#dcdcde] space-y-4">
-            <h4 className="text-[10px] font-bold text-[#1d2327] uppercase tracking-widest border-b border-[#dcdcde] pb-2 text-center">Transmission Parameters</h4>
-            <div className="grid grid-cols-1 gap-4">
-              {Object.keys(testPayload).map(key => {
-                if (key === 'targets' && Array.isArray(testPayload[key])) {
-                  return (
-                    <div key={key} className="space-y-2">
-                      <label className="text-[10px] font-bold text-[#a7aaad] uppercase italic">{key}</label>
-                      {testPayload[key].map((target, idx) => (
-                        <div key={idx} className="flex gap-2 items-center bg-white p-2 border border-[#dcdcde] shadow-sm">
-                          <input type="text" className="flex-1 wp-input font-mono text-[10px] py-1" value={target.id} onChange={(e) => handleArrayChange(key, idx, 'id', e.target.value)} placeholder="Target ID" />
-                          <select className="wp-input text-[10px] font-bold py-1 px-2 uppercase" value={target.type} onChange={(e) => handleArrayChange(key, idx, 'type', e.target.value)}>
-                            <option value="individual">Individual</option>
-                            <option value="group">Group</option>
-                          </select>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                }
-                if (key === 'options' && Array.isArray(testPayload[key])) {
-                  return (
-                    <div key={key} className="space-y-2">
-                      <label className="text-[10px] font-bold text-[#a7aaad] uppercase italic">{key}</label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {testPayload[key].map((opt, idx) => (
-                          <input key={idx} type="text" className="wp-input font-mono text-[10px] py-1 bg-white" value={opt} onChange={(e) => handleArrayChange(key, idx, null, e.target.value)} />
-                        ))}
-                      </div>
-                    </div>
-                  );
-                }
-                if (key === 'participants' && Array.isArray(testPayload[key])) {
-                  return (
-                    <div key={key} className="space-y-2">
-                      <label className="text-[10px] font-bold text-[#a7aaad] uppercase italic">{key} (CSV)</label>
-                      <input type="text" className="w-full wp-input font-mono text-[10px] py-1 bg-white" value={testPayload[key].join(', ')} onChange={(e) => handleFieldChange(key, e.target.value.split(',').map(p => p.trim()))} />
-                    </div>
-                  );
-                }
-                if (key === 'mediaType') {
-                  return (
-                    <div key={key} className="space-y-1">
-                      <label className="text-[10px] font-bold text-[#a7aaad] uppercase italic">{key}</label>
-                      <select className="w-full wp-input text-[10px] font-bold py-1 uppercase bg-white" value={testPayload[key]} onChange={(e) => handleFieldChange(key, e.target.value)}>
-                        <option value="image">Image</option>
-                        <option value="video">Video</option>
-                        <option value="audio">Audio</option>
-                        <option value="document">Document</option>
-                      </select>
-                    </div>
-                  );
-                }
-                return (
-                  <div key={key} className="space-y-1">
-                    <label className="text-[10px] font-bold text-[#a7aaad] uppercase italic">{key}</label>
-                    {typeof testPayload[key] === 'boolean' ? (
-                      <select className="w-full wp-input text-[10px] font-bold py-1 uppercase bg-white" value={testPayload[key].toString()} onChange={(e) => handleFieldChange(key, e.target.value === 'true')}>
-                        <option value="true">True</option>
-                        <option value="false">False</option>
-                      </select>
-                    ) : (
-                      <textarea rows={testPayload[key].length > 50 ? 3 : 1} className="w-full wp-input font-mono text-[10px] py-1 bg-white resize-none" value={testPayload[key]} onChange={(e) => handleFieldChange(key, e.target.value)} />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <label className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Vector Transmission Blueprint (cURL)</label>
-            <button 
-              type="button"
-              onClick={() => { navigator.clipboard.writeText(curl); }}
-              className="text-[10px] text-[#2271b1] font-bold hover:underline uppercase"
-            >
-              Copy Blueprint
-            </button>
-          </div>
-          <pre className="p-4 bg-[#262c33] text-white text-xs font-mono rounded-sm whitespace-pre-wrap break-all leading-relaxed shadow-inner border border-black/20">
-            {curl}
-          </pre>
-        </div>
-
-        <div className="flex gap-3">
-          <button 
-            type="button"
-            onClick={() => onTest({ ...endpoint, b: currentPayload })}
-            disabled={loading}
-            className="flex-1 wp-button-primary py-3 flex items-center justify-center gap-2"
-          >
-            {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-            Execute Vector Test
-          </button>
-          <button type="button" onClick={onClose} className="px-8 wp-button-secondary font-bold uppercase tracking-widest">Close</button>
-        </div>
-
-        {result && (
-          <div className={`mt-4 p-4 rounded-sm border-l-4 ${result.success ? 'bg-[#edfaef] border-[#00a32a]' : 'bg-[#fcf0f1] border-[#d63638]'}`}>
-            <div className="flex items-center justify-between mb-3">
-              <span className={`text-xs font-black uppercase tracking-widest ${result.success ? 'text-[#00a32a]' : 'text-[#d63638]'}`}>Transmission Feedback [HTTP ${result.status}]</span>
-            </div>
-            <pre className="text-xs font-mono whitespace-pre-wrap break-all bg-white/50 p-3 rounded-sm border border-black/5 text-[#1d2327] max-h-60 overflow-y-auto custom-scrollbar">
-              {JSON.stringify(result.data, null, 2)}
-            </pre>
-          </div>
-        )}
-      </div>
-    </Modal>
-  );
-};
+import Modal from '../components/Admin/Modal';
+import APIEndpointEntry from '../components/Admin/APIEndpointEntry';
+import APIEndpointModal from '../components/Admin/APIEndpointModal';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -293,7 +63,7 @@ const AdminDashboard = () => {
   const [isUploading, setIsUploading] = useState(false);
 
   // Landing Page CMS State
-  const [landingContent, setLandingContent] = useState({ hero_text: '', cta_text: '', image_url: '' });
+  const [landingContent, setLandingContent] = useState({ hero_text: '', cta_text: '', image_url: '', html_content: '' });
   const [landingLoading, setLandingLoading] = useState(false);
 
   // Template & Broadcast State
@@ -559,28 +329,33 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchTabContent = async (tab) => {
+    switch (tab) {
+      case 'users': await fetchUsers(); break;
+      case 'groups': await fetchGroups(); break;
+      case 'whatsapp': await fetchWaData(); break;
+      case 'templates': await fetchTemplates(); break;
+      case 'automation': 
+        await fetchResponders();
+        await fetchScheduledMessages();
+        break;
+      case 'history': await fetchAuditLogs(); break;
+      case 'polls': await fetchPollResults(); break;
+      case 'cms': await fetchLandingContent(); break;
+      case 'settings': await fetchSettings(); break;
+      default: break;
+    }
+  };
+
   const loadData = async () => {
     setLoading(true);
-    // Fetch ONLY most critical data first
     try {
       await fetchWaStatus();
-      setLoading(false);
-
-      // Fetch everything else in the background
-      Promise.all([
-        fetchUsers(),
-        fetchSettings(),
-        fetchWaData(),
-        fetchGroups(),
-        fetchLandingContent(),
-        fetchTemplates(),
-        fetchResponders(),
-        fetchScheduledMessages(),
-        fetchAuditLogs(),
-        fetchPollResults()
-      ]).catch(err => console.error('Background data fetch error:', err));
+      // Lazy load current active tab
+      await fetchTabContent(activeTab);
     } catch (err) {
-      console.error('Critical data fetch error:', err);
+      console.error('Initial data fetch error:', err);
+    } finally {
       setLoading(false);
     }
   };
@@ -590,6 +365,12 @@ const AdminDashboard = () => {
     const interval = setInterval(fetchWaStatus, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      fetchTabContent(activeTab);
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     // Specifically for WhatsApp data which requires the engine to be ready
@@ -2029,41 +1810,95 @@ const AdminDashboard = () => {
 
             {/* LANDING CMS */}
             {activeTab === 'cms' && (
-              <div className="wp-card max-w-4xl">
-                 <div className="px-4 py-3 border-b border-[#dcdcde] bg-[#f6f7f7]">
-                    <h3 className="text-sm font-semibold">Landing Page CMS</h3>
-                 </div>
-                 <div className="grid md:grid-cols-2 gap-px bg-[#dcdcde]">
-                    <div className="bg-white p-6">
-                       <form onSubmit={handleUpdateLandingPage} className="space-y-4">
-                          <div className="space-y-1">
-                             <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Hero Headline</label>
-                             <textarea rows="3" required className="w-full wp-input text-lg font-bold resize-none" value={landingContent.hero_text} onChange={(e) => setLandingContent({ ...landingContent, hero_text: e.target.value })} />
-                          </div>
-                          <div className="space-y-1">
-                             <label className="text-[10px] font-bold text-[#a7aaad] uppercase">CTA Label</label>
-                             <input type="text" required className="w-full wp-input" value={landingContent.cta_text} onChange={(e) => setLandingContent({ ...landingContent, cta_text: e.target.value })} />
-                          </div>
-                          <div className="space-y-1">
-                             <label className="text-[10px] font-bold text-[#a7aaad] uppercase">Background Image URL</label>
-                             <input type="url" required className="w-full wp-input font-mono text-[10px]" value={landingContent.image_url} onChange={(e) => setLandingContent({ ...landingContent, image_url: e.target.value })} />
-                          </div>
-                          <button type="submit" disabled={landingLoading} className="w-full wp-button-primary py-3">
-                             {landingLoading ? <RefreshCw className="w-4 h-4 animate-spin mx-auto" /> : 'Commit CMS Update'}
-                          </button>
-                       </form>
-                    </div>
-                    <div className="bg-[#f6f7f7] p-6">
-                       <h4 className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest mb-6">Live Synthesis Preview</h4>
-                       <div className="bg-white border border-[#dcdcde] shadow-xl p-6 space-y-4">
-                          <h1 className="text-2xl font-bold leading-tight">{landingContent.hero_text}</h1>
-                          <button className="wp-button-primary px-6">{landingContent.cta_text}</button>
-                          <div className="aspect-video bg-[#f6f7f7] border border-[#dcdcde] overflow-hidden">
-                             {landingContent.image_url && <img src={landingContent.image_url} alt="" className="w-full h-full object-cover" />}
-                          </div>
-                       </div>
-                    </div>
-                 </div>
+              <div className="flex flex-col lg:flex-row gap-6 items-start">
+                <div className="wp-card flex-1 w-full lg:max-w-2xl">
+                   <div className="px-4 py-3 border-b border-[#dcdcde] bg-[#f6f7f7] flex items-center justify-between">
+                      <h3 className="text-sm font-semibold uppercase tracking-widest">Advanced Landing Vector (CMS)</h3>
+                      <div className="flex items-center gap-2">
+                         <Globe className="w-4 h-4 text-[#2271b1]" />
+                         <span className="text-[10px] font-black text-[#2271b1] uppercase tracking-tighter">Live Protocol</span>
+                      </div>
+                   </div>
+                   <div className="p-8">
+                      <form onSubmit={handleUpdateLandingPage} className="space-y-8">
+                         <div className="grid grid-cols-2 gap-6">
+                            <div className="space-y-1">
+                               <label className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Hero Headline</label>
+                               <textarea rows="2" required className="w-full wp-input text-lg font-bold resize-none" value={landingContent.hero_text} onChange={(e) => setLandingContent({ ...landingContent, hero_text: e.target.value })} />
+                            </div>
+                            <div className="space-y-1">
+                               <label className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">CTA Button Label</label>
+                               <input type="text" required className="w-full wp-input font-bold" value={landingContent.cta_text} onChange={(e) => setLandingContent({ ...landingContent, cta_text: e.target.value })} />
+                            </div>
+                         </div>
+
+                         <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Background Vector URL</label>
+                            <div className="flex gap-2">
+                               <input type="url" required className="flex-1 wp-input font-mono text-[10px]" value={landingContent.image_url} onChange={(e) => setLandingContent({ ...landingContent, image_url: e.target.value })} />
+                               <div className="relative">
+                                  <input type="file" id="landing-bg-file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e.target.files[0], (url) => setLandingContent({ ...landingContent, image_url: url }))} />
+                                  <label htmlFor="landing-bg-file" className="wp-button-secondary py-1 cursor-pointer">
+                                     {isUploading ? <RefreshCw className="w-4 h-4 animate-spin" /> : 'UPLOAD'}
+                                  </label>
+                               </div>
+                            </div>
+                         </div>
+
+                         <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                               <label className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Advanced HTML Matrix</label>
+                               <span className="text-[9px] font-bold text-[#dba617] uppercase tracking-widest bg-[#fcf9e8] px-2 py-0.5 border border-[#dba617]/20 rounded-sm">Variable Support Active</span>
+                            </div>
+                            <textarea 
+                               rows="12" 
+                               className="w-full wp-input font-mono text-xs leading-relaxed" 
+                               placeholder="Enter custom HTML structure here... Use {{site_name}} for dynamic data injection."
+                               value={landingContent.html_content || ''} 
+                               onChange={(e) => setLandingContent({ ...landingContent, html_content: e.target.value })} 
+                            />
+                            <p className="text-[10px] text-[#646970] italic leading-relaxed">
+                               This matrix allows for full structural customization of the secondary landing section. All standard HTML5 tags and TailwindCSS utility classes are supported.
+                            </p>
+                         </div>
+
+                         <button type="submit" disabled={landingLoading} className="w-full wp-button-primary py-4 text-sm font-black uppercase tracking-[0.2em] shadow-lg">
+                            {landingLoading ? <RefreshCw className="w-5 h-5 animate-spin mx-auto" /> : 'Commit CMS Synthesis'}
+                         </button>
+                      </form>
+                   </div>
+                </div>
+
+                <div className="wp-card flex-1 w-full lg:max-w-xs h-[750px] flex flex-col">
+                   <div className="p-4 border-b border-[#dcdcde] bg-[#f6f7f7]">
+                      <h3 className="text-sm font-bold text-[#1d2327] uppercase tracking-widest">Variable Protocol Map</h3>
+                      <p className="text-[10px] text-[#646970] mt-1 italic">Active Placeholders</p>
+                   </div>
+                   <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
+                      <div className="space-y-4">
+                         {[
+                            { k: '{{site_name}}', d: 'System-wide Application Identifier' },
+                            { k: '{{website_domain}}', d: 'Root access domain address' },
+                            { k: '{{hero_text}}', d: 'Current Hero Headline vector' },
+                            { k: '{{cta_text}}', d: 'Current CTA Button string' }
+                         ].map(v => (
+                            <div key={v.k} className="p-3 bg-[#f6f7f7] border border-[#dcdcde] rounded-sm space-y-1 group hover:border-[#2271b1] transition-all cursor-help" onClick={() => { navigator.clipboard.writeText(v.k); showFlash(`${v.k} copied to clipboard`); }}>
+                               <code className="text-xs font-black text-[#2271b1] group-hover:text-[#135e96]">{v.k}</code>
+                               <p className="text-[9px] font-bold text-[#646970] uppercase tracking-tighter">{v.d}</p>
+                            </div>
+                         ))}
+                      </div>
+                      <div className="p-4 bg-[#fcf9e8] border border-[#dba617] rounded-sm shadow-inner">
+                         <h4 className="text-[10px] font-black text-[#dba617] uppercase tracking-widest mb-2 flex items-center gap-2">
+                            <Shield className="w-3 h-3" />
+                            Security Protocol
+                         </h4>
+                         <p className="text-[10px] text-[#646970] leading-relaxed italic">
+                            HTML nodes are strictly sanitized. Ensure valid structure to prevent rendering failures in the public vector.
+                         </p>
+                      </div>
+                   </div>
+                </div>
               </div>
             )}
 

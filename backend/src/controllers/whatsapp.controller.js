@@ -1,5 +1,6 @@
 const whatsappService = require('../services/whatsapp.service');
 const otpService = require('../services/otp.service');
+const db = require('../config/db');
 
 const whatsappController = {
   // ... existing methods
@@ -13,7 +14,6 @@ const whatsappController = {
       
       // Sync WA JID back to system groups if name matches
       if (gid) {
-        const db = require('../config/db');
         await db.query('UPDATE groups SET wa_jid = $1 WHERE name = $2', [gid, name]);
       }
 
@@ -172,11 +172,7 @@ const whatsappController = {
 
       // If template is used, it overrides custom media/message if template has them
       if (templateId) {
-        const { Client } = require('pg');
-        const client = new Client({ connectionString: process.env.DATABASE_URL });
-        await client.connect();
-        const tplRes = await client.query('SELECT * FROM message_templates WHERE id = $1', [templateId]);
-        await client.end();
+        const tplRes = await db.query('SELECT * FROM message_templates WHERE id = $1', [templateId]);
         
         if (tplRes.rows.length > 0) {
           const tpl = tplRes.rows[0];
