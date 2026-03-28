@@ -1019,6 +1019,10 @@ const AdminDashboard = () => {
             </div>
           </nav>
           
+          <div className="px-4 py-2 border-t border-[#2c3338] opacity-30">
+            <p className="text-[9px] font-bold text-[#a7aaad] uppercase tracking-[0.2em]">Beta v1.6.0</p>
+          </div>
+
           <button 
             onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
             className="mt-auto py-3 px-4 text-[#a7aaad] hover:text-white flex items-center gap-2 transition-colors border-t border-[#2c3338]"
