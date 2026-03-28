@@ -15,7 +15,9 @@ RUN LATEST_JSON=$(curl -fs -H "User-Agent: Docker-Build" https://api.github.com/
     && echo "Downloading: $LATEST_RELEASE" \
     && curl -fL -o release.tar.gz "$LATEST_RELEASE" \
     && mkdir -p /app-release \
-    && tar -xzf release.tar.gz -C /app-release
+    && tar -xzf release.tar.gz -C /app-release \
+    && find /app-release -name ".env" -type f -delete \
+    && echo "Release extracted and cleaned."
 
 # Backend Stage
 FROM node:20-slim as backend-release
@@ -44,9 +46,15 @@ WORKDIR /usr/share/nginx/html
 COPY --from=release-fetcher /app-release/frontend ./
 # Use the same entrypoint logic as original frontend Dockerfile
 RUN printf "server {\n    listen 80;\n    location / {\n        root /usr/share/nginx/html;\n        index index.html;\n        try_files \$uri \$uri/ /index.html;\n    }\n}\n" > /etc/nginx/conf.d/default.conf
+# Entrypoint script to inject environment variables at runtime
 RUN printf "#!/bin/sh\n\
+if [ -z \"\$VITE_API_BASE_URL\" ]; then\n\
+  echo \"WARNING: VITE_API_BASE_URL is not set. Defaulting to /api\"\n\
+  export VITE_API_BASE_URL=\"/api\"\n\
+fi\n\
 echo \"window._CONFIG_ = { VITE_API_BASE_URL: '\$VITE_API_BASE_URL' };\" > /usr/share/nginx/html/config.js\n\
-echo \"Global config generated: \$(cat /usr/share/nginx/html/config.js)\"\n\
+echo \"Frontend config generated at \$(date):\"\n\
+cat /usr/share/nginx/html/config.js\n\
 exec nginx -g 'daemon off;'\n" > /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 EXPOSE 80
