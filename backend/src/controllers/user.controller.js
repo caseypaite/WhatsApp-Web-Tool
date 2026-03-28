@@ -75,11 +75,11 @@ const userController = {
       const jwtSecret = await settingsService.get('jwt_secret');
       if (jwtSecret) {
         const token = jwt.sign({ sub: user.id, email: user.email, roles: ['User'] }, jwtSecret, { expiresIn: '24h' });
-        const isProd = process.env.NODE_ENV === 'production';
+        const isSecure = process.env.COOKIE_SECURE === 'true';
         res.cookie('token', token, {
           httpOnly: true,
-          secure: isProd,
-          sameSite: isProd ? 'none' : 'lax',
+          secure: isSecure,
+          sameSite: 'lax',
           maxAge: 24 * 60 * 60 * 1000
         });
       }
@@ -91,11 +91,11 @@ const userController = {
   },
 
   logout: async (req, res) => {
-    const isProd = process.env.NODE_ENV === 'production';
+    const isSecure = process.env.COOKIE_SECURE === 'true';
     res.clearCookie('token', {
       httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'lax'
+      secure: isSecure,
+      sameSite: 'lax'
     });
     res.json({ message: 'Logged out successfully' });
   },
@@ -113,12 +113,12 @@ const userController = {
       if (!jwtSecret) throw new Error('JWT_SECRET not configured');
       const token = jwt.sign({ sub: user.id, email: user.email, roles: user.roles }, jwtSecret, { expiresIn: '24h' });
       
-      // Set secure cookie
-      const isProd = process.env.NODE_ENV === 'production';
+      // Set session cookie (Lax is sufficient for same-IP different-port and supports HTTP)
+      const isSecure = process.env.COOKIE_SECURE === 'true';
       res.cookie('token', token, {
         httpOnly: true,
-        secure: isProd,
-        sameSite: isProd ? 'none' : 'lax',
+        secure: isSecure,
+        sameSite: 'lax',
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
       });
 
@@ -222,12 +222,12 @@ const userController = {
       if (!jwtSecret) throw new Error('JWT_SECRET not configured');
       const token = jwt.sign({ sub: user.id, email: user.email, roles: user.roles }, jwtSecret, { expiresIn: '24h' });
       
-      // Set secure cookie
-      const isProd = process.env.NODE_ENV === 'production';
+      // Set session cookie (Lax is sufficient for same-IP different-port and supports HTTP)
+      const isSecure = process.env.COOKIE_SECURE === 'true';
       res.cookie('token', token, {
         httpOnly: true,
-        secure: isProd,
-        sameSite: isProd ? 'none' : 'lax',
+        secure: isSecure,
+        sameSite: 'lax',
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
       });
 
