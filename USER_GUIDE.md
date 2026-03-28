@@ -55,6 +55,9 @@ Use these commands for manual management:
 ### WhatsApp Instance
 - **Connection**: Scan the QR code in the **WhatsApp** tab to link your server instance.
 - **Entity Directory**: Manage groups and channels where the server account is an administrator.
+- **Group Greetings**: Enable or disable automated "Welcome" messages for new group members. 
+  - **Global Setting**: Manage the system-wide default in **Settings > General**.
+  - **Per-Group Override**: Toggle greetings for specific groups in the **WhatsApp** tab.
 - **Broadcast**: Send messages or media to multiple targets simultaneously using the **Broadcast** tool.
 - **Templates**: Create reusable message formats with support for media attachments.
 
@@ -99,7 +102,8 @@ Use these commands for manual management:
 
 ## 📅 Release History
 
-### Beta v1.6.0 (2026-03-28)
+### Beta v1.6.0-rev1 (2026-03-28)
+- **Group Greetings**: Integrated a global and per-group option to enable or disable automatic greeting messages for new members. Default is disabled.
 - **Beta Transition**: Platform officially enters Beta status with significant stability and security improvements.
 - **Security**: Complete transition to **HttpOnly Secure Cookie** authentication.
 - **UI/UX**: Modularized the Admin Dashboard and implemented lazy-loading for all management tabs.

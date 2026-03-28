@@ -30,6 +30,7 @@ router.post('/groups/:id/add', authenticate, checkRole(['Admin']), whatsappContr
 router.get('/groups/:id/join-requests', authenticate, checkRole(['Admin']), whatsappController.getJoinRequests);
 router.post('/groups/:id/approve', authenticate, checkRole(['Admin']), whatsappController.approveJoinRequest);
 router.post('/groups/:id/reject', authenticate, checkRole(['Admin']), whatsappController.rejectJoinRequest);
+router.post('/groups/:id/toggle-greetings', authenticate, checkRole(['Admin']), whatsappController.toggleGreetings);
 
 // Interaction Routes
 router.post('/poll', authenticate, checkRole(['Admin']), whatsappController.sendPoll);

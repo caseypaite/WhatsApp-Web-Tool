@@ -681,6 +681,16 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleToggleGreetings = async (groupId) => {
+    try {
+      await authService.toggleGreetings(groupId);
+      showFlash('Group greeting setting updated');
+      fetchWaChats();
+    } catch (err) {
+      showFlash('Failed to toggle greetings', 'error');
+    }
+  };
+
   const handleRemoveParticipant = async (participantId) => {
     if (!window.confirm('Remove this participant?')) return;
     try {
@@ -1355,10 +1365,19 @@ const AdminDashboard = () => {
                                           {chat?.iconUrl ? <img src={chat.iconUrl} className="w-10 h-10 object-cover rounded-sm" alt="" /> : <div className="w-10 h-10 bg-[#f6f7f7] text-[#a7aaad] border border-[#dcdcde] flex items-center justify-center font-bold">{chat?.name?.[0]}</div>}
                                           <div className="min-w-0">
                                              <p className="text-sm font-bold text-[#1d2327] truncate leading-none mb-1">{chat?.name}</p>
-                                             <p className="text-[9px] font-mono text-[#a7aaad] truncate">{chat?.id?._serialized}</p>
+                                             <div className="flex items-center gap-2">
+                                                <p className="text-[9px] font-mono text-[#a7aaad] truncate">{chat?.id?._serialized}</p>
+                                                <span className={`text-[8px] font-bold uppercase flex items-center gap-1 ${chat.greetingsEnabled === true ? 'text-[#00a32a]' : 'text-[#a7aaad]'}`}>
+                                                   <div className={`w-1 h-1 rounded-full ${chat.greetingsEnabled === true ? 'bg-[#00a32a]' : 'bg-[#a7aaad]'}`} />
+                                                   Greetings: {chat.greetingsEnabled === true ? 'ON' : chat.greetingsEnabled === false ? 'OFF' : 'DEF'}
+                                                </span>
+                                             </div>
                                           </div>
                                        </div>
                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                          <button onClick={() => handleToggleGreetings(chat.id?._serialized)} className={`p-1.5 transition-colors ${chat.greetingsEnabled === true ? 'text-[#00a32a]' : 'text-[#a7aaad]'}`} title={`Greetings: ${chat.greetingsEnabled === true ? 'ON' : chat.greetingsEnabled === false ? 'OFF' : 'DEFAULT'}`}>
+                                             <CheckCircle className={`w-4 h-4 ${chat.greetingsEnabled === true ? 'fill-[#edfaef]' : ''}`} />
+                                          </button>
                                           <button onClick={() => openGroupManage(chat.id?._serialized, chat.name)} className="p-1.5 text-[#2271b1] hover:underline" title="Administer"><Shield className="w-4 h-4" /></button>
                                           <button onClick={() => { setDirectMessageTarget({ id: chat.id?._serialized, name: chat.name, type: 'group' }); setShowPollModal(true); }} className="p-1.5 text-[#dba617] hover:underline" title="Poll"><BarChart2 className="w-4 h-4" /></button>
                                           <button onClick={() => { setDirectMessageTarget({ id: chat.id?._serialized, name: chat.name, type: 'group' }); setShowDirectMessage(true); }} className="p-1.5 text-[#2271b1] hover:underline" title="Message"><MessageSquare className="w-4 h-4" /></button>
@@ -1933,16 +1952,25 @@ const AdminDashboard = () => {
                               </div>
                            </div>
                            <div className="flex items-center justify-between p-4 bg-[#f6f7f7] border border-[#dcdcde]">
-                              <div>
-                                 <p className="text-sm font-bold text-[#1d2327]">WhatsApp OTP Node</p>
-                                 <p className="text-[10px] text-[#646970] italic">Enable 2FA via WhatsApp Engine.</p>
-                              </div>
-                              <button onClick={() => handleUpdateSetting('otp_enabled', settings.find(s => s.key === 'otp_enabled')?.value === 'true' ? 'false' : 'true')} className={`w-12 h-6 rounded-full relative transition-all ${settings.find(s => s.key === 'otp_enabled')?.value === 'true' ? 'bg-[#2271b1]' : 'bg-[#dcdcde]'}`}>
-                                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.find(s => s.key === 'otp_enabled')?.value === 'true' ? 'left-7' : 'left-1'}`} />
-                              </button>
+                             <div>
+                                <p className="text-sm font-bold text-[#1d2327]">WhatsApp OTP Node</p>
+                                <p className="text-[10px] text-[#646970] italic">Enable 2FA via WhatsApp Engine.</p>
+                             </div>
+                             <button onClick={() => handleUpdateSetting('otp_enabled', settings.find(s => s.key === 'otp_enabled')?.value === 'true' ? 'false' : 'true')} className={`w-12 h-6 rounded-full relative transition-all ${settings.find(s => s.key === 'otp_enabled')?.value === 'true' ? 'bg-[#2271b1]' : 'bg-[#dcdcde]'}`}>
+                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.find(s => s.key === 'otp_enabled')?.value === 'true' ? 'left-7' : 'left-1'}`} />
+                             </button>
                            </div>
-                        </div>
-                      )}
+
+                           <div className="flex items-center justify-between p-4 bg-[#f6f7f7] border border-[#dcdcde]">
+                             <div>
+                                <p className="text-sm font-bold text-[#1d2327]">Global Group Greetings</p>
+                                <p className="text-[10px] text-[#646970] italic">Automatically greet new group members.</p>
+                             </div>
+                             <button onClick={() => handleUpdateSetting('group_greeting_enabled', settings.find(s => s.key === 'group_greeting_enabled')?.value === 'true' ? 'false' : 'true')} className={`w-12 h-6 rounded-full relative transition-all ${settings.find(s => s.key === 'group_greeting_enabled')?.value === 'true' ? 'bg-[#2271b1]' : 'bg-[#dcdcde]'}`}>
+                                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.find(s => s.key === 'group_greeting_enabled')?.value === 'true' ? 'left-7' : 'left-1'}`} />
+                             </button>
+                           </div>
+                           </div>                      )}
 
                       {activeSettingsTab === 'ai' && (
                         <div className="space-y-6">

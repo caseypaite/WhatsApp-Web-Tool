@@ -50,7 +50,8 @@ class SettingsService {
       'gemini_api_key',
       'mistral_api_key',
       'ai_custom_prompt',
-      'ai_model'
+      'ai_model',
+      'group_greeting_enabled'
     ];
 
     try {

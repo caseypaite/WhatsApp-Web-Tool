@@ -289,6 +289,51 @@ const whatsappController = {
     }
   },
 
+  toggleGreetings: async (req, res) => {
+    try {
+      const { id } = req.params; // wa_jid
+      const { enabled } = req.body; // optional: explicit state
+      
+      // 1. Check if group exists in portal
+      const groupRes = await db.query('SELECT id, name, greetings_enabled FROM groups WHERE wa_jid = $1', [id]);
+      
+      let finalEnabled = enabled;
+
+      if (groupRes.rows.length === 0) {
+        // Create it
+        const metadata = await whatsappService.getGroupMetadata(id);
+        const name = metadata.subject || 'WhatsApp Group';
+        
+        if (finalEnabled === undefined) {
+          const settingsService = require('../services/settings.service');
+          const globalEnabled = await settingsService.get('group_greeting_enabled') === 'true';
+          finalEnabled = !globalEnabled;
+        }
+
+        await db.query(
+          'INSERT INTO groups (name, wa_jid, greetings_enabled) VALUES ($1, $2, $3)',
+          [name, id, finalEnabled]
+        );
+      } else {
+        const group = groupRes.rows[0];
+        if (finalEnabled === undefined) {
+          if (group.greetings_enabled === null) {
+            const settingsService = require('../services/settings.service');
+            const globalEnabled = await settingsService.get('group_greeting_enabled') === 'true';
+            finalEnabled = !globalEnabled;
+          } else {
+            finalEnabled = !group.greetings_enabled;
+          }
+        }
+        await db.query('UPDATE groups SET greetings_enabled = $1 WHERE wa_jid = $2', [finalEnabled, id]);
+      }
+
+      res.json({ success: true, greetingsEnabled: finalEnabled });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
   sendPoll: async (req, res) => {
     try {
       const { chatId, question, options, allowMultiple } = req.body;

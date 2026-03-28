@@ -76,10 +76,10 @@ const seedAdmin = async () => {
 
     // Initial landing page config
     await client.query(
-      `INSERT INTO landing_page_config (hero_text, cta_text, image_url)
-       VALUES ($1, $2, $3)
+      `INSERT INTO landing_page_config (hero_text, cta_text, image_url, html_content)
+       VALUES ($1, $2, $3, $4)
        ON CONFLICT DO NOTHING`,
-      ['Distributed Identity Protocol', 'Get Started', 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&q=80&w=2832']
+      ['Distributed Identity Protocol', 'Get Started', 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&q=80&w=2832', '']
     );
 
     console.log('Seeding completed successfully.');

@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS landing_page_config (
     hero_text TEXT NOT NULL,
     cta_text VARCHAR(255) NOT NULL,
     image_url TEXT,
+    html_content TEXT,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -44,6 +45,8 @@ CREATE TABLE IF NOT EXISTS groups (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) UNIQUE NOT NULL,
     description TEXT,
+    wa_jid VARCHAR(255),
+    greetings_enabled BOOLEAN DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

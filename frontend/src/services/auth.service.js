@@ -281,6 +281,11 @@ const rejectJoinRequest = async (groupId, participantId) => {
   return response.data;
 };
 
+const toggleGreetings = async (groupId, enabled) => {
+  const response = await api.post(`/whatsapp/groups/${groupId}/toggle-greetings`, { enabled });
+  return response.data;
+};
+
 const sendPoll = async (chatId, question, options, allowMultiple) => {
   const response = await api.post('/whatsapp/poll', { chatId, question, options, allowMultiple });
   return response.data;
@@ -480,6 +485,7 @@ export default {
   getJoinRequests,
   approveJoinRequest,
   rejectJoinRequest,
+  toggleGreetings,
   sendPoll,
   createAdvancedPoll,
   updateAdvancedPoll,

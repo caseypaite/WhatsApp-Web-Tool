@@ -10,5 +10,6 @@ temp_repackage/
 *.tar.gz
 releases/
 backend/uploads/
+docker-compose/data/
 **/backend.env
 **/frontend.env

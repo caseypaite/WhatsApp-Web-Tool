@@ -24,23 +24,21 @@ The project is organized into a dual-directory structure:
 
 - `backend/`: Node.js Express server.
 - `frontend/`: React Vite application.
-- `production/`: Optimized production build.
-    - `production/backend/`: Minified/bundled backend code.
-    - `production/frontend/`: Built static assets served by a custom `server.js`.
+- `docker-compose/`: Docker configuration for production deployment.
 - `scripts/`: Operational scripts (e.g., `fresh-install.sh`).
 
 ### Service Architecture
-The application is managed via systemd services, with separate services for development and production environments:
+The application is managed via Docker Compose for production and systemd for development:
 
-**Production Services**:
-- `appstack-backend.service`: Runs the Express API from `production/backend` on port `4010` (default).
-- `appstack-frontend.service`: Runs the static file server from `production/frontend` on port `4011` (default).
+**Production Deployment**:
+- Managed via `docker-compose/docker-compose.release.yml`.
+- Standard ports: `4010` (Backend API), `4011` (Frontend).
 
 **Development Services**:
 - `appstack-dev-backend.service`: Runs the development API from the root `backend/` directory on port `3085` (default).
 - `appstack-dev-frontend.service`: Runs the Vite development server (`npm run dev`) from the root `frontend/` directory.
 
-> **Note**: When switching between dev and prod backend services, ensure no lingering Chromium processes exist, as they can lock the WhatsApp session directory.
+> **Note**: When switching between dev and prod environments, ensure no lingering Chromium processes exist, as they can lock the WhatsApp session directory.
 
 ## 3. Environment & Configuration
 Configuration is managed via `.env` files. **NEVER** commit `.env` files to source control.
@@ -65,13 +63,11 @@ Configuration is managed via `.env` files. **NEVER** commit `.env` files to sour
 - **Frontend**: `npm run dev` (development) or `npm run build` (production build).
 
 ### Deployment (Production)
-- **Isolation Mandate**: **NEVER** modify files directly within the `production/` directory during development. All code changes must be performed in the root `backend/` and `frontend/` directories.
-- **Release Ready**: The `production/` directory is reserved exclusively for minified, bundled, and release-ready code generated through the build process.
-- **Update Process**: Production code is updated only via the official release deployment or update scripts.
-- **Exclusion Mandate**: When creating production releases in the `production/` directory, **DO NOT** copy the `.wwebjs_auth` folder. This ensures that session-specific data is not leaked or reused across environments.
-- **Minification**: Always minify JavaScript code for production and releases to optimize performance and reduce file size.
-- The `production/frontend/server.js` uses `express.static` and a wildcard route `app.use((req, res) => ...)` to serve the SPA `index.html`.
-- **Note**: Ensure `VITE_API_BASE_URL` is correctly set in `production/frontend/.env` before building/deploying.
+- **Containerization**: Production deployments are managed exclusively via Docker Compose in the `docker-compose/` directory.
+- **Release Source**: The production containers pull the latest release package from the official GitHub repository.
+- **Update Process**: Run `docker-compose -f docker-compose.release.yml up --build -d` to pull and deploy the latest revision.
+- **Data Persistence**: WhatsApp session data (`.wwebjs_auth`) and file uploads are persisted via Docker volumes in `docker-compose/data/`.
+- **Note**: Ensure `VITE_API_BASE_URL` is correctly set in `docker-compose/.env` before deploying.
 
 ## 5. Coding & Security Mandates
 

@@ -266,13 +266,23 @@ class WhatsappService {
         }
       }
     });
+this.client.on('group_join', async (notification) => {
+  // 4. Welcome Message (New Members)
+  try {
+    const globalEnabled = await settingsService.get('group_greeting_enabled') === 'true';
+    const groupRes = await db.query('SELECT greetings_enabled FROM groups WHERE wa_jid = $1', [notification.chatId]);
 
-    this.client.on('group_join', async (notification) => {
-      // 4. Welcome Message (New Members)
-      try {
-        const siteName = await settingsService.get('site_name') || 'Portal';
-        const frontendUrl = 'app.kcdev.qzz.io';
-        for (const participantId of notification.recipientIds) {
+    let sendGreeting = globalEnabled;
+    if (groupRes.rows.length > 0 && groupRes.rows[0].greetings_enabled !== null) {
+      sendGreeting = groupRes.rows[0].greetings_enabled;
+    }
+
+    if (!sendGreeting) return;
+
+    const siteName = await settingsService.get('site_name') || 'Portal';
+    const frontendUrl = 'app.kcdev.qzz.io';
+    for (const participantId of notification.recipientIds) {
+...
           const welcomeMsg = `👋 *Welcome to the group!*\n\nThis is a secure community managed by *${siteName}*.\n\nWe are glad to have you here. If you wish to participate in our digital identity portal and polls, please visit us at:\n🔗 *${frontendUrl}*\n\nEnjoy your stay!`;
 
           await this.client.sendMessage(participantId, welcomeMsg);
@@ -441,6 +451,12 @@ class WhatsappService {
       }
 
       // Map and filter chats to only include managed Groups and Channels
+      const managedGroupsRes = await db.query('SELECT wa_jid, greetings_enabled FROM groups WHERE wa_jid IS NOT NULL');
+      const groupSettingsMap = {};
+      managedGroupsRes.rows.forEach(row => {
+        groupSettingsMap[row.wa_jid] = row.greetings_enabled;
+      });
+
       const mappedResults = await Promise.all(combined.map(async chat => {
         if (!chat || !chat.id) return null;
 
@@ -481,7 +497,8 @@ class WhatsappService {
           unreadCount: chat.unreadCount || 0,
           timestamp: chat.timestamp || 0,
           iconUrl: iconUrl,
-          isAdmin: isAdmin
+          isAdmin: isAdmin,
+          greetingsEnabled: isGroup ? groupSettingsMap[idStr] : null
         };
       }));
 
