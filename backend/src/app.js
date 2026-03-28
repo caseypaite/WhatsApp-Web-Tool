@@ -29,7 +29,34 @@ const PORT = process.env.PORT || 3000;
 // Security Middleware
 app.set('trust proxy', 1);
 app.use(compression());
+
+// CORS Middleware
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()) 
+  : [];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow if no origin (like mobile apps or curl) or if in allowed list
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      // In development, be permissive if no origins are specified
+      if (process.env.NODE_ENV === 'development') {
+        callback(null, true);
+      } else {
+        console.error(`[CORS] Blocked origin: ${origin}`);
+        callback(new Error('Not allowed by CORS'));
+      }
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-simple-auth', 'x-api-key'],
+  credentials: true
+}));
+
 app.use(cookieParser());
+app.use(express.json());
 
 // Basic IP-based Rate Limiter (Protects against automated brute-force)
 const globalApiLimiter = rateLimit({
@@ -81,30 +108,6 @@ const upload = multer({
 whatsappService.initialize();
 // Start Scheduler
 schedulerService.start();
-
-// CORS Middleware
-const allowedOrigins = process.env.ALLOWED_ORIGINS 
-  ? process.env.ALLOWED_ORIGINS.split(',') 
-  : [];
-
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin) || (process.env.NODE_ENV === 'development' && allowedOrigins.length === 0)) {
-      callback(null, true);
-    } else {
-      if (process.env.NODE_ENV === 'development') {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    }
-  },
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-simple-auth', 'x-api-key'],
-  credentials: true
-}));
-
-app.use(express.json());
 
 // Hardened static serving for uploads (Disable script execution)
 app.use('/uploads', (req, res, next) => {

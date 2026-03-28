@@ -75,10 +75,11 @@ const userController = {
       const jwtSecret = await settingsService.get('jwt_secret');
       if (jwtSecret) {
         const token = jwt.sign({ sub: user.id, email: user.email, roles: ['User'] }, jwtSecret, { expiresIn: '24h' });
+        const isProd = process.env.NODE_ENV === 'production';
         res.cookie('token', token, {
           httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
+          secure: isProd,
+          sameSite: isProd ? 'none' : 'lax',
           maxAge: 24 * 60 * 60 * 1000
         });
       }
@@ -90,7 +91,12 @@ const userController = {
   },
 
   logout: async (req, res) => {
-    res.clearCookie('token');
+    const isProd = process.env.NODE_ENV === 'production';
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'lax'
+    });
     res.json({ message: 'Logged out successfully' });
   },
 
@@ -108,10 +114,11 @@ const userController = {
       const token = jwt.sign({ sub: user.id, email: user.email, roles: user.roles }, jwtSecret, { expiresIn: '24h' });
       
       // Set secure cookie
+      const isProd = process.env.NODE_ENV === 'production';
       res.cookie('token', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: isProd,
+        sameSite: isProd ? 'none' : 'lax',
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
       });
 
@@ -216,10 +223,11 @@ const userController = {
       const token = jwt.sign({ sub: user.id, email: user.email, roles: user.roles }, jwtSecret, { expiresIn: '24h' });
       
       // Set secure cookie
+      const isProd = process.env.NODE_ENV === 'production';
       res.cookie('token', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
+        secure: isProd,
+        sameSite: isProd ? 'none' : 'lax',
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
       });
 
