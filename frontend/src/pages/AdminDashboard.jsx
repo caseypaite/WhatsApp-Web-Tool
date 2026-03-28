@@ -350,7 +350,10 @@ const AdminDashboard = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      await fetchWaStatus();
+      await Promise.all([
+        fetchWaStatus(),
+        fetchSettings()
+      ]);
       // Lazy load current active tab
       await fetchTabContent(activeTab);
     } catch (err) {
@@ -682,11 +685,32 @@ const AdminDashboard = () => {
   };
 
   const handleToggleGreetings = async (groupId) => {
+    // Optimistic UI update
+    const previousChats = [...waChats];
+    setWaChats(prev => prev.map(chat => {
+      if ((chat.id?._serialized || chat.id) === groupId) {
+        const current = chat.greetingsEnabled;
+        let next;
+        if (current === null) {
+          const globalEnabled = settings.find(s => s.key === 'group_greeting_enabled')?.value === 'true';
+          next = !globalEnabled;
+        } else {
+          next = !current;
+        }
+        return { ...chat, greetingsEnabled: next };
+      }
+      return chat;
+    }));
+
     try {
       await authService.toggleGreetings(groupId);
       showFlash('Group greeting setting updated');
-      fetchWaChats();
+      await Promise.all([
+        fetchWaChats(),
+        fetchSettings()
+      ]);
     } catch (err) {
+      setWaChats(previousChats); // Rollback
       showFlash('Failed to toggle greetings', 'error');
     }
   };
@@ -865,6 +889,10 @@ const AdminDashboard = () => {
   };
 
   const handleUpdateSetting = async (key, value) => {
+    // Optimistic update for better UI response
+    const previousSettings = [...settings];
+    setSettings(prev => prev.map(s => s.key === key ? { ...s, value: String(value) } : s));
+    
     setSaveLoading(true);
     try {
       await api.put('/settings/update', { key, value });
@@ -872,10 +900,12 @@ const AdminDashboard = () => {
       if (key === 'site_name') {
         updateSiteName(value);
       }
-      fetchSettings();
+      await fetchSettings();
     } catch (err) {
+      setSettings(previousSettings); // Rollback on error
       showFlash('Failed to update setting', 'error');
     } finally {
+      setSaveLoading(true); // Keep it true briefly or set false? existing code had setSaveLoading(false)
       setSaveLoading(false);
     }
   };
@@ -1367,15 +1397,15 @@ const AdminDashboard = () => {
                                              <p className="text-sm font-bold text-[#1d2327] truncate leading-none mb-1">{chat?.name}</p>
                                              <div className="flex items-center gap-2">
                                                 <p className="text-[9px] font-mono text-[#a7aaad] truncate">{chat?.id?._serialized}</p>
-                                                <span className={`text-[8px] font-bold uppercase flex items-center gap-1 ${chat.greetingsEnabled === true ? 'text-[#00a32a]' : 'text-[#a7aaad]'}`}>
-                                                   <div className={`w-1 h-1 rounded-full ${chat.greetingsEnabled === true ? 'bg-[#00a32a]' : 'bg-[#a7aaad]'}`} />
-                                                   Greetings: {chat.greetingsEnabled === true ? 'ON' : chat.greetingsEnabled === false ? 'OFF' : 'DEF'}
+                                                <span className={`text-[8px] font-bold uppercase flex items-center gap-1 ${chat.greetingsEnabled === true ? 'text-[#00a32a]' : chat.greetingsEnabled === false ? 'text-[#d63638]' : 'text-[#a7aaad]'}`}>
+                                                   <div className={`w-1 h-1 rounded-full ${chat.greetingsEnabled === true ? 'bg-[#00a32a]' : chat.greetingsEnabled === false ? 'bg-[#d63638]' : 'bg-[#a7aaad]'}`} />
+                                                   Greetings: {chat.greetingsEnabled === true ? 'ON' : chat.greetingsEnabled === false ? 'OFF' : `DEF (${settings.find(s => s.key === 'group_greeting_enabled')?.value === 'true' ? 'ON' : 'OFF'})`}
                                                 </span>
                                              </div>
                                           </div>
                                        </div>
                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                          <button onClick={() => handleToggleGreetings(chat.id?._serialized)} className={`p-1.5 transition-colors ${chat.greetingsEnabled === true ? 'text-[#00a32a]' : 'text-[#a7aaad]'}`} title={`Greetings: ${chat.greetingsEnabled === true ? 'ON' : chat.greetingsEnabled === false ? 'OFF' : 'DEFAULT'}`}>
+                                          <button onClick={() => handleToggleGreetings(chat.id?._serialized)} className={`p-1.5 transition-colors ${chat.greetingsEnabled === true ? 'text-[#00a32a]' : chat.greetingsEnabled === false ? 'text-[#d63638]' : 'text-[#a7aaad]'}`} title={`Switch to ${chat.greetingsEnabled === null ? (settings.find(s => s.key === 'group_greeting_enabled')?.value === 'true' ? 'Explicit OFF' : 'Explicit ON') : (chat.greetingsEnabled === true ? 'OFF' : 'ON')}`}>
                                              <CheckCircle className={`w-4 h-4 ${chat.greetingsEnabled === true ? 'fill-[#edfaef]' : ''}`} />
                                           </button>
                                           <button onClick={() => openGroupManage(chat.id?._serialized, chat.name)} className="p-1.5 text-[#2271b1] hover:underline" title="Administer"><Shield className="w-4 h-4" /></button>

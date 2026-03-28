@@ -273,31 +273,44 @@ this.client.on('group_join', async (notification) => {
     const groupRes = await db.query('SELECT greetings_enabled FROM groups WHERE wa_jid = $1', [notification.chatId]);
 
     let sendGreeting = globalEnabled;
-    if (groupRes.rows.length > 0 && groupRes.rows[0].greetings_enabled !== null) {
-      sendGreeting = groupRes.rows[0].greetings_enabled;
+    if (groupRes.rows.length > 0) {
+      const groupSetting = groupRes.rows[0].greetings_enabled;
+      if (groupSetting !== null) {
+        sendGreeting = groupSetting;
+      }
     }
 
     if (!sendGreeting) return;
 
     const siteName = await settingsService.get('site_name') || 'Portal';
-    const frontendUrl = 'app.kcdev.qzz.io';
+    let frontendUrl = await settingsService.get('website_domain') || 'localhost:3085';
+    if (!frontendUrl.startsWith('http')) {
+      frontendUrl = `https://${frontendUrl}`;
+    }
+
     for (const participantId of notification.recipientIds) {
-...
-          const welcomeMsg = `👋 *Welcome to the group!*\n\nThis is a secure community managed by *${siteName}*.\n\nWe are glad to have you here. If you wish to participate in our digital identity portal and polls, please visit us at:\n🔗 *${frontendUrl}*\n\nEnjoy your stay!`;
+      try {
+        // Skip if bot itself
+        if (participantId === this.client.info.wid._serialized) continue;
 
-          await this.client.sendMessage(participantId, welcomeMsg);
+        const welcomeMsg = `👋 *Welcome to the group!*\n\nThis is a secure community managed by *${siteName}*.\n\nWe are glad to have you here. If you wish to participate in our digital identity portal and polls, please visit us at:\n🔗 *${frontendUrl}*\n\nEnjoy your stay!`;
 
-          // We still log the join but without restrictive expiration/kick logic
-          const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year fallback
-          await db.query(
-            'INSERT INTO group_gatekeeper_logs (group_jid, participant_id, status, expires_at) VALUES ($1, $2, $3, $4)',
-            [notification.chatId, participantId, 'JOINED', expiresAt]
-          );
-        }
+        await this.client.sendMessage(participantId, welcomeMsg);
+
+        // We still log the join but without restrictive expiration/kick logic
+        const expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000); // 1 year fallback
+        await db.query(
+          'INSERT INTO group_gatekeeper_logs (group_jid, participant_id, status, expires_at) VALUES ($1, $2, $3, $4)',
+          [notification.chatId, participantId, 'JOINED', expiresAt]
+        );
       } catch (err) {
-        console.error('[WHATSAPP] Welcome message error:', err.message);
+        console.error(`[WHATSAPP] Error greeting participant ${participantId}:`, err.message);
       }
-    });
+    }
+  } catch (err) {
+    console.error('[WHATSAPP] Welcome message error:', err.message);
+  }
+});
     this.client.on('vote', async (vote) => {
       try {
         // Log votes for WhatsApp Polls if needed
@@ -467,7 +480,7 @@ this.client.on('group_join', async (notification) => {
         let isAdmin = false;
         if (isGroup) {
           try {
-            const meId = this.me?.wid?._serialized || this.me?.id?._serialized;
+            const meId = this.me?.wid?._serialized || this.me?.id?._serialized || this.client.info?.wid?._serialized;
             const participants = chat.groupMetadata?.participants || [];
             const meParticipant = participants.find(p => p.id?._serialized === meId);
             isAdmin = !!meParticipant?.isAdmin;
@@ -475,11 +488,11 @@ this.client.on('group_join', async (notification) => {
             isAdmin = false;
           }
         } else if (isNewsletter) {
-          // If we got it from manual retrieval, it might already have isAdmin
           isAdmin = chat.isAdmin !== undefined ? chat.isAdmin : true;
         }
 
-        if (!isAdmin || (!isGroup && !isNewsletter)) return null;
+        // Only return groups and channels where the bot is an admin/owner
+        if (!isAdmin) return null;
 
         let iconUrl = null;
         try {
@@ -498,7 +511,7 @@ this.client.on('group_join', async (notification) => {
           timestamp: chat.timestamp || 0,
           iconUrl: iconUrl,
           isAdmin: isAdmin,
-          greetingsEnabled: isGroup ? groupSettingsMap[idStr] : null
+          greetingsEnabled: isGroup ? (groupSettingsMap[idStr] !== undefined ? groupSettingsMap[idStr] : null) : null
         };
       }));
 

@@ -28,7 +28,9 @@ The project is organized into a dual-directory structure:
 - `scripts/`: Operational scripts (e.g., `fresh-install.sh`).
 
 ### Service Architecture
-The application is managed via Docker Compose for production and systemd for development:
+The application is managed via Docker Compose for production and systemd for development.
+
+> **Crucial Service Note**: Systemd service units (`appstack-dev-*`) are exclusively for development/staging environments. All production deployments must be containerized via Docker.
 
 **Production Deployment**:
 - Managed via `docker-compose/docker-compose.release.yml`.

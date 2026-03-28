@@ -293,6 +293,7 @@ const whatsappController = {
     try {
       const { id } = req.params; // wa_jid
       const { enabled } = req.body; // optional: explicit state
+      console.log(`[WHATSAPP CONTROLLER] Toggle greetings request for ${id}, explicit enabled: ${enabled}`);
       
       // 1. Check if group exists in portal
       const groupRes = await db.query('SELECT id, name, greetings_enabled FROM groups WHERE wa_jid = $1', [id]);
@@ -300,6 +301,7 @@ const whatsappController = {
       let finalEnabled = enabled;
 
       if (groupRes.rows.length === 0) {
+        console.log(`[WHATSAPP CONTROLLER] Group ${id} not in DB, fetching metadata...`);
         // Create it
         const metadata = await whatsappService.getGroupMetadata(id);
         const name = metadata.subject || 'WhatsApp Group';
@@ -310,12 +312,14 @@ const whatsappController = {
           finalEnabled = !globalEnabled;
         }
 
+        console.log(`[WHATSAPP CONTROLLER] Inserting new group ${id} with greetings: ${finalEnabled}`);
         await db.query(
           'INSERT INTO groups (name, wa_jid, greetings_enabled) VALUES ($1, $2, $3)',
           [name, id, finalEnabled]
         );
       } else {
         const group = groupRes.rows[0];
+        console.log(`[WHATSAPP CONTROLLER] Group ${id} found, current greetings_enabled: ${group.greetings_enabled}`);
         if (finalEnabled === undefined) {
           if (group.greetings_enabled === null) {
             const settingsService = require('../services/settings.service');
@@ -325,11 +329,13 @@ const whatsappController = {
             finalEnabled = !group.greetings_enabled;
           }
         }
+        console.log(`[WHATSAPP CONTROLLER] Updating group ${id} greetings to: ${finalEnabled}`);
         await db.query('UPDATE groups SET greetings_enabled = $1 WHERE wa_jid = $2', [finalEnabled, id]);
       }
 
       res.json({ success: true, greetingsEnabled: finalEnabled });
     } catch (err) {
+      console.error('[WHATSAPP CONTROLLER] Toggle greetings error:', err.message);
       res.status(500).json({ error: err.message });
     }
   },

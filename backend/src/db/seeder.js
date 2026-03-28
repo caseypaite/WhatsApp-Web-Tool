@@ -63,14 +63,15 @@ const seedAdmin = async () => {
 
     await client.query(
       `INSERT INTO system_settings (key, value)
-       VALUES ($1, $2), ($3, $4), ($5, $6), ($7, $8), ($9, $10)
+       VALUES ($1, $2), ($3, $4), ($5, $6), ($7, $8), ($9, $10), ($11, $12)
        ON CONFLICT (key) DO NOTHING`,
       [
         'site_name', 'WhatsApp Web Tool',
         'website_domain', websiteDomain,
         'vite_api_base_url', backendUrl,
         'ai_enabled', 'false',
-        'ai_custom_prompt', 'You are a helpful assistant for the AppStack platform.'
+        'ai_custom_prompt', 'You are a helpful assistant for the AppStack platform.',
+        'group_greeting_enabled', 'false'
       ]
     );
 
