@@ -49,6 +49,10 @@ Refer to the [SECURITY.md](./SECURITY.md) for details on authentication protocol
 
 ### 📅 Latest Releases
 
+#### [Alpha v1.5.4] - 2026-03-28
+- **Enhancement**: Increased font sizes in the **API Vector Reference** sidebar for better readability and accessibility.
+- **Maintenance**: Minor UI cleanup and optimization.
+
 #### [Alpha v1.5.3] - 2026-03-27
 - **Feature**: Implemented **API Key Authentication** (`x-api-key`) for external system integrations.
 - **Feature**: Added **Interactive API Vector Reference** in the Admin Dashboard with expandable cURL examples.

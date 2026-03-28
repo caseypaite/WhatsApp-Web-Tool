@@ -99,6 +99,9 @@ Use these commands for manual management:
 
 ## 📅 Release History
 
+### Alpha v1.5.4 (2026-03-28)
+- **UI/UX**: Improved legibility of the **API Vector Reference** by increasing font sizes for documentation and cURL examples.
+
 ### Alpha v1.5.3 (2026-03-27)
 - **External Integration**: Configure an **API Key** in *Settings > Security* to allow external systems to trigger broadcasts and group messages.
 - **Documentation**: Access the **API Vector Reference** sidebar in *Settings* for live-updating cURL examples.
