@@ -8,7 +8,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
       POSTGRES_DB: ${DB_NAME:-appstack_db}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./data/db:/var/lib/postgresql/data
       - ../backend/src/db/acl_schema.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - appstack-network
@@ -21,20 +21,23 @@ services:
     restart: always
     environment:
       DATABASE_URL: postgresql://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-appstack_db}
-      PORT: 3000
+      PORT: ${BACKEND_INTERNAL_PORT:-3000}
       JWT_SECRET: ${JWT_SECRET}
       SIMPLE_AUTH_PASSWORD: ${SIMPLE_AUTH_PASSWORD}
-      NODE_ENV: production
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD}
+      NODE_ENV: ${NODE_ENV:-production}
       WEBSITE_DOMAIN: ${WEBSITE_DOMAIN}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
     volumes:
-      - ../backend/.wwebjs_auth:/app/.wwebjs_auth
-      - ../backend/uploads:/app/uploads
+      - ./data/wwebjs_auth:/app/.wwebjs_auth
+      - ./data/uploads:/app/uploads
     depends_on:
       - db
     networks:
       - appstack-network
     ports:
-      - "3085:3000"
+      - "${BACKEND_EXTERNAL_PORT:-3085}:${BACKEND_INTERNAL_PORT:-3000}"
 
   frontend:
     build:
@@ -47,13 +50,10 @@ services:
     networks:
       - appstack-network
     ports:
-      - "8080:80"
+      - "${FRONTEND_EXTERNAL_PORT:-8080}:80"
     depends_on:
       - backend
 
 networks:
   appstack-network:
     driver: bridge
-
-volumes:
-  postgres_data:
