@@ -7,6 +7,11 @@ services:
       POSTGRES_USER: ${DB_USER:-user}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
       POSTGRES_DB: ${DB_NAME:-appstack_db}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-user} -d ${DB_NAME:-appstack_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     volumes:
       - ./data/db:/var/lib/postgresql/data
       - ../backend/src/db/acl_schema.sql:/docker-entrypoint-initdb.d/init.sql
@@ -33,7 +38,10 @@ services:
       - ./data/wwebjs_auth:/app/.wwebjs_auth
       - ./data/uploads:/app/uploads
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "node src/db/seeder.js && npm start"
     networks:
       - appstack-network
     ports:
