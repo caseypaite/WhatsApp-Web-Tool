@@ -1,13 +1,17 @@
 import axios from 'axios';
 
-const API_BASE_URL = (window._CONFIG_ && window._CONFIG_.VITE_API_BASE_URL) || import.meta.env.VITE_API_BASE_URL;
-if (!API_BASE_URL || API_BASE_URL === 'undefined') {
-  console.warn('[API] Warning: VITE_API_BASE_URL is not defined correctly. Falling back to same-origin /api');
-}
-console.log('[API] Initializing with base URL:', API_BASE_URL);
+const getApiBaseUrl = () => {
+  if (window._CONFIG_ && window._CONFIG_.VITE_API_BASE_URL && window._CONFIG_.VITE_API_BASE_URL !== '$VITE_API_BASE_URL') {
+    return window._CONFIG_.VITE_API_BASE_URL;
+  }
+  return import.meta.env.VITE_API_BASE_URL || '/api';
+};
+
+const API_BASE_URL = getApiBaseUrl();
+console.log('[API] Node Initialized with Base URL:', API_BASE_URL);
 
 const api = axios.create({
-  baseURL: API_BASE_URL || '/api',
+  baseURL: API_BASE_URL,
   withCredentials: true,
 });
 
