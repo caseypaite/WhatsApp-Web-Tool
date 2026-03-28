@@ -50,6 +50,7 @@ cp "$ROOT_DIR/README.md" "$PROD_DIR/"
 cp "$ROOT_DIR/SECURITY.md" "$PROD_DIR/"
 cp "$ROOT_DIR/USER_GUIDE.md" "$PROD_DIR/"
 cp "$ROOT_DIR/GEMINI.md" "$PROD_DIR/"
+mkdir -p "$PROD_DIR/scripts"
 cp "$ROOT_DIR/scripts/update-production.sh" "$PROD_DIR/scripts/"
 cp "$ROOT_DIR/scripts/fresh-install.sh" "$PROD_DIR/scripts/"
 
