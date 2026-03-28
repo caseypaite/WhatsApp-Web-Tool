@@ -1,0 +1,71 @@
+services:
+  db:
+    image: postgres:16
+    container_name: appstack-db-release
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
+      POSTGRES_DB: ${DB_NAME:-appstack_db}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-user} -d ${DB_NAME:-appstack_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+      # Note: This still relies on local file for init, but release also has it
+      - ../backend/src/db/acl_schema.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - appstack-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.release
+      target: backend-release
+    container_name: appstack-backend-release
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-user}:${DB_PASSWORD:-password}@db:5432/${DB_NAME:-appstack_db}
+      PORT: ${BACKEND_INTERNAL_PORT:-3000}
+      JWT_SECRET: ${JWT_SECRET}
+      SIMPLE_AUTH_PASSWORD: ${SIMPLE_AUTH_PASSWORD}
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD}
+      NODE_ENV: production
+      WEBSITE_DOMAIN: ${WEBSITE_DOMAIN}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    volumes:
+      - ./data/wwebjs_auth:/app/.wwebjs_auth
+      - ./data/uploads:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >
+      sh -c "node src/db/seeder.js && npm start"
+    networks:
+      - appstack-network
+    ports:
+      - "${BACKEND_EXTERNAL_PORT:-3085}:${BACKEND_INTERNAL_PORT:-3000}"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.release
+      target: frontend-release
+    container_name: appstack-frontend-release
+    restart: always
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+    networks:
+      - appstack-network
+    ports:
+      - "${FRONTEND_EXTERNAL_PORT:-8080}:80"
+    depends_on:
+      - backend
+
+networks:
+  appstack-network:
+    driver: bridge

@@ -1,0 +1,47 @@
+# Common base for release downloading
+FROM node:20-slim as release-fetcher
+
+RUN apt-get update && apt-get install -y curl jq tar --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /tmp
+RUN export LATEST_RELEASE=$(curl -s https://api.github.com/repos/caseypaite/WhatsApp-Web-Tool/releases/latest | jq -r '.assets[] | select(.name | contains("release-v")) | .browser_download_url') \
+    && echo "Downloading: $LATEST_RELEASE" \
+    && curl -L -o release.tar.gz "$LATEST_RELEASE" \
+    && mkdir -p /app-release \
+    && tar -xzf release.tar.gz -C /app-release
+
+# Backend Stage
+FROM node:20-slim as backend-release
+RUN apt-get update && apt-get install -y \
+    chromium \
+    fonts-ipafont-gothic \
+    fonts-wqy-zenhei \
+    fonts-thai-tlwg \
+    fonts-kacst \
+    fonts-freefont-ttf \
+    libxss1 \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
+WORKDIR /app
+COPY --from=release-fetcher /app-release/backend ./
+RUN npm install --production
+RUN mkdir -p uploads
+EXPOSE 3000
+CMD ["npm", "start"]
+
+# Frontend Stage (for serving pre-built assets)
+FROM nginx:stable-alpine as frontend-release
+WORKDIR /usr/share/nginx/html
+COPY --from=release-fetcher /app-release/frontend ./
+# Use the same entrypoint logic as original frontend Dockerfile
+RUN printf "server {\n    listen 80;\n    location / {\n        root /usr/share/nginx/html;\n        index index.html;\n        try_files \$uri \$uri/ /index.html;\n    }\n}\n" > /etc/nginx/conf.d/default.conf
+RUN printf "#!/bin/sh\n\
+echo \"window._CONFIG_ = { VITE_API_BASE_URL: '\$VITE_API_BASE_URL' };\" > /usr/share/nginx/html/config.js\n\
+echo \"Global config generated: \$(cat /usr/share/nginx/html/config.js)\"\n\
+exec nginx -g 'daemon off;'\n" > /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+EXPOSE 80
+ENTRYPOINT ["/entrypoint.sh"]
