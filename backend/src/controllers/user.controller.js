@@ -17,9 +17,13 @@ const userController = {
     phone_number = normalizePhone(phone_number);
     try {
       const result = await otpService.generateAndSendOtp(null, phone_number, 'signup');
-      res.json({ message: 'OTP sent.', result });
+      if (!result.success) {
+        return res.status(500).json({ error: result.message || 'Failed to send OTP via WhatsApp.' });
+      }
+      res.json({ message: 'OTP sent successfully.', result });
     } catch (error) {
-      res.status(500).json({ error: 'Failed to send OTP.' });
+      console.error('[SIGNUP_OTP] Error:', error.message);
+      res.status(500).json({ error: 'Failed to initialize signup protocol.' });
     }
   },
 
@@ -133,29 +137,35 @@ const userController = {
   requestPhoneUpdate: async (req, res) => {
     const dbUserId = getDbUserId(req);
     let { phone_number } = req.body;
-    if (!dbUserId || !phone_number) return res.status(400).json({ error: 'Missing info.' });
+    if (!dbUserId || !phone_number) return res.status(400).json({ error: 'Missing information for update.' });
     phone_number = normalizePhone(phone_number);
     try {
       const result = await otpService.generateAndSendOtp(dbUserId, phone_number, 'phone update');
+      if (!result.success) {
+        return res.status(500).json({ error: result.message || 'Failed to send OTP via WhatsApp.' });
+      }
       const isAdmin = (req.user?.roles || []).includes('Admin');
       if (!isAdmin && result.gatewayResponse) delete result.gatewayResponse;
-      res.json({ message: 'OTP sent.', result });
+      res.json({ message: 'OTP sent successfully.', result });
     } catch (error) {
-      res.status(500).json({ error: 'Error' });
+      console.error('[PHONE_UPDATE_REQ] Error:', error.message);
+      res.status(500).json({ error: 'Failed to initialize phone update protocol.' });
     }
   },
 
   confirmPhoneUpdate: async (req, res) => {
     const dbUserId = getDbUserId(req);
     let { otp, phone_number } = req.body;
+    if (!otp || !phone_number) return res.status(400).json({ error: 'Missing OTP or phone number.' });
     phone_number = normalizePhone(phone_number);
     try {
       const isValid = await otpService.verifyOtp(dbUserId, otp);
-      if (!isValid) return res.status(400).json({ error: 'Invalid OTP.' });
+      if (!isValid) return res.status(400).json({ error: 'Invalid or expired OTP.' });
       await db.query('UPDATE users SET phone_number = $1 WHERE id = $2', [phone_number, dbUserId]);
-      res.json({ message: 'Phone updated.' });
+      res.json({ message: 'Phone number updated successfully.' });
     } catch (error) {
-      res.status(500).json({ error: 'Error' });
+      console.error('[PHONE_UPDATE_CONF] Error:', error.message);
+      res.status(500).json({ error: 'Failed to verify phone update.' });
     }
   },
 
@@ -164,13 +174,17 @@ const userController = {
     try {
       const resUser = await db.query('SELECT phone_number FROM users WHERE id = $1', [dbUserId]);
       const phone = resUser.rows[0]?.phone_number;
-      if (!phone) return res.status(400).json({ error: 'No phone number.' });
+      if (!phone) return res.status(400).json({ error: 'No phone number linked to this identity.' });
       const result = await otpService.generateAndSendOtp(dbUserId, phone, 'password change');
+      if (!result.success) {
+        return res.status(500).json({ error: result.message || 'Failed to send verification code.' });
+      }
       const isAdmin = (req.user?.roles || []).includes('Admin');
       if (!isAdmin && result.gatewayResponse) delete result.gatewayResponse;
-      res.json({ message: 'OTP sent.', result });
+      res.json({ message: 'Verification code sent.', result });
     } catch (error) {
-      res.status(500).json({ error: 'Error' });
+      console.error('[PASS_CHANGE_REQ] Error:', error.message);
+      res.status(500).json({ error: 'Failed to initiate security protocol.' });
     }
   },
 
@@ -198,12 +212,16 @@ const userController = {
     phone_number = normalizePhone(phone_number);
     try {
       const result = await db.query('SELECT id FROM users WHERE phone_number = $1', [phone_number]);
-      if (result.rows.length === 0) return res.status(404).json({ error: 'Phone number not registered.' });
+      if (result.rows.length === 0) return res.status(404).json({ error: 'Phone number not registered within this node.' });
       const user = result.rows[0];
       const otpRes = await otpService.generateAndSendOtp(user.id, phone_number, 'login');
-      res.json({ message: 'OTP sent.', success: otpRes.success });
+      if (!otpRes.success) {
+        return res.status(500).json({ error: otpRes.message || 'Failed to send verification code via WhatsApp.' });
+      }
+      res.json({ message: 'Verification code sent.', success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed to send OTP.' });
+      console.error('[PHONE_LOGIN_REQ] Error:', error.message);
+      res.status(500).json({ error: 'Failed to initiate mobile login sequence.' });
     }
   },
 
@@ -241,16 +259,20 @@ const userController = {
 
   forgotPasswordRequest: async (req, res) => {
     let { email_or_phone } = req.body;
-    if (!email_or_phone) return res.status(400).json({ error: 'Email or phone required.' });
+    if (!email_or_phone) return res.status(400).json({ error: 'Identity identifier (email/phone) required.' });
     try {
       const result = await db.query('SELECT id, phone_number FROM users WHERE email = $1 OR phone_number = $2', [email_or_phone, normalizePhone(email_or_phone)]);
-      if (result.rows.length === 0) return res.status(404).json({ error: 'User not found.' });
+      if (result.rows.length === 0) return res.status(404).json({ error: 'Identity node not found.' });
       const user = result.rows[0];
-      if (!user.phone_number) return res.status(400).json({ error: 'No phone number associated with this account for OTP verification.' });
+      if (!user.phone_number) return res.status(400).json({ error: 'No mobile number associated with this node for verification.' });
       const otpRes = await otpService.generateAndSendOtp(user.id, user.phone_number, 'password recovery');
-      res.json({ message: 'OTP sent to your registered phone number.', success: otpRes.success });
+      if (!otpRes.success) {
+        return res.status(500).json({ error: otpRes.message || 'Failed to transmit verification code.' });
+      }
+      res.json({ message: 'Verification code sent to your registered number.', success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed to send OTP.' });
+      console.error('[FORGOT_PASS_REQ] Error:', error.message);
+      res.status(500).json({ error: 'Failed to initialize identity recovery sequence.' });
     }
   },
 
@@ -342,15 +364,26 @@ const userController = {
   updateProfile: async (req, res) => {
     const dbUserId = getDbUserId(req);
     let { name, phone_number, address, country, state, district, pincode } = req.body;
-    phone_number = normalizePhone(phone_number);
+    
+    // Safety check for phone number normalize
+    if (phone_number) {
+      phone_number = normalizePhone(phone_number);
+    }
+    
     try {
-      const result = await db.query('UPDATE users SET name = $1, phone_number = $2, address = $3, country = $4, state = $5, district = $6, pincode = $7 WHERE id = $8 RETURNING *', [name, phone_number, address, country, state, district, pincode, dbUserId]);
-      if (result.rowCount === 0) return res.status(404).json({ error: 'Not found' });
+      // Use COALESCE to keep existing values if new ones are null/undefined
+      const result = await db.query(
+        'UPDATE users SET name = COALESCE($1, name), phone_number = COALESCE($2, phone_number), address = COALESCE($3, address), country = COALESCE($4, country), state = COALESCE($5, state), district = COALESCE($6, district), pincode = COALESCE($7, pincode), updated_at = CURRENT_TIMESTAMP WHERE id = $8 RETURNING *',
+        [name || null, phone_number || null, address || null, country || null, state || null, district || null, pincode || null, dbUserId]
+      );
+      
+      if (result.rowCount === 0) return res.status(404).json({ error: 'Identity node not found.' });
       const user = result.rows[0];
       delete user.password;
-      res.json({ message: 'Updated.', user });
+      res.json({ message: 'Profile synchronized and updated.', user });
     } catch (error) {
-      res.status(500).json({ error: 'Error' });
+      console.error('[UPDATE_PROFILE] Error:', error.message);
+      res.status(500).json({ error: 'Critical system synchronization error during profile update.' });
     }
   }
 };

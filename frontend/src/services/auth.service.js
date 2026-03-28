@@ -77,6 +77,21 @@ const getAllUsers = async (params) => {
   return response.data;
 };
 
+const updateProfile = async (profileData) => {
+  const response = await api.put('/user/profile', profileData);
+  return response.data;
+};
+
+const requestPhoneUpdate = async (phone_number) => {
+  const response = await api.post('/user/request-phone-update', { phone_number });
+  return response.data;
+};
+
+const verifyPhoneUpdate = async (phone_number, otp) => {
+  const response = await api.post('/user/confirm-phone-update', { phone_number, otp });
+  return response.data;
+};
+
 // Group Management
 const createGroup = async (groupData) => {
   const response = await api.post('/user/groups/create', groupData);
@@ -421,6 +436,9 @@ export default {
   logout,
   getCurrentUser,
   getProfile,
+  updateProfile,
+  requestPhoneUpdate,
+  verifyPhoneUpdate,
   getAllUsers,
   createGroup,
   deleteGroup,
