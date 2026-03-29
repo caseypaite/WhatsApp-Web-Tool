@@ -38,13 +38,14 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
     volumes:
+      - ./data/backend:/app
       - ./data/wwebjs_auth:/app/.wwebjs_auth
       - ./data/uploads:/app/uploads
     depends_on:
       db:
         condition: service_healthy
     command: >
-      sh -c "node src/db/seeder.js && npm start"
+      sh -c "if [ ! -f /app/package.json ]; then cp -rf /app-orig/* /app/; fi && node src/db/seeder.js && npm start"
     networks:
       - appstack-network
     ports:
@@ -59,6 +60,8 @@ services:
     restart: always
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+    volumes:
+      - ./data/frontend:/usr/share/nginx/html
     networks:
       - appstack-network
     ports:

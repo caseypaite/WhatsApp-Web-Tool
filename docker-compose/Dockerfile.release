@@ -37,6 +37,8 @@ WORKDIR /app
 COPY --from=release-fetcher /app-release/backend ./
 RUN npm install --production
 RUN mkdir -p uploads
+# Keep a copy of the baked-in code for volume sync
+RUN cp -rf /app /app-orig
 EXPOSE 3000
 CMD ["npm", "start"]
 
@@ -44,10 +46,16 @@ CMD ["npm", "start"]
 FROM nginx:stable-alpine as frontend-release
 WORKDIR /usr/share/nginx/html
 COPY --from=release-fetcher /app-release/frontend ./
+# Keep a copy of the baked-in assets for volume sync
+RUN mkdir -p /html-orig && cp -rf /usr/share/nginx/html/* /html-orig/
 # Use the same entrypoint logic as original frontend Dockerfile
 RUN printf "server {\n    listen 80;\n    location / {\n        root /usr/share/nginx/html;\n        index index.html;\n        try_files \$uri \$uri/ /index.html;\n    }\n}\n" > /etc/nginx/conf.d/default.conf
 # Entrypoint script to inject environment variables at runtime
 RUN printf "#!/bin/sh\n\
+if [ \"\$(ls -A /usr/share/nginx/html 2>/dev/null)\" = \"\" ]; then\n\
+  echo \"Volume empty, syncing assets from original image...\"\n\
+  cp -rf /html-orig/* /usr/share/nginx/html/\n\
+fi\n\
 if [ -z \"\$VITE_API_BASE_URL\" ]; then\n\
   echo \"WARNING: VITE_API_BASE_URL is not set. Defaulting to /api\"\n\
   export VITE_API_BASE_URL=\"/api\"\n\
