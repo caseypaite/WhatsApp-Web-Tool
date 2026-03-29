@@ -27,7 +27,7 @@ class SchedulerService {
     if (now.getHours() === 3) {
       console.log('[SCHEDULER] Running log cleanup protocol...');
       try {
-        const historyRes = await db.query("DELETE FROM message_history WHERE created_at < NOW() - INTERVAL '30 days'");
+        const historyRes = await db.query("DELETE FROM message_history WHERE sent_at < NOW() - INTERVAL '30 days'");
         const aiRes = await db.query("DELETE FROM ai_interaction_logs WHERE created_at < NOW() - INTERVAL '30 days'");
         console.log(`[SCHEDULER] Cleanup finished. History purged: ${historyRes.rowCount}, AI Logs purged: ${aiRes.rowCount}`);
       } catch (err) {

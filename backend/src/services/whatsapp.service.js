@@ -78,6 +78,7 @@ class WhatsappService {
       puppeteer: {
         executablePath: executablePath,
         headless: true,
+        protocolTimeout: 60000,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
