@@ -55,6 +55,11 @@ cp "$ROOT_DIR/scripts/update-production.sh" "$PROD_DIR/scripts/"
 cp "$ROOT_DIR/scripts/fresh-install.sh" "$PROD_DIR/scripts/"
 
 # 4. Repack Release
+# CRITICAL: This structure must be maintained for the Admin Dashboard 'Hot Patch' logic.
+# The Hot Patch expects:
+# - ./backend/src/ (backend source)
+# - ./frontend/ (pre-built frontend assets)
+# - ./backend/package.json (for dependency tracking)
 echo "📦 Repacking Release $RELEASE_FILE..."
 cd "$ROOT_DIR"
 tar -czf "$RELEASE_FILE" --exclude='node_modules' --exclude='.env' --exclude='.wwebjs_auth' --exclude='.wwebjs_cache' --exclude='release-v*.tar.gz' -C production .

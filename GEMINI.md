@@ -68,6 +68,8 @@ Configuration is managed via `.env` files. **NEVER** commit `.env` files to sour
 - **Containerization**: Production deployments are managed exclusively via Docker Compose in the `docker-compose/` directory.
 - **Release Source**: The production containers pull the latest release package from the official GitHub repository.
 - **Update Process**: Run `docker-compose -f docker-compose.release.yml up --build -d` to pull and deploy the latest revision.
+- **Hot Patch Module**: Admins can upload `.tar.gz` bundles via the dashboard to apply "Hot Patches" which synchronize code and database schemas (`ALTER TABLE ... IF NOT EXISTS`) without service downtime.
+- **Bundle Generation**: Refer to `RELEASING.md` for strict directory structure requirements to ensure bundle compatibility with the Hot Patch logic.
 - **Data Persistence**: WhatsApp session data (`.wwebjs_auth`) and file uploads are persisted via Docker volumes in `docker-compose/data/`.
 - **Note**: Ensure `VITE_API_BASE_URL` is correctly set in `docker-compose/.env` before deploying.
 
