@@ -99,6 +99,12 @@ const AdminDashboard = () => {
   const [waEntityType, setWaEntityType] = useState('group'); // 'group' or 'channel'
   const [newScheduled, setNewScheduled] = useState({ targets: [], message: '', media_url: '', media_type: 'image', scheduled_for: '' });
 
+  // System Update State
+  const [updateFile, setUpdateFile] = useState(null);
+  const [updateLoading, setUpdateLoading] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState('');
+  const [updateCountdown, setUpdateCountdown] = useState(null);
+
   // Audit & Poll Results State
   const [auditLogs, setAuditLogs] = useState([]);
   const [pollResults, setPollResults] = useState([]);
@@ -905,10 +911,45 @@ const AdminDashboard = () => {
       setSettings(previousSettings); // Rollback on error
       showFlash('Failed to update setting', 'error');
     } finally {
-      setSaveLoading(true); // Keep it true briefly or set false? existing code had setSaveLoading(false)
       setSaveLoading(false);
     }
   };
+
+  const handleSystemUpdate = async () => {
+    if (!updateFile) {
+      showFlash('Please select a release package (.tar.gz) first.', 'error');
+      return;
+    }
+
+    if (!window.confirm('WARNING: This will replace system source code and sync the database. The system will be temporarily offline during restart. Proceed?')) {
+      return;
+    }
+
+    setUpdateLoading(true);
+    setUpdateStatus('Transmitting package and applying patches...');
+    
+    try {
+      const res = await authService.updateSystem(updateFile);
+      setUpdateStatus(res.message);
+      showFlash('System patched successfully!', 'success');
+      setUpdateCountdown(30); // Start 30s countdown for restart
+    } catch (err) {
+      setUpdateStatus('');
+      showFlash(err.response?.data?.details || err.response?.data?.error || 'System update failed.', 'error');
+    } finally {
+      setUpdateLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let timer;
+    if (updateCountdown !== null && updateCountdown > 0) {
+      timer = setTimeout(() => setUpdateCountdown(updateCountdown - 1), 1000);
+    } else if (updateCountdown === 0) {
+      window.location.reload();
+    }
+    return () => clearTimeout(timer);
+  }, [updateCountdown]);
 
   const handleTestEndpoint = async (apiTarget) => {
     setApiTestLoading(true);
@@ -2000,7 +2041,72 @@ const AdminDashboard = () => {
                                 <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${settings.find(s => s.key === 'group_greeting_enabled')?.value === 'true' ? 'left-7' : 'left-1'}`} />
                              </button>
                            </div>
-                           </div>                      )}
+
+                           <div className="pt-6 border-t border-[#dcdcde] mt-8">
+                              <h4 className="text-xs font-bold text-[#1d2327] uppercase tracking-widest mb-4 flex items-center gap-2">
+                                 <RefreshCw className={`w-3.5 h-3.5 ${updateLoading ? 'animate-spin' : ''}`} />
+                                 System Pulse & Update
+                              </h4>
+                              
+                              <div className="bg-[#fcf9e8] border border-[#dba617]/30 p-4 rounded-sm space-y-4">
+                                 <div className="flex items-start gap-3">
+                                    <AlertCircle className="w-5 h-5 text-[#dba617] mt-0.5" />
+                                    <div className="space-y-1">
+                                       <p className="text-xs font-bold text-[#1d2327]">Hot Patch Protocol</p>
+                                       <p className="text-[10px] text-[#646970] leading-relaxed">
+                                          Upload an official <strong>.tar.gz</strong> release package to patch system source code and synchronize database schemas. Existing data will be retained.
+                                       </p>
+                                    </div>
+                                 </div>
+
+                                 {updateCountdown !== null ? (
+                                    <div className="p-4 bg-[#2271b1] text-white text-center rounded-sm animate-pulse">
+                                       <p className="text-sm font-black uppercase tracking-widest">Restarting System...</p>
+                                       <p className="text-[10px] mt-1 opacity-80">Re-entry in {updateCountdown} seconds</p>
+                                    </div>
+                                 ) : (
+                                    <div className="space-y-3">
+                                       <div className="flex flex-col sm:flex-row gap-2">
+                                          <div className="flex-1 relative">
+                                             <input 
+                                                type="file" 
+                                                id="system-update-file" 
+                                                className="hidden" 
+                                                accept=".tar.gz" 
+                                                onChange={(e) => setUpdateFile(e.target.files[0])} 
+                                             />
+                                             <label 
+                                                htmlFor="system-update-file" 
+                                                className="w-full flex items-center justify-between px-3 py-2 bg-white border border-[#dcdcde] rounded-sm cursor-pointer hover:border-[#2271b1] transition-all"
+                                             >
+                                                <span className="text-[10px] font-mono text-[#646970] truncate">
+                                                   {updateFile ? updateFile.name : 'Select release-vX.X.X.tar.gz'}
+                                                </span>
+                                                <FileText className="w-3.5 h-3.5 text-[#a7aaad]" />
+                                             </label>
+                                          </div>
+                                          <button 
+                                             onClick={handleSystemUpdate}
+                                             disabled={updateLoading || !updateFile}
+                                             className="wp-button-primary px-6 py-2 text-[10px] font-black uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                          >
+                                             {updateLoading ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+                                             Apply Patch
+                                          </button>
+                                       </div>
+                                       
+                                       {updateStatus && (
+                                          <div className="flex items-center gap-2 text-[10px] font-bold text-[#2271b1] bg-white/50 p-2 border border-[#2271b1]/10 rounded-sm">
+                                             <Terminal className="w-3 h-3" />
+                                             {updateStatus}
+                                          </div>
+                                       )}
+                                    </div>
+                                 )}
+                              </div>
+                           </div>
+                        </div>
+                      )}
 
                       {activeSettingsTab === 'ai' && (
                         <div className="space-y-6">

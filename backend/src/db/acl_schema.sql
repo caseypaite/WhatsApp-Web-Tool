@@ -36,19 +36,23 @@ CREATE TABLE IF NOT EXISTS landing_page_config (
     hero_text TEXT NOT NULL,
     cta_text VARCHAR(255) NOT NULL,
     image_url TEXT,
-    html_content TEXT,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Migrations for LandingPage
+ALTER TABLE landing_page_config ADD COLUMN IF NOT EXISTS html_content TEXT;
 
 -- Create Groups table
 CREATE TABLE IF NOT EXISTS groups (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) UNIQUE NOT NULL,
     description TEXT,
-    wa_jid VARCHAR(255),
-    greetings_enabled BOOLEAN DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Migrations for Groups
+ALTER TABLE groups ADD COLUMN IF NOT EXISTS wa_jid VARCHAR(255);
+ALTER TABLE groups ADD COLUMN IF NOT EXISTS greetings_enabled BOOLEAN DEFAULT NULL;
 
 -- Create GroupMembers association table
 CREATE TABLE IF NOT EXISTS group_members (

@@ -430,6 +430,16 @@ const updateLandingPage = async (data) => {
   return response.data;
 };
 
+const updateSystem = async (file) => {
+  const formData = new FormData();
+  formData.append('package', file);
+  const response = await api.post('/system/update', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 300000 // 5 minute timeout for large uploads/extractions
+  });
+  return response.data;
+};
+
 export default {
   login,
   loginWithPhoneRequest,
@@ -509,5 +519,6 @@ export default {
   clearAuditHistory,
   getPollResults,
   publishPollResults,
-  getAdvancedPollResults
+  getAdvancedPollResults,
+  updateSystem
 };
