@@ -894,22 +894,46 @@ const AdminDashboard = () => {
     }
   };
 
+  const generateUUID = () => {
+    if (window.crypto && window.crypto.randomUUID) {
+      return window.crypto.randomUUID();
+    }
+    // Fallback for older browsers
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  };
+
   const handleUpdateSetting = async (key, value) => {
-    // Optimistic update for better UI response
-    const previousSettings = [...settings];
-    setSettings(prev => prev.map(s => s.key === key ? { ...s, value: String(value) } : s));
-    
+    // 1. Update local state immediately
+    setSettings(prev => {
+      const exists = prev.find(s => s.key === key);
+      if (exists) {
+        return prev.map(s => s.key === key ? { ...s, value: String(value), is_fallback: false } : s);
+      } else {
+        return [...prev, { key, value: String(value), is_fallback: false }];
+      }
+    });
+
     setSaveLoading(true);
     try {
       await api.put('/settings/update', { key, value });
       showFlash('Setting updated');
+      
       if (key === 'site_name') {
         updateSiteName(value);
       }
-      await fetchSettings();
+      
+      // 2. Fetch fresh settings from server to ensure sync
+      const response = await api.get('/settings/all');
+      if (response.data) {
+        setSettings(response.data);
+      }
     } catch (err) {
-      setSettings(previousSettings); // Rollback on error
-      showFlash('Failed to update setting', 'error');
+      showFlash('Failed to save setting to server', 'error');
+      // Refetch on error to restore correct state
+      fetchSettings();
     } finally {
       setSaveLoading(false);
     }
@@ -957,10 +981,12 @@ const AdminDashboard = () => {
     try {
       const config = {};
       if (apiTarget.k) {
-        const apiKey = settings.find(s => s.key === 'api_key')?.value;
+        const fullApiKey = settings.find(s => s.key === 'api_key')?.value;
+        const moApiKey = settings.find(s => s.key === 'messaging_api_key')?.value;
+        const apiKey = (apiTarget.mo && moApiKey) ? moApiKey : fullApiKey;
+
         if (apiKey) config.headers = { 'x-api-key': apiKey };
       }
-
       let res;
       const path = apiTarget.p.startsWith('/') ? apiTarget.p : `/${apiTarget.p}`;
       
@@ -2175,16 +2201,26 @@ const AdminDashboard = () => {
                       {activeSettingsTab === 'security' && (
                         <div className="space-y-6">
                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold text-[#a7aaad] uppercase">System API Access Key</label>
+                              <label className="text-[10px] font-bold text-[#2271b1] uppercase">Full Access API Key</label>
                               <div className="flex gap-2">
                                  <input type="text" className="flex-1 wp-input font-mono" value={settings.find(s => s.key === 'api_key')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'api_key' ? {...s, value: e.target.value} : s))} placeholder="Enter custom API key..." />
+                                 <button onClick={() => { const key = generateUUID(); handleUpdateSetting('api_key', key); }} className="px-4 wp-button-secondary flex items-center gap-2"><Plus className="w-3 h-3" /> Generate</button>
                                  <button onClick={() => handleUpdateSetting('api_key', settings.find(s => s.key === 'api_key')?.value)} className="px-6 wp-button-primary">Save</button>
                               </div>
-                              <p className="text-[10px] text-[#646970] italic">This key allows external systems to trigger broadcasts and interact with the WhatsApp engine via the <code>x-api-key</code> header.</p>
+                              <p className="text-[10px] text-[#646970] italic font-bold">WARNING: This key grants full administrative access to all system endpoints.</p>
+                           </div>
+
+                           <div className="space-y-1 pt-4 border-t border-[#dcdcde]">
+                              <label className="text-[10px] font-bold text-[#00a32a] uppercase tracking-widest">Messaging-Only API Key</label>
+                              <div className="flex gap-2">
+                                 <input type="text" className="flex-1 wp-input font-mono" value={settings.find(s => s.key === 'messaging_api_key')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'messaging_api_key' ? {...s, value: e.target.value} : s))} placeholder="Enter messaging API key..." />
+                                 <button onClick={() => { const key = generateUUID(); handleUpdateSetting('messaging_api_key', key); }} className="px-4 wp-button-secondary flex items-center gap-2"><Plus className="w-3 h-3" /> Generate</button>
+                                 <button onClick={() => handleUpdateSetting('messaging_api_key', settings.find(s => s.key === 'messaging_api_key')?.value)} className="px-6 wp-button-primary">Save</button>
+                              </div>
+                              <p className="text-[10px] text-[#646970] italic">This key is restricted to messaging operations (Broadcasts, Group Messages, Polls). It cannot access management or system configuration endpoints.</p>
                            </div>
                         </div>
                       )}
-
                       {activeSettingsTab === 'otp' && (
                         <div className="space-y-6">
                           <div className="p-6 bg-[#fcf9e8] border border-[#dba617]">
@@ -2211,10 +2247,10 @@ const AdminDashboard = () => {
                       <div className="space-y-1">
                         {[
                           { n: 'System Status', m: 'GET', p: '/whatsapp/status', k: true, d: 'Check connection status' },
-                          { n: 'Broadcast Node', m: 'POST', p: '/whatsapp/broadcast', k: true, d: 'Send message to multiple targets', b: '{"targets": [{"id": "91XXXXXXXXXX@c.us", "type": "individual"}], "message": "Broadcast content", "mediaUrl": "", "mediaType": "image"}' },
-                          { n: 'Group Node Message', m: 'POST', p: '/whatsapp/group/message', k: true, d: 'Direct message to a group node', b: '{"groupId": "120363XXXXXXXXXXXX@g.us", "message": "Group update", "mediaUrl": "", "mediaType": "image"}' },
-                          { n: 'Channel Publication', m: 'POST', p: '/whatsapp/channel/post', k: true, d: 'Publish to a channel newsletter', b: '{"channelId": "120363XXXXXXXXXXXX@newsletter", "message": "Channel publication", "mediaUrl": "", "mediaType": "image"}' },
-                          { n: 'Deploy Poll', m: 'POST', p: '/whatsapp/poll', k: true, d: 'Deploy a native WhatsApp poll', b: '{"chatId": "91XXXXXXXXXX@c.us", "question": "Are you ready?", "options": ["Yes", "No"], "allowMultiple": false}' },
+                          { n: 'Broadcast Node', m: 'POST', p: '/whatsapp/broadcast', k: true, mo: true, d: 'Send message to multiple targets', b: '{"targets": [{"id": "91XXXXXXXXXX@c.us", "type": "individual"}], "message": "Broadcast content", "mediaUrl": "", "mediaType": "image"}' },
+                          { n: 'Group Node Message', m: 'POST', p: '/whatsapp/group/message', k: true, mo: true, d: 'Direct message to a group node', b: '{"groupId": "120363XXXXXXXXXXXX@g.us", "message": "Group update", "mediaUrl": "", "mediaType": "image"}' },
+                          { n: 'Channel Publication', m: 'POST', p: '/whatsapp/channel/post', k: true, mo: true, d: 'Publish to a channel newsletter', b: '{"channelId": "120363XXXXXXXXXXXX@newsletter", "message": "Channel publication", "mediaUrl": "", "mediaType": "image"}' },
+                          { n: 'Deploy Poll', m: 'POST', p: '/whatsapp/poll', k: true, mo: true, d: 'Deploy a native WhatsApp poll', b: '{"chatId": "91XXXXXXXXXX@c.us", "question": "Are you ready?", "options": ["Yes", "No"], "allowMultiple": false}' },
                           { n: 'Chat Registry', m: 'GET', p: '/whatsapp/chats', k: true, d: 'Retrieve all managed chats' },
                           { n: 'Initialize Group', m: 'POST', p: '/whatsapp/groups', k: true, d: 'Create a new group node', b: '{"name": "New Team", "participants": ["91XXXXXXXXXX"]}' },
                           { n: 'Initialize Channel', m: 'POST', p: '/whatsapp/channels', k: true, d: 'Create a new channel newsletter', b: '{"name": "System News", "description": "Official updates"}' }

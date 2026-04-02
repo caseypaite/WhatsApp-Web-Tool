@@ -8,6 +8,7 @@ const APIEndpointEntry = ({ endpoint, onClick }) => {
           <p className="text-[10px] font-black text-[#1d2327] uppercase tracking-tighter mb-1">{endpoint.n || 'API Node'}</p>
           <div className="flex items-center gap-2 mb-0.5">
             <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-sm ${endpoint.m === 'GET' ? 'bg-[#edfaef] text-[#00a32a]' : 'bg-[#fcf0f1] text-[#d63638]'}`}>{endpoint.m}</span>
+            {endpoint.mo && <span className="text-[9px] font-black bg-[#edfaef] text-[#00a32a] px-1 border border-[#00a32a] rounded-sm uppercase tracking-tighter">MO-Key</span>}
             <code className="text-xs font-mono text-[#1d2327] font-bold truncate">{endpoint.p}</code>
           </div>
           <p className="text-[10px] text-[#646970] font-medium truncate w-full">{endpoint.d}</p>

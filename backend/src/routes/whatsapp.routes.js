@@ -12,8 +12,8 @@ router.get('/contacts', authenticate, checkRole(['Admin']), whatsappController.g
 router.post('/logout', authenticate, checkRole(['Admin']), whatsappController.logout);
 router.post('/reinitialize', authenticate, checkRole(['Admin']), whatsappController.reinitialize);
 router.post('/request-pairing-code', authenticate, checkRole(['Admin']), whatsappController.requestPairingCode);
-router.post('/send-test', authenticate, checkRole(['Admin']), whatsappController.sendTestMessage);
-router.post('/broadcast', authenticate, checkRole(['Admin']), whatsappController.broadcast);
+router.post('/send-test', authenticate, checkRole(['MessagingOnly']), whatsappController.sendTestMessage);
+router.post('/broadcast', authenticate, checkRole(['MessagingOnly']), whatsappController.broadcast);
 
 // New Management Routes
 router.post('/groups', authenticate, checkRole(['Admin']), whatsappController.createGroup);
@@ -33,8 +33,8 @@ router.post('/groups/:id/reject', authenticate, checkRole(['Admin']), whatsappCo
 router.post('/groups/:id/toggle-greetings', authenticate, checkRole(['Admin']), whatsappController.toggleGreetings);
 
 // Interaction Routes
-router.post('/poll', authenticate, checkRole(['Admin']), whatsappController.sendPoll);
-router.post('/group/message', authenticate, checkRole(['Admin']), whatsappController.groupMessage);
-router.post('/channel/post', authenticate, checkRole(['Admin']), whatsappController.channelPost);
+router.post('/poll', authenticate, checkRole(['MessagingOnly']), whatsappController.sendPoll);
+router.post('/group/message', authenticate, checkRole(['MessagingOnly']), whatsappController.groupMessage);
+router.post('/channel/post', authenticate, checkRole(['MessagingOnly']), whatsappController.channelPost);
 
 module.exports = router;

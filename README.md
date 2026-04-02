@@ -24,6 +24,13 @@ WhatsApp Web Tool is a comprehensive full-stack platform designed for secure ide
 - **Public & Closed Access**: Host global public polls or restrict voting to specific organizational groups.
 - **Real-time Results**: Live vote tracking and results visualization for administrators with optimized eager-loading dashboards.
 
+### 🔌 External Messaging API
+The platform exposes a powerful, authenticated messaging interface for external system integrations:
+- **Tiered API Keys**: Configure **Full Access** or **Messaging-Only** API keys via the `x-api-key` header to strictly control external access.
+- **Direct Messaging**: Dedicated endpoints for sending messages to individuals, groups, and newsletters.
+- **SSRF Validation**: Advanced security layer that validates and sanitizes all external media URLs before processing.
+- **Live Documentation**: Interactive **API Vector Reference** embedded in the dashboard with ready-to-use cURL examples and permission indicators.
+
 ### 🤖 Intelligence & Governance
 - **Multi-Provider AI Assistant**: Integrated support for **Google Gemini 2.0** and Mistral AI for autonomous community query resolution.
 - **Custom AI Personality**: Tailor the AI's behavior, tone, and instructions via a centralized system prompt setting.
@@ -37,7 +44,7 @@ WhatsApp Web Tool is a comprehensive full-stack platform designed for secure ide
 - **Frontend**: React (Vite), Tailwind CSS, Lucide Icons, React Router (HashRouter).
 - **Backend**: Node.js, Express, PostgreSQL.
 - **Engine**: WhatsApp-Web.js (Puppeteer-driven).
-- **Security**: JWT Authentication, Bcrypt Password Hashing, TLS/SSL.
+- **Security**: HttpOnly Secure Cookies, JWT, Bcrypt, SSRF Protection.
 
 ## 📦 Installation
 
@@ -49,13 +56,16 @@ Refer to the [SECURITY.md](./SECURITY.md) for details on authentication protocol
 
 ### 📅 Latest Releases
 
-#### [Beta v1.6.0] - 2026-03-28
-- **Milestone**: Transitioned from Alpha to **Beta** status.
+#### [Beta v1.6.0] - 2026-03-29
+- **Milestone**: Platform officially transitioned from Alpha to **Beta** status.
 - **Security**: Implemented **HttpOnly Secure Cookie** authentication, replacing localStorage for session management.
+- **Security**: Added **SSRF Protection** for all media processing via URL/DNS validation.
+- **API**: Expanded **x-api-key** compatibility to all messaging and management endpoints.
 - **Architecture**: Modularized the Admin Dashboard into separate, high-performance components.
 - **Optimization**: Enabled **Lazy Loading** for dashboard nodes to minimize network overhead.
 - **Hardening**: Integrated **DOMPurify** for multi-layer frontend HTML sanitization.
 - **Integrity**: Consolidated utility logic and optimized database connection pooling.
+- **Feature**: Added **Group Greetings** with global/per-group toggle controls.
 
 #### [Alpha v1.5.5] - 2026-03-28
 - **Feature**: Implemented **Interactive API Diagnostic Modal** with dynamic parameter forms.

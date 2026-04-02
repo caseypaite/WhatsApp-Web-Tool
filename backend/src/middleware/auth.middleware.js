@@ -6,21 +6,20 @@ const settingsService = require('../services/settings.service');
  * @param {string[]} requiredRoles - Array of roles allowed to access the route.
  */
 const checkRole = (requiredRoles) => {
-  return (req, res, next) => {
-    // Check roles field in the payload
-    const userRoles = req.auth?.payload?.roles || req.user?.roles || [];
-
-    const hasRole = requiredRoles.some((role) => userRoles.includes(role));
-
-    if (!hasRole) {
-      return res.status(403).json({
-        error: 'Forbidden',
-        message: 'You do not have the required permissions to access this resource.',
-      });
-    }
-
-    next();
-  };
+  return (requiredRoles.includes('MessagingOnly') && !requiredRoles.includes('Admin')) 
+    ? (req, res, next) => {
+        const userRoles = req.auth?.payload?.roles || req.user?.roles || [];
+        // Admin also has MessagingOnly permissions
+        const hasRole = requiredRoles.some((role) => userRoles.includes(role)) || userRoles.includes('Admin');
+        if (!hasRole) return res.status(403).json({ error: 'Forbidden', message: 'Missing permissions.' });
+        next();
+      }
+    : (req, res, next) => {
+        const userRoles = req.auth?.payload?.roles || req.user?.roles || [];
+        const hasRole = requiredRoles.some((role) => userRoles.includes(role));
+        if (!hasRole) return res.status(403).json({ error: 'Forbidden', message: 'Missing permissions.' });
+        next();
+      };
 };
 
 /**
@@ -47,6 +46,15 @@ const authenticate = async (req, res, next) => {
       req.auth = { payload: { sub: 0, email: 'api-user@system.local', roles: ['Admin'] } };
       return next();
     }
+
+    // 2.1 Messaging-Only API Key Auth
+    const configuredMessagingKey = await settingsService.get('messaging_api_key');
+    if (configuredMessagingKey && providedApiKey === configuredMessagingKey) {
+      req.user = { id: 0, email: 'messaging-api@system.local', roles: ['MessagingOnly'] };
+      req.auth = { payload: { sub: 0, email: 'messaging-api@system.local', roles: ['MessagingOnly'] } };
+      return next();
+    }
+
     return res.status(401).json({ error: 'Unauthorized', message: 'Invalid API Key' });
   }
 // 3. JWT Auth

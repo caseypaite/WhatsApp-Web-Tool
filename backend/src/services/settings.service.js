@@ -44,6 +44,7 @@ class SettingsService {
       'otp_max_retries',
       'jwt_secret',
       'api_key',
+      'messaging_api_key',
       'vite_api_base_url',
       'ai_enabled',
       'ai_provider',

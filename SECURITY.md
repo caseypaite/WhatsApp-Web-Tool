@@ -7,14 +7,20 @@ This document outlines the security protocols and architecture implemented in th
 ### JSON Web Tokens (JWT)
 The primary authentication mechanism for user sessions is based on industry-standard JWT.
 - **Issuance**: Upon successful login, the backend generates a token signed with a server-side `JWT_SECRET`.
-- **Transmission**: The frontend includes this token in the `Authorization: Bearer <token>` header for all protected requests.
+- **Transmission**: The frontend includes this token in the `Authorization: Bearer <token>` header for all protected requests. In production, this is managed via **HttpOnly Secure Cookies** to prevent XSS-based token theft.
 - **Verification**: The backend validates the signature and expiration of the token before processing any request.
 
-### API Key Support (`x-simple-auth`)
-For automation, administrative scripts, or legacy integration, the platform supports a header-based API key.
+### API Key Authentication (`x-api-key`)
+The platform supports two tiers of API key access for external system integrations:
+- **Full Access API Key**: Grants complete `Admin` level permissions. This key can be used for any administrative operation, including management of users, groups, and system configuration.
+- **Messaging-Only API Key**: Grants a restricted `MessagingOnly` role. This key is limited to communication vectors (Broadcasts, Polls, Direct Messages) and cannot access management, status, or administrative endpoints.
+- **Configuration**: Both keys can be managed in the **Settings > Security** tab of the Admin Dashboard.
+
+### Simple Auth Fallback (`x-simple-auth`)
+A secondary, development-focused authentication method exists for legacy scripts or local testing.
 - **Header**: `x-simple-auth`
 - **Secret**: Defined by the `SIMPLE_AUTH_PASSWORD` environment variable.
-- **Usage**: Providing this key grants administrative access without requiring a standard user login session.
+- **Environment**: This method is restricted and intended for development environments. It grants `Admin` permissions to the system.
 
 ### Role-Based Access Control (RBAC)
 The system enforces granular access control at the route level.
@@ -31,7 +37,12 @@ All communication between the frontend and backend is encrypted using **Transpor
 ### Cross-Origin Resource Sharing (CORS)
 Strict CORS policies are enforced to prevent unauthorized cross-site requests.
 - **Whitelisting**: The backend only accepts requests from explicitly defined origins.
-- **CSRF Protection**: By restricting origins and requiring custom headers (Authorization/x-simple-auth), the risk of Cross-Site Request Forgery is significantly mitigated.
+- **CSRF Protection**: By restricting origins and requiring custom headers (Authorization, x-api-key, or x-simple-auth), the risk of Cross-Site Request Forgery is significantly mitigated.
+
+### SSRF Protection
+To prevent **Server-Side Request Forgery (SSRF)** when processing external media:
+- **URL Validation**: All media URLs provided to the messaging API are validated against a blacklist of private IP ranges (e.g., 127.0.0.1, 192.168.x.x, 10.x.x.x).
+- **DNS Resolution**: The system resolves hostnames and checks the resulting IP addresses to ensure they point to public, global internet resources before attempting to fetch content.
 
 ## 3. Data Protection
 

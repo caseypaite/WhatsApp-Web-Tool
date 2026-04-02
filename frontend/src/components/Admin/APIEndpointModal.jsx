@@ -21,7 +21,11 @@ const APIEndpointModal = ({ endpoint, isOpen, onClose, onTest, loading, result, 
   
   const apiBaseUrl = settings.find(s => s.key === 'vite_api_base_url')?.value || import.meta.env.VITE_API_BASE_URL || window.location.origin;
   const apiUrl = apiBaseUrl.replace(/\/api$/, '');
-  const apiKey = settings.find(s => s.key === 'api_key')?.value || 'YOUR_KEY';
+  
+  // Select the appropriate key based on endpoint requirements
+  const fullApiKey = settings.find(s => s.key === 'api_key')?.value;
+  const moApiKey = settings.find(s => s.key === 'messaging_api_key')?.value;
+  const apiKey = (endpoint.mo && moApiKey) ? moApiKey : (fullApiKey || 'YOUR_KEY');
   
   const currentPayload = JSON.stringify(testPayload);
   const fullUrl = `${apiUrl}/api${endpoint.p}`;

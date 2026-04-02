@@ -92,6 +92,71 @@ Use these commands for manual management:
 
 ---
 
+## 🛠️ 4. Developer & API Guide
+
+The platform provides a robust API for external system integrations, allowing other applications to trigger WhatsApp communications and manage entities.
+
+### Authentication (`x-api-key`)
+External requests must include the `x-api-key` header. The platform supports two tiers of keys:
+- **Full Access Key**: Grants `Admin` permissions to all messaging, entity management, and system configuration endpoints.
+- **Messaging-Only Key**: Restricted to communication endpoints (Broadcast, Group/Channel Message, Poll). This key **cannot** access status checks, chat registries, or group management.
+- **Location**: Manage your API Keys from the **Settings > Security** tab.
+
+### API Vector Reference
+The Admin Dashboard includes a live-updating documentation hub:
+1. Navigate to **Settings > General**.
+2. Click the **API Documentation** button in the sidebar.
+3. Access interactive cURL examples for all supported endpoints, including parameters for **Direct Group Messaging** and **Channel (Newsletter) Publication**.
+
+### Common API Endpoints
+
+#### Send Direct Group Message
+**Endpoint**: `POST /api/whatsapp/group/message`
+**Header**: `x-api-key: YOUR_KEY`
+**Payload**:
+```json
+{
+  "groupId": "120363000000000000@g.us",
+  "message": "System Alert: Maintenance scheduled for midnight.",
+  "mediaUrl": "https://example.com/alert.png",
+  "mediaType": "image"
+}
+```
+
+#### Post to Newsletter (Channel)
+**Endpoint**: `POST /api/whatsapp/channel/post`
+**Payload**:
+```json
+{
+  "channelId": "120363000000000000@newsletter",
+  "message": "Weekly digest is now available!",
+  "mediaUrl": "https://example.com/digest.pdf",
+  "mediaType": "document"
+}
+```
+
+#### Multi-Target Broadcast
+**Endpoint**: `POST /api/whatsapp/broadcast`
+**Payload**:
+```json
+{
+  "targets": [
+    {"id": "919000000000@c.us", "type": "individual"},
+    {"id": "120363000000000000@g.us", "type": "group"}
+  ],
+  "message": "Hello everyone!",
+  "templateId": 5
+}
+```
+
+### Security Considerations (SSRF)
+The system includes an **SSRF Validation Layer**. If you provide a `mediaUrl`, the server will:
+1. Validate the URL structure.
+2. Resolve the hostname to an IP address.
+3. Deny the request if the IP address belongs to a private or reserved network range (e.g., `127.0.0.1`, `10.x.x.x`).
+
+---
+
 ## ❓ Troubleshooting
 
 - **QR Code Connectivity:** Ensure the backend has internet access and the WhatsApp account is active on a mobile device.
