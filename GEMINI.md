@@ -80,6 +80,12 @@ Configuration is managed via `.env` files. **NEVER** commit `.env` files to sour
 - **Passwords**: Enforce the complexity policy (8+ chars, mixed case, numbers, special chars).
 - **OTP**: Use WhatsApp-based OTP for registration, phone updates, and poll voting.
 - **SQL Integrity**: Always use parameterized queries (via `pg`) to prevent SQL injection.
+- **SSRF Protection**: All external media URLs must be validated against private IP ranges and resolved via DNS before processing.
+
+### API & External Integration
+- **Tiered API Keys**: Support both `Full Access` (Admin) and `Messaging-Only` API keys.
+- **Header**: Use `x-api-key` for all external system requests.
+- **Messaging-Only Restrictions**: Restricted to `/broadcast`, `/poll`, `/group/message`, and `/channel/post`.
 
 ### Conventions
 - **API Versioning**: All API routes should be prefixed with `/api/`.
@@ -109,4 +115,4 @@ The system uses specific logic to determine administrative authority over WhatsA
     - Normalization: Channel IDs are normalized to the standard object format `{ _serialized, server, user }` to ensure frontend compatibility.
 
 ---
-*GEMINI.md generated on March 23, 2026.*
+*GEMINI.md updated on April 2, 2026.*
