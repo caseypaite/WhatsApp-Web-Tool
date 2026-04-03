@@ -14,3 +14,4 @@ docker-compose/data/
 **/backend.env
 **/frontend.env
 template.md
+GEMINI.md
