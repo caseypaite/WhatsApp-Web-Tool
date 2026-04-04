@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { normalizePhoneNumber } = require('../utils/validators');
 
 class ScheduledController {
   async getAll(req, res) {
@@ -17,9 +18,17 @@ class ScheduledController {
     }
 
     try {
+      // Normalize individual targets
+      const normalizedTargets = targets.map(target => {
+        if (target.type === 'individual') {
+          return { ...target, id: normalizePhoneNumber(target.id) };
+        }
+        return target;
+      });
+
       const result = await db.query(
         'INSERT INTO scheduled_messages (targets, message, media_url, media_type, scheduled_for) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-        [JSON.stringify(targets), message, media_url || null, media_type || null, scheduled_for]
+        [JSON.stringify(normalizedTargets), message, media_url || null, media_type || null, scheduled_for]
       );
       res.status(201).json(result.rows[0]);
     } catch (error) {

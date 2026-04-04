@@ -18,9 +18,9 @@ The platform includes an automated script to handle database creation, schema in
 
 ### Service Control
 Use these commands for manual management:
-- **Restart Server:** `sudo systemctl restart appstack-backend`
-- **Check Status:** `sudo systemctl status appstack-backend`
-- **View Logs:** `sudo journalctl -u appstack-backend -f`
+- **Restart Server:** `sudo systemctl restart whatsapp-web-tool-backend`
+- **Check Status:** `sudo systemctl status whatsapp-web-tool-backend`
+- **View Logs:** `sudo journalctl -u whatsapp-web-tool-backend -f`
 
 ---
 

@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const otpService = require('../services/otp.service');
+const { normalizePhoneNumber } = require('../utils/validators');
 
 class PollController {
   async getAll(req, res) {
@@ -8,7 +9,14 @@ class PollController {
     offset = offset ? parseInt(offset) : 0;
 
     try {
-      let query = 'SELECT * FROM polls ORDER BY created_at DESC LIMIT $1 OFFSET $2';
+      let query = `
+        SELECT p.*, COUNT(v.id)::INTEGER as total_votes 
+        FROM polls p 
+        LEFT JOIN poll_votes v ON p.id = v.poll_id 
+        GROUP BY p.id 
+        ORDER BY p.created_at DESC 
+        LIMIT $1 OFFSET $2
+      `;
       const result = await db.query(query, [limit, offset]);
       res.json(result.rows);
     } catch (error) {
@@ -254,8 +262,10 @@ class PollController {
 
   async requestVoteOtp(req, res) {
     const { pollId, phone_number, confirmView } = req.body;
-    console.log(`[POLL] OTP Request received for poll ${pollId}, phone ${phone_number}, confirmView ${confirmView}`);
     if (!phone_number) return res.status(400).json({ error: 'Phone number required' });
+    
+    const normalizedPhone = normalizePhoneNumber(phone_number);
+    console.log(`[POLL] OTP Request received for poll ${pollId}, phone ${phone_number} (normalized: ${normalizedPhone}), confirmView ${confirmView}`);
 
     try {
       const pollRes = await db.query(
@@ -295,15 +305,15 @@ class PollController {
             return res.status(503).json({ error: 'Identity validation service is currently offline. Please try again in a few minutes.' });
           }
           
-          isVerified = await whatsappService.isParticipantInGroup(targetWaJid, phone_number);
+          isVerified = await whatsappService.isParticipantInGroup(targetWaJid, normalizedPhone);
           if (!isVerified) {
-            console.log(`[POLL] Voter ${phone_number} is not a member of ${targetWaJid}`);
+            console.log(`[POLL] Voter ${normalizedPhone} is not a member of ${targetWaJid}`);
             return res.status(403).json({ error: 'This decision node is restricted to specific organizational units. Your current mobile unit is not recognized as a member.' });
           }
-          console.log(`[POLL] Voter ${phone_number} verified as member of ${targetWaJid}`);
+          console.log(`[POLL] Voter ${normalizedPhone} verified as member of ${targetWaJid}`);
         } else if (poll.group_id) {
           // Fallback to internal group check ONLY if no WA JID is provided
-          const userRes = await db.query('SELECT id FROM users WHERE phone_number = $1', [phone_number]);
+          const userRes = await db.query('SELECT id FROM users WHERE phone_number = $1', [normalizedPhone]);
           if (userRes.rows.length === 0) {
             return res.status(403).json({ error: 'Only registered members can vote in this closed poll' });
           }
@@ -324,11 +334,11 @@ class PollController {
       // Check if already voted
       const checkVote = await db.query(
         'SELECT * FROM poll_votes WHERE poll_id = $1 AND phone_number = $2',
-        [pollId, phone_number]
+        [pollId, normalizedPhone]
       );
 
       if (checkVote.rows.length > 0 && !confirmView) {
-        console.log(`[POLL] Voter ${phone_number} already voted for poll ${pollId}`);
+        console.log(`[POLL] Voter ${normalizedPhone} already voted for poll ${pollId}`);
         return res.json({ 
           already_voted: true, 
           needs_confirmation: true,
@@ -336,9 +346,9 @@ class PollController {
         });
       }
 
-      console.log(`[POLL] Triggering OTP for ${phone_number}`);
-      await otpService.generateAndSendOtp(null, phone_number, 'voting');
-      res.json({ success: true, message: 'OTP sent successfully.' });
+      console.log(`[POLL] Triggering OTP for ${normalizedPhone}`);
+      await otpService.generateAndSendOtp(null, normalizedPhone, 'voting');
+      res.json({ success: true, message: 'OTP sent successfully.', normalizedPhone });
     } catch (error) {
       console.error(`[POLL] requestVoteOtp error:`, error);
       res.status(500).json({ error: error.message });
@@ -347,14 +357,15 @@ class PollController {
 
   async verifyAndVote(req, res) {
     const { pollId, phone_number, otp, option_selected, candidate_id } = req.body;
+    const normalizedPhone = normalizePhoneNumber(phone_number);
     
     try {
-      const isValid = await otpService.verifyOtp(phone_number, otp);
+      const isValid = await otpService.verifyOtp(normalizedPhone, otp);
       if (!isValid) return res.status(400).json({ error: 'Invalid or expired OTP' });
 
       const checkVote = await db.query(
         'SELECT * FROM poll_votes WHERE poll_id = $1 AND phone_number = $2',
-        [pollId, phone_number]
+        [pollId, normalizedPhone]
       );
 
       if (checkVote.rows.length > 0) {
@@ -387,10 +398,10 @@ class PollController {
         if (targetWaJid) {
           const whatsappService = require('../services/whatsapp.service');
           if (whatsappService.isReady) {
-            isVerified = await whatsappService.isParticipantInGroup(targetWaJid, phone_number);
+            isVerified = await whatsappService.isParticipantInGroup(targetWaJid, normalizedPhone);
           }
         } else if (poll.group_id) {
-          const userRes = await db.query('SELECT id FROM users WHERE phone_number = $1', [phone_number]);
+          const userRes = await db.query('SELECT id FROM users WHERE phone_number = $1', [normalizedPhone]);
           if (userRes.rows.length > 0) {
             const userId = userRes.rows[0].id;
             const memberRes = await db.query('SELECT * FROM group_members WHERE group_id = $1 AND user_id = $2', [poll.group_id, userId]);
@@ -405,7 +416,7 @@ class PollController {
 
       const voteRes = await db.query(
         'INSERT INTO poll_votes (poll_id, phone_number, option_selected, candidate_id) VALUES ($1, $2, $3, $4) RETURNING *',
-        [pollId, phone_number, option_selected || null, candidate_id || null]
+        [pollId, normalizedPhone, option_selected || null, candidate_id || null]
       );
 
       res.json({ success: true, message: 'Vote cast successfully', vote: voteRes.rows[0] });

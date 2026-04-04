@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { normalizePhoneNumber } = require('../utils/validators');
 
 class ResponderController {
   async getAll(req, res) {
@@ -91,9 +92,10 @@ class ResponderController {
     const { phone_number, reason } = req.body;
     if (!phone_number) return res.status(400).json({ error: 'Phone number is required' });
     try {
+      const normalizedPhone = normalizePhoneNumber(phone_number);
       const result = await db.query(
         'INSERT INTO chat_blacklist (phone_number, reason) VALUES ($1, $2) ON CONFLICT (phone_number) DO UPDATE SET reason = EXCLUDED.reason RETURNING *',
-        [phone_number.replace(/\D/g, ''), reason]
+        [normalizedPhone, reason]
       );
       res.status(201).json(result.rows[0]);
     } catch (error) {

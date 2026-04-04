@@ -1,6 +1,6 @@
 # Security Documentation
 
-This document outlines the security protocols and architecture implemented in the AppStack platform to ensure data integrity, privacy, and secure communication.
+This document outlines the security protocols and architecture implemented in the WhatsApp Web Tool platform to ensure data integrity, privacy, and secure communication.
 
 ## 1. Authentication & Authorization
 

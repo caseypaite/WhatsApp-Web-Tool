@@ -109,6 +109,10 @@ const AdminDashboard = () => {
   const [auditLogs, setAuditLogs] = useState([]);
   const [pollResults, setPollResults] = useState([]);
   const [auditFilters, setAuditFilters] = useState({ phoneNumber: '', status: '' });
+  const [showPollResultModal, setShowPollResultModal] = useState(false);
+  const [selectedPollForResults, setSelectedPollForResults] = useState(null);
+  const [pollPreviewData, setPollPreviewData] = useState(null);
+  const [pollPreviewLoading, setPollPreviewLoading] = useState(false);
 
   // Flash Message State
   const [flash, setFlash] = useState(null);
@@ -323,6 +327,20 @@ const AdminDashboard = () => {
       setPollResults(data || []);
     } catch (err) {
       console.error('Failed to fetch poll results');
+    }
+  };
+
+  const fetchPollPreview = async (poll) => {
+    setSelectedPollForResults(poll);
+    setShowPollResultModal(true);
+    setPollPreviewLoading(true);
+    try {
+      const data = await authService.getAdvancedPollResults(poll.id);
+      setPollPreviewData(data);
+    } catch (err) {
+      showFlash('Failed to fetch poll results.', 'error');
+    } finally {
+      setPollPreviewLoading(false);
     }
   };
 
@@ -1883,36 +1901,54 @@ const AdminDashboard = () => {
                  {pollResults.length > 0 ? (
                    <div className="grid md:grid-cols-2 gap-6">
                       {pollResults.map(poll => (
-                        <div key={poll.id} className="wp-card group">
+                        <div key={poll.id} className="wp-card group flex flex-col">
                            <div className="px-4 py-3 border-b border-[#dcdcde] bg-[#f6f7f7] flex justify-between items-center">
                               <h4 className="text-sm font-semibold truncate max-w-[200px]">{poll.question || poll.title}</h4>
                               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                 <button onClick={() => copyPollLink(poll.id)} className="p-1 text-[#2271b1] hover:underline"><Link className="w-3.5 h-3.5" /></button>
-                                 {poll.type && <button onClick={() => navigate(`/poll/edit/${poll.id}`)} className="p-1 text-[#2271b1] hover:underline"><Edit2 className="w-3.5 h-3.5" /></button>}
-                                 <button onClick={() => handleDeletePoll(poll.id, poll.question || poll.title)} className="p-1 text-[#d63638] hover:underline"><Trash2 className="w-3.5 h-3.5" /></button>
+                                 <button onClick={() => copyPollLink(poll.id)} title="Copy Link" className="p-1 text-[#2271b1] hover:underline"><Link className="w-3.5 h-3.5" /></button>
+                                 {poll.type && <button onClick={() => navigate(`/poll/edit/${poll.id}`)} title="Edit Poll" className="p-1 text-[#2271b1] hover:underline"><Edit2 className="w-3.5 h-3.5" /></button>}
+                                 <button onClick={() => handleDeletePoll(poll.id, poll.question || poll.title)} title="Delete Poll" className="p-1 text-[#d63638] hover:underline"><Trash2 className="w-3.5 h-3.5" /></button>
                               </div>
                            </div>
-                           <div className="p-5 space-y-4">
-                              <p className="text-[10px] text-[#a7aaad] font-bold uppercase tracking-widest">Type: {poll.type || 'WhatsApp Sync'} | ID: {poll.id}</p>
-                              <div className="space-y-3">
-                                 {poll.type ? (
-                                   <button onClick={() => navigate(`/poll/${poll.id}`)} className="w-full wp-button-primary py-3">View Results</button>
-                                 ) : (
-                                   poll.options && !Array.isArray(poll.options) ? Object.entries(poll.options).map(([opt, count]) => {
-                                      const total = Object.values(poll.options).reduce((a, b) => a + (Number(b) || 0), 0);
-                                      const percentage = total > 0 ? (Number(count) / total) * 100 : 0;
-                                      return (
-                                        <div key={opt} className="space-y-1">
-                                           <div className="flex justify-between text-[10px] font-bold uppercase">
-                                              <span>{opt}</span>
-                                              <span className="text-[#2271b1]">{count} Votes</span>
-                                           </div>
-                                           <div className="h-1.5 bg-[#f6f7f7] border border-[#dcdcde] shadow-inner">
-                                              <div className="h-full bg-[#2271b1]" style={{ width: `${percentage}%` }}></div>
-                                           </div>
-                                        </div>
-                                      );
-                                   }) : <p className="text-xs text-[#a7aaad] italic">Awaiting initial votes...</p>
+                           <div className="p-5 flex-1 flex flex-col space-y-4">
+                              <div className="flex justify-between items-start">
+                                 <div className="space-y-1">
+                                    <p className="text-[10px] text-[#a7aaad] font-bold uppercase tracking-widest">Type: {poll.type || 'WhatsApp Sync'}</p>
+                                    <p className="text-[10px] text-[#a7aaad] font-bold uppercase tracking-widest">Access: {poll.access_type || 'N/A'}</p>
+                                 </div>
+                                 <div className="text-right">
+                                    <p className="text-[10px] text-[#a7aaad] font-bold uppercase tracking-widest">Status: <span className={poll.status === 'OPEN' ? 'text-[#00a32a]' : 'text-[#d63638]'}>{poll.status}</span></p>
+                                    <p className="text-[10px] text-[#a7aaad] font-bold uppercase tracking-widest">ID: {poll.id}</p>
+                                 </div>
+                              </div>
+
+                              {poll.description && (
+                                 <p className="text-xs text-[#646970] italic line-clamp-2 leading-relaxed border-l-2 border-[#dcdcde] pl-3 py-1">
+                                    {poll.description}
+                                 </p>
+                              )}
+
+                              <div className="bg-[#f6f7f7] p-3 border border-[#dcdcde] flex justify-between items-center">
+                                 <span className="text-[10px] font-black uppercase tracking-widest text-[#3c434a]">Vote Summary</span>
+                                 <span className="text-xs font-black text-[#2271b1]">{poll.total_votes || 0} Total Casts</span>
+                              </div>
+
+                              <div className="pt-2 mt-auto space-y-2">
+                                 <button 
+                                    onClick={() => fetchPollPreview(poll)} 
+                                    className="w-full wp-button-secondary py-3 flex items-center justify-center gap-2"
+                                 >
+                                    <BarChart2 className="w-4 h-4" />
+                                    <span>Preview Live Results</span>
+                                 </button>
+                                 {poll.type && (
+                                    <button 
+                                       onClick={() => navigate(`/poll/${poll.id}`)} 
+                                       className="w-full wp-button-primary py-3 flex items-center justify-center gap-2"
+                                    >
+                                       <Activity className="w-4 h-4" />
+                                       <span>Public Result Page</span>
+                                    </button>
                                  )}
                               </div>
                            </div>
@@ -2366,6 +2402,84 @@ const AdminDashboard = () => {
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal
+        isOpen={showPollResultModal}
+        onClose={() => { setShowPollResultModal(false); setPollPreviewData(null); }}
+        title="Live Result Preview"
+        subtitle={`Poll: ${selectedPollForResults?.question || selectedPollForResults?.title}`}
+        maxWidth="max-w-2xl"
+        flash={flash}
+      >
+        <div className="space-y-6">
+          {pollPreviewLoading ? (
+            <div className="py-20 flex flex-col items-center justify-center space-y-4">
+              <RefreshCw className="w-8 h-8 text-[#2271b1] animate-spin" />
+              <p className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Synchronizing Live Data...</p>
+            </div>
+          ) : pollPreviewData ? (
+            <div className="space-y-8">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="wp-card p-4 bg-[#f6f7f7] text-center border-[#dcdcde]">
+                  <p className="text-[9px] font-bold text-[#a7aaad] uppercase tracking-widest mb-1">Total Votes</p>
+                  <p className="text-2xl font-black text-[#2271b1]">{pollPreviewData.totalVotes}</p>
+                </div>
+                <div className="wp-card p-4 bg-[#f6f7f7] text-center border-[#dcdcde]">
+                  <p className="text-[9px] font-bold text-[#a7aaad] uppercase tracking-widest mb-1">Status</p>
+                  <p className="text-sm font-black uppercase text-[#1d2327]">{selectedPollForResults?.status}</p>
+                </div>
+                <div className="wp-card p-4 bg-[#f6f7f7] text-center border-[#dcdcde]">
+                  <p className="text-[9px] font-bold text-[#a7aaad] uppercase tracking-widest mb-1">Access Type</p>
+                  <p className="text-sm font-black uppercase text-[#1d2327]">{selectedPollForResults?.access_type}</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <h3 className="text-xs font-bold text-[#1d2327] uppercase tracking-widest border-l-2 border-[#2271b1] pl-3">Vote Distribution</h3>
+                <div className="space-y-4">
+                  {pollPreviewData.results.map((res, i) => {
+                    const percentage = pollPreviewData.totalVotes > 0 ? (res.votes / pollPreviewData.totalVotes) * 100 : 0;
+                    return (
+                      <div key={i} className="space-y-2">
+                        <div className="flex justify-between items-end">
+                          <span className="text-xs font-bold text-[#3c434a] uppercase">{res.name || res.option_selected || `Option ${i+1}`}</span>
+                          <span className="text-[10px] font-black text-[#2271b1]">{res.votes} ({percentage.toFixed(1)}%)</span>
+                        </div>
+                        <div className="h-4 bg-[#f6f7f7] border border-[#dcdcde] shadow-inner relative overflow-hidden">
+                          <div 
+                            className="h-full bg-[#2271b1] transition-all duration-1000 ease-out relative group"
+                            style={{ width: `${percentage}%` }}
+                          >
+                             <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="p-4 bg-[#fcfcfc] border border-[#dcdcde] flex justify-between items-center">
+                 <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${selectedPollForResults?.status === 'OPEN' ? 'bg-[#00a32a] animate-pulse' : 'bg-[#d63638]'}`} />
+                    <span className="text-[9px] font-bold text-[#646970] uppercase">Live Matrix Active</span>
+                 </div>
+                 <button 
+                    onClick={() => { setShowPollResultModal(false); setPollPreviewData(null); }} 
+                    className="wp-button-secondary py-1.5 px-6 text-[10px]"
+                 >
+                    Close Preview
+                 </button>
+              </div>
+            </div>
+          ) : (
+            <div className="py-20 text-center text-[#d63638]">
+               <AlertCircle className="w-8 h-8 mx-auto mb-2" />
+               <p className="text-xs font-bold uppercase">Critical Error: Result Set Null</p>
+            </div>
+          )}
+        </div>
       </Modal>
 
       {/* GATEWAY DEBUG */}

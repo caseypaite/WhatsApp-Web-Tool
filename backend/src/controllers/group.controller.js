@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const whatsappService = require('../services/whatsapp.service');
+const { normalizePhoneNumber } = require('../utils/validators');
 
 const groupController = {
   createGroup: async (req, res) => {
@@ -105,24 +106,26 @@ const groupController = {
     if (!phoneNumber || !message) return res.status(400).json({ error: 'Missing phoneNumber or message.' });
     
     try {
-      const result = await whatsappService.sendMessage(phoneNumber, message, mediaOptions);
+      const normalizedPhone = normalizePhoneNumber(phoneNumber);
+      const result = await whatsappService.sendMessage(normalizedPhone, message, mediaOptions);
       const success = !!result.id;
       
       await whatsappService.logMessage({
         userId: userId || null,
-        phoneNumber,
+        phoneNumber: normalizedPhone,
         message,
         status: success ? 'SUCCESS' : 'FAILED',
         errorMessage: success ? null : 'Failed to get message ID'
       });
 
-      res.json({ message: 'Process complete.', success, result });
+      res.json({ message: 'Process complete.', success, result, normalizedPhone });
     } catch (error) {
       console.error('Error sending custom message:', error.message);
       
+      const normalizedPhone = normalizePhoneNumber(phoneNumber);
       await whatsappService.logMessage({
         userId: userId || null,
-        phoneNumber,
+        phoneNumber: normalizedPhone,
         message,
         status: 'FAILED',
         errorMessage: error.message

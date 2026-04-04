@@ -4,6 +4,7 @@ const settingsService = require('./settings.service');
 const db = require('../config/db');
 const aiService = require('../utils/ai.service');
 const reportService = require('../utils/report.service');
+const { normalizePhoneNumber } = require('../utils/validators');
 const path = require('path');
 const fs = require('fs');
 const { Address4, Address6 } = require('ip-address');
@@ -686,14 +687,8 @@ this.client.on('group_join', async (notification) => {
 
     let finalJid = number.toString();
     if (!finalJid.includes('@')) {
-      const cleanNumber = finalJid.replace(/\D/g, '');
-      // Prefer @c.us for standard numbers
-      if (cleanNumber.length >= 10 && cleanNumber.length <= 15) {
-        finalJid = `${cleanNumber}@c.us`;
-      } else {
-        const numberId = await this.client.getNumberId(cleanNumber);
-        finalJid = numberId ? numberId._serialized : `${cleanNumber}@c.us`;
-      }
+      const cleanNumber = normalizePhoneNumber(finalJid);
+      finalJid = `${cleanNumber}@c.us`;
     }
     console.log(`[WHATSAPP] Sending message to: ${finalJid}`);
     try {
@@ -768,15 +763,12 @@ this.client.on('group_join', async (notification) => {
       const chat = await this.client.getChatById(groupJid);
       if (!chat.isGroup) return false;
       
-      const cleanPhone = phoneNumber.replace(/\D/g, '');
-      // Check for both international formats
-      const variants = [cleanPhone, `91${cleanPhone}`, cleanPhone.startsWith('91') ? cleanPhone.slice(2) : `91${cleanPhone}`];
-      
-      console.log(`[WHATSAPP] Checking membership for ${phoneNumber} in group ${chat.name} (${groupJid})`);
+      const normalizedInput = normalizePhoneNumber(phoneNumber);
+      console.log(`[WHATSAPP] Checking membership for ${phoneNumber} (normalized: ${normalizedInput}) in group ${chat.name} (${groupJid})`);
       
       for (const participant of chat.groupMetadata.participants) {
-        const pNum = participant.id.user;
-        if (variants.includes(pNum)) {
+        const pNum = normalizePhoneNumber(participant.id.user);
+        if (pNum === normalizedInput) {
           console.log(`[WHATSAPP] Match found: ${participant.id._serialized}`);
           return true;
         }

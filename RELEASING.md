@@ -1,6 +1,6 @@
-# AppStack Release & Hot Patch Protocol
+# WhatsApp Web Tool Release & Hot Patch Protocol
 
-This document outlines the requirements for generating release packages (`.tar.gz`) that are compatible with the AppStack **Hot Patch** system (Dashboard-based updates).
+This document outlines the requirements for generating release packages (`.tar.gz`) that are compatible with the WhatsApp Web Tool **Hot Patch** system (Dashboard-based updates).
 
 ## Release Bundle Structure
 The `Hot Patch` module expects the following directory structure inside the root of the `.tar.gz` archive:

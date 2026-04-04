@@ -27,6 +27,28 @@ const validatePassword = (password) => {
   return { isValid: true, message: 'Password is valid.' };
 };
 
+/**
+ * Normalizes a phone number for WhatsApp.
+ * - Removes non-digit characters.
+ * - Appends '91' if it's a 10-digit number.
+ * @param {string} phone 
+ * @returns {string} Normalized phone number digits (e.g., 919560436836)
+ */
+const normalizePhoneNumber = (phone) => {
+  if (!phone) return null;
+  
+  // Remove all non-digit characters
+  let cleaned = phone.toString().replace(/\D/g, '');
+  
+  // If it's 10 digits, assume India (91)
+  if (cleaned.length === 10) {
+    cleaned = '91' + cleaned;
+  }
+  
+  return cleaned;
+};
+
 module.exports = {
-  validatePassword
+  validatePassword,
+  normalizePhoneNumber
 };

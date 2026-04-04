@@ -1,6 +1,7 @@
 const db = require('../config/db');
 const settingsService = require('./settings.service');
 const crypto = require('crypto');
+const { normalizePhoneNumber } = require('../utils/validators');
 
 /**
  * Service to handle OTP (One Time Password) lifecycle.
@@ -20,6 +21,7 @@ class OtpService {
       return { success: false, message: 'OTP is disabled' };
     }
 
+    const normalizedPhone = normalizePhoneNumber(phoneNumber);
     const expMinutes = parseInt(await settingsService.get('otp_expiration_minutes')) || 5;
     const expiresAt = new Date(Date.now() + expMinutes * 60 * 1000);
     const code = crypto.randomInt(100000, 999999).toString();
@@ -29,17 +31,17 @@ class OtpService {
       if (userId) {
         await db.query("UPDATE otp_verification SET status = 'EXPIRED' WHERE user_id = $1 AND status = 'PENDING'", [userId]);
       } else {
-        await db.query("UPDATE otp_verification SET status = 'EXPIRED' WHERE phone_number = $1 AND status = 'PENDING'", [phoneNumber]);
+        await db.query("UPDATE otp_verification SET status = 'EXPIRED' WHERE phone_number = $1 AND status = 'PENDING'", [normalizedPhone]);
       }
 
       // Store new OTP
       await db.query(
         'INSERT INTO otp_verification (user_id, phone_number, code, expires_at) VALUES ($1, $2, $3, $4)',
-        [userId || null, phoneNumber, code, expiresAt]
+        [userId || null, normalizedPhone, code, expiresAt]
       );
 
-      console.log(`[OTP] Stored OTP for ${phoneNumber}, expires at ${expiresAt}. Code: ${code}`);
-      const gatewayResponse = await this.callOtpGateway(phoneNumber, code, purpose);
+      console.log(`[OTP] Stored OTP for ${normalizedPhone}, expires at ${expiresAt}. Code: ${code}`);
+      const gatewayResponse = await this.callOtpGateway(normalizedPhone, code, purpose);
       
       const gatewaySuccess = gatewayResponse.status >= 200 && gatewayResponse.status < 300;
       
@@ -89,8 +91,9 @@ class OtpService {
         query = "SELECT * FROM otp_verification WHERE user_id = $1 AND status = 'PENDING' ORDER BY id DESC LIMIT 1";
         params = [userIdOrPhone];
       } else {
+        const normalizedPhone = normalizePhoneNumber(userIdOrPhone);
         query = "SELECT * FROM otp_verification WHERE phone_number = $1 AND status = 'PENDING' ORDER BY id DESC LIMIT 1";
-        params = [userIdOrPhone.toString()];
+        params = [normalizedPhone];
       }
 
       const result = await db.query(query, params);
@@ -127,7 +130,8 @@ class OtpService {
   async sendRawMessage(phoneNumber, message) {
     const whatsappService = require('./whatsapp.service');
     try {
-      const result = await whatsappService.sendMessage(phoneNumber, message);
+      const normalizedPhone = normalizePhoneNumber(phoneNumber);
+      const result = await whatsappService.sendMessage(normalizedPhone, message);
       return { status: 200, data: { success: true, messageId: result.id?._serialized || result.id } };
     } catch (error) {
       console.error('[OTP] Raw message error:', error.message);
