@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Github, BookOpen, Shield, Code, History, Zap, ArrowLeft, Cpu, Globe, Activity, ShieldCheck, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import api from '../services/api';
+import axios from 'axios';
 
 const AboutPage = () => {
   const { siteName } = useAuth();
@@ -14,13 +14,29 @@ const AboutPage = () => {
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        const response = await api.get('/system/version-history');
-        setVersionHistory(response.data);
+        // Fetch directly from GitHub for absolute dynamic synchronization
+        const response = await axios.get('https://api.github.com/repos/caseypaite/WhatsApp-Web-Tool/releases', {
+          headers: { 'Accept': 'application/vnd.github.v3+json' },
+          timeout: 8000
+        });
+        
+        if (response.data && Array.isArray(response.data)) {
+          const history = response.data.slice(0, 10).map(release => ({
+            tag: release.tag_name,
+            message: release.name || release.body?.split('\n')[0] || 'Regular protocol update',
+            date: release.published_at ? release.published_at.split('T')[0] : '2026-04-04'
+          }));
+          setVersionHistory(history);
+        } else {
+          throw new Error('Invalid GitHub response');
+        }
       } catch (err) {
-        console.error('Failed to fetch version history');
-        // Fallback
+        console.error('Failed to fetch version history from GitHub:', err.message);
+        // Fallback to static data if GitHub is unreachable
         setVersionHistory([
-          { tag: "v1.6.0", message: "Official Beta transition with secure cookie auth and modular UI", date: "2026-03-28" }
+          { tag: "v1.6.0", message: "Official Beta transition with secure cookie auth and modular UI", date: "2026-03-28" },
+          { tag: "v1.5.5", message: "Interactive API diagnostics and external media support", date: "2026-03-28" },
+          { tag: "v1.5.4", message: "Production recovery and sidebar restoration", date: "2026-03-28" }
         ]);
       } finally {
         setLoading(false);
