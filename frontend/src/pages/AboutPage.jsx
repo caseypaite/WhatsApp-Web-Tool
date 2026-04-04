@@ -1,25 +1,33 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Github, BookOpen, Shield, Code, History, Zap, ArrowLeft, Cpu, Globe, Activity, ShieldCheck } from 'lucide-react';
+import { Github, BookOpen, Shield, Code, History, Zap, ArrowLeft, Cpu, Globe, Activity, ShieldCheck, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 
 const AboutPage = () => {
   const { siteName } = useAuth();
   const navigate = useNavigate();
   const version = "1.6.0";
-  const versionHistory = [
-    { tag: "v1.6.0", message: "Official Beta transition with secure cookie auth and modular UI", date: "2026-03-28" },
-    { tag: "v1.5.5", message: "Interactive API diagnostics and external media support", date: "2026-03-28" },
-    { tag: "v1.5.4", message: "Production recovery and sidebar restoration", date: "2026-03-28" },
-    { tag: "v1.5.2", message: "Production synchronization and version alignment", date: "2026-03-27" },
-    { tag: "v1.5.1", message: "Maintenance release and security patches", date: "2026-03-26" },
-    { tag: "v1.5.0", message: "Enterprise UI overhaul with WordPress-Admin theme and unified poll access", date: "2026-03-25" },
-    { tag: "v1.4.4", message: "Alpha release with phone number linking and group management", date: "2026-03-24" },
-    { tag: "v1.4.3", message: "Stable production release with update script", date: "2026-03-24" },
-    { tag: "v1.4.2", message: "Production package release and version updates", date: "2026-03-24" },
-    { tag: "v1.4.1", message: "Maintenance release with performance fixes", date: "2026-03-23" },
-    { tag: "v1.4.0", message: "Initial production release v1.4.0", date: "2026-03-22" }
-  ];
+  const [versionHistory, setVersionHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const response = await api.get('/system/version-history');
+        setVersionHistory(response.data);
+      } catch (err) {
+        console.error('Failed to fetch version history');
+        // Fallback
+        setVersionHistory([
+          { tag: "v1.6.0", message: "Official Beta transition with secure cookie auth and modular UI", date: "2026-03-28" }
+        ]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchHistory();
+  }, []);
 
   const backendLibraries = [
     "Node.js (Express)", "whatsapp-web.js (Puppeteer)", "PostgreSQL (pg)", "JWT Auth", "Bcrypt.js", "AI Integration"
@@ -88,21 +96,28 @@ const AboutPage = () => {
             <div className="bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.24)] border border-[#dcdcde] p-8 md:p-12">
               <h3 className="text-2xl font-bold text-[#1d2327] mb-8 border-b border-[#f0f0f1] pb-4 uppercase tracking-tight">Version History</h3>
               <div className="space-y-6">
-                {versionHistory.map((v, i) => (
-                  <div key={v.tag} className="flex gap-6 group">
-                    <div className="flex flex-col items-center">
-                      <div className={`w-3 h-3 rounded-full border-2 transition-colors ${i === 0 ? 'bg-[#2271b1] border-[#2271b1]' : 'bg-white border-[#dcdcde] group-hover:border-[#2271b1]'}`} />
-                      {i !== versionHistory.length - 1 && <div className="w-0.5 h-full bg-[#f0f0f1]" />}
-                    </div>
-                    <div className="pb-8">
-                      <div className="flex items-center gap-3 mb-1">
-                        <span className="text-xs font-bold text-[#1d2327] bg-[#f0f0f1] px-2 py-0.5 rounded-sm">{v.tag}</span>
-                        <span className="text-[10px] font-bold text-[#a7aaad] uppercase">{v.date}</span>
-                      </div>
-                      <p className="text-sm text-[#646970] font-medium leading-relaxed">{v.message}</p>
-                    </div>
+                {loading ? (
+                  <div className="py-12 flex flex-col items-center justify-center space-y-4">
+                    <RefreshCw className="w-8 h-8 text-[#2271b1] animate-spin" />
+                    <p className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Synchronizing Build Logs...</p>
                   </div>
-                ))}
+                ) : (
+                  versionHistory.map((v, i) => (
+                    <div key={v.tag} className="flex gap-6 group">
+                      <div className="flex flex-col items-center">
+                        <div className={`w-3 h-3 rounded-full border-2 transition-colors ${i === 0 ? 'bg-[#2271b1] border-[#2271b1]' : 'bg-white border-[#dcdcde] group-hover:border-[#2271b1]'}`} />
+                        {i !== versionHistory.length - 1 && <div className="w-0.5 h-full bg-[#f0f0f1]" />}
+                      </div>
+                      <div className="pb-8">
+                        <div className="flex items-center gap-3 mb-1">
+                          <span className="text-xs font-bold text-[#1d2327] bg-[#f0f0f1] px-2 py-0.5 rounded-sm">{v.tag}</span>
+                          <span className="text-[10px] font-bold text-[#a7aaad] uppercase">{v.date}</span>
+                        </div>
+                        <p className="text-sm text-[#646970] font-medium leading-relaxed">{v.message}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>

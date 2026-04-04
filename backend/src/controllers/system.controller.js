@@ -2,6 +2,7 @@ const db = require('../config/db');
 const { exec } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const axios = require('axios');
 const { promisify } = require('util');
 const execPromise = promisify(exec);
 
@@ -10,8 +11,41 @@ const execPromise = promisify(exec);
  */
 class SystemController {
   /**
-   * Performs a system update using an uploaded tar.gz package.
+   * Fetches version history from GitHub.
    */
+  async getVersionHistory(req, res) {
+    try {
+      // Fetch latest releases/tags from GitHub
+      const response = await axios.get('https://api.github.com/repos/caseypaite/WhatsApp-Web-Tool/releases', {
+        headers: { 'Accept': 'application/vnd.github.v3+json' },
+        timeout: 5000
+      });
+
+      if (!response.data || !Array.isArray(response.data)) {
+        throw new Error('Invalid response from GitHub');
+      }
+
+      const history = response.data.slice(0, 10).map(release => ({
+        tag: release.tag_name,
+        message: release.name || release.body?.split('\n')[0] || 'Regular protocol update',
+        date: release.published_at ? release.published_at.split('T')[0] : '2026-04-04'
+      }));
+
+      res.json(history);
+    } catch (error) {
+      console.error('[SYSTEM] Failed to fetch version history:', error.message);
+      // Fallback data if GitHub is unreachable
+      const fallback = [
+        { tag: "v1.6.0", message: "Official Beta transition with secure cookie auth and modular UI", date: "2026-03-28" },
+        { tag: "v1.5.5", message: "Interactive API diagnostics and external media support", date: "2026-03-28" }
+      ];
+      res.json(fallback);
+    }
+  }
+
+  /**
+   * Performs a system update using an uploaded tar.gz package.
+...
   async performUpdate(req, res) {
     if (!req.file) {
       return res.status(400).json({ error: 'No update package provided.' });

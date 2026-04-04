@@ -33,6 +33,7 @@ const upload = multer({
  * Public/User Routes
  */
 router.get('/status', (req, res) => systemController.getSystemStatus(req, res));
+router.get('/version-history', (req, res) => systemController.getVersionHistory(req, res));
 
 /**
  * Admin Protected Routes
