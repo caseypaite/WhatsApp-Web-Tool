@@ -157,6 +157,23 @@ const whatsappController = {
     }
   },
 
+  sendSingleMessage: async (req, res) => {
+    try {
+      const { number, message, mediaUrl, mediaType } = req.body;
+      if (!number || !message) return res.status(400).json({ error: 'number and message are required' });
+      
+      let mediaOptions = null;
+      if (mediaUrl) {
+        mediaOptions = { url: mediaUrl, type: mediaType || 'image' };
+      }
+
+      const result = await whatsappService.sendMessage(number, message, mediaOptions, { raw: true });
+      res.json({ success: true, messageId: result.id?._serialized || result.id });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+
   broadcast: async (req, res) => {
     try {
       const { targets, message, templateId, mediaUrl, mediaType } = req.body; // targets: [{id, type}]

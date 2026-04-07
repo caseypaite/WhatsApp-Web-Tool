@@ -13,6 +13,7 @@ router.post('/logout', authenticate, checkRole(['Admin']), whatsappController.lo
 router.post('/reinitialize', authenticate, checkRole(['Admin']), whatsappController.reinitialize);
 router.post('/request-pairing-code', authenticate, checkRole(['Admin']), whatsappController.requestPairingCode);
 router.post('/send-test', authenticate, checkRole(['MessagingOnly']), whatsappController.sendTestMessage);
+router.post('/send-message', authenticate, checkRole(['MessagingOnly']), whatsappController.sendSingleMessage);
 router.post('/broadcast', authenticate, checkRole(['MessagingOnly']), whatsappController.broadcast);
 
 // New Management Routes

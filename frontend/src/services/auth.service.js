@@ -194,6 +194,11 @@ const sendWhatsappTest = async (number, message) => {
   return response.data;
 };
 
+const sendWhatsappMessage = async (number, message, mediaUrl = null, mediaType = null) => {
+  const response = await api.post('/whatsapp/send-message', { number, message, mediaUrl, mediaType });
+  return response.data;
+};
+
 const createWaGroup = async (name, participants) => {
   const response = await api.post('/whatsapp/groups', { name, participants });
   return response.data;
@@ -473,6 +478,7 @@ export default {
   reinitializeWhatsapp,
   requestWaPairingCode,
   sendWhatsappTest,
+  sendWhatsappMessage,
   getLandingPage,
   updateLandingPage,
   requestPasswordChange,

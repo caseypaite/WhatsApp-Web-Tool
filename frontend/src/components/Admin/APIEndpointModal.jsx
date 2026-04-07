@@ -103,6 +103,7 @@ const APIEndpointModal = ({ endpoint, isOpen, onClose, onTest, loading, result, 
                     <div key={key} className="space-y-1">
                       <label className="text-[10px] font-bold text-[#a7aaad] uppercase italic">{key}</label>
                       <select className="w-full wp-input text-[10px] font-bold py-1 uppercase bg-white" value={testPayload[key]} onChange={(e) => handleFieldChange(key, e.target.value)}>
+                        <option value="text">Text Only</option>
                         <option value="image">Image</option>
                         <option value="video">Video</option>
                         <option value="audio">Audio</option>

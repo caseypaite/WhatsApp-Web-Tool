@@ -2283,6 +2283,7 @@ const AdminDashboard = () => {
                       <div className="space-y-1">
                         {[
                           { n: 'System Status', m: 'GET', p: '/whatsapp/status', k: true, d: 'Check connection status' },
+                          { n: 'Single Message Node', m: 'POST', p: '/whatsapp/send-message', k: true, mo: true, d: 'Send message to a single mobile number', b: '{"number": "91XXXXXXXXXX", "message": "Direct notification", "mediaUrl": "", "mediaType": "text"}' },
                           { n: 'Broadcast Node', m: 'POST', p: '/whatsapp/broadcast', k: true, mo: true, d: 'Send message to multiple targets', b: '{"targets": [{"id": "91XXXXXXXXXX@c.us", "type": "individual"}], "message": "Broadcast content", "mediaUrl": "", "mediaType": "image"}' },
                           { n: 'Group Node Message', m: 'POST', p: '/whatsapp/group/message', k: true, mo: true, d: 'Direct message to a group node', b: '{"groupId": "120363XXXXXXXXXXXX@g.us", "message": "Group update", "mediaUrl": "", "mediaType": "image"}' },
                           { n: 'Channel Publication', m: 'POST', p: '/whatsapp/channel/post', k: true, mo: true, d: 'Publish to a channel newsletter', b: '{"channelId": "120363XXXXXXXXXXXX@newsletter", "message": "Channel publication", "mediaUrl": "", "mediaType": "image"}' },

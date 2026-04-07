@@ -70,11 +70,12 @@ class WhatsappService {
     console.log('[WHATSAPP] Using browser:', executablePath || 'Default (Puppeteer bundled)');
 
     const clientId = 'appstack-wa-session-' + Buffer.from(__dirname).toString('hex').slice(0, 8);
+    const dataPath = path.resolve(__dirname, '../../.wwebjs_auth');
 
     this.client = new Client({
       authStrategy: new LocalAuth({
         clientId: clientId,
-        dataPath: './.wwebjs_auth'
+        dataPath: dataPath
       }),
       puppeteer: {
         executablePath: executablePath,
@@ -676,14 +677,17 @@ this.client.on('group_join', async (notification) => {
     return await chat.rejectGroupJoinRequest(participantId);
   }
 
-  async sendMessage(number, message, mediaOptions = null) {
+  async sendMessage(number, message, mediaOptions = null, options = {}) {
     if (!this.isReady) throw new Error('WhatsApp client not ready');
     
-    // Fetch dynamic Site Name from settings
-    const siteName = await settingsService.get('site_name') || 'Identity Portal';
-    
-    // Generate professional message template
-    const formattedMessage = `🏛️ *${siteName.toUpperCase()}*\n\n${message}\n\n_System generated notification_`;
+    let formattedMessage = message;
+
+    if (!options.raw) {
+      // Fetch dynamic Site Name from settings
+      const siteName = await settingsService.get('site_name') || 'Identity Portal';
+      // Generate professional message template
+      formattedMessage = `🏛️ *${siteName.toUpperCase()}*\n\n${message}\n\n_System generated notification_`;
+    }
 
     let finalJid = number.toString();
     if (!finalJid.includes('@')) {
