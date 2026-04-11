@@ -72,16 +72,6 @@ const whatsappController = {
   getStatus: async (req, res) => {
     try {
       const status = await whatsappService.getStatus();
-      const settingsService = require('../services/settings.service');
-      
-      // If service is DISCONNECTED but DB says CONNECTED, it means service is still booting up
-      // or session is being restored. We should trust the service's runtime isReady flag
-      // for the "ready" state, but can use DB status for the "label" if appropriate.
-      
-      if (!status.qr && status.status === 'DISCONNECTED') {
-        const storedQr = await settingsService.get('whatsapp_qr');
-        if (storedQr) status.qr = storedQr;
-      }
 
       // If runtime says NOT READY, but status is CONNECTED, it's inconsistent
       if (!status.ready && status.status === 'CONNECTED') {
@@ -94,7 +84,6 @@ const whatsappController = {
       res.status(500).json({ error: 'Failed to get status' });
     }
   },
-
   // Manual Logout
   logout: async (req, res) => {
     try {
@@ -108,7 +97,7 @@ const whatsappController = {
   // Manual Initialization
   reinitialize: async (req, res) => {
     try {
-      await whatsappService.initialize();
+      await whatsappService.reinitialize();
       res.json({ message: 'Re-initialization started' });
     } catch (err) {
       res.status(500).json({ error: 'Failed to reinitialize' });
@@ -150,7 +139,7 @@ const whatsappController = {
   sendTestMessage: async (req, res) => {
     const { number, message } = req.body;
     try {
-      const result = await whatsappService.sendMessage(number, message);
+      const result = await whatsappService.sendMessage(number, message, null, { userId: req.user?.id });
       res.json({ success: true, messageId: result.id });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -159,15 +148,16 @@ const whatsappController = {
 
   sendSingleMessage: async (req, res) => {
     try {
-      const { number, message, mediaUrl, mediaType } = req.body;
-      if (!number || !message) return res.status(400).json({ error: 'number and message are required' });
+      const { number, id, message, mediaUrl, mediaType } = req.body;
+      const targetNumber = number || id;
+      if (!targetNumber || !message) return res.status(400).json({ error: 'Target number (number/id) and message are required' });
       
       let mediaOptions = null;
       if (mediaUrl) {
         mediaOptions = { url: mediaUrl, type: mediaType || 'image' };
       }
 
-      const result = await whatsappService.sendMessage(number, message, mediaOptions, { raw: true });
+      const result = await whatsappService.sendMessage(targetNumber, message, mediaOptions, { raw: true, userId: req.user?.id });
       res.json({ success: true, messageId: result.id?._serialized || result.id });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -206,7 +196,7 @@ const whatsappController = {
 
       for (const target of targets) {
         try {
-          await whatsappService.sendMessage(target.id, finalMessage, mediaOptions);
+          await whatsappService.sendMessage(target.id, finalMessage, mediaOptions, { type: target.type, raw: true, userId: req.user?.id });
           results.success.push(target.id);
         } catch (err) {
           results.failed.push({ id: target.id, error: err.message });
@@ -361,7 +351,7 @@ const whatsappController = {
     try {
       const { chatId, question, options, allowMultiple } = req.body;
       if (!chatId || !question || !options) return res.status(400).json({ error: 'Missing parameters' });
-      const result = await whatsappService.sendPoll(chatId, question, options, allowMultiple);
+      const result = await whatsappService.sendPoll(chatId, question, options, allowMultiple, { userId: req.user?.id });
       res.json({ success: true, messageId: result.id });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -370,15 +360,16 @@ const whatsappController = {
 
   groupMessage: async (req, res) => {
     try {
-      const { groupId, message, mediaUrl, mediaType } = req.body;
-      if (!groupId || !message) return res.status(400).json({ error: 'groupId and message are required' });
+      const { groupId, number, id, message, mediaUrl, mediaType } = req.body;
+      const targetId = groupId || number || id;
+      if (!targetId || !message) return res.status(400).json({ error: 'Target ID (groupId/number/id) and message are required' });
       
       let mediaOptions = null;
       if (mediaUrl) {
         mediaOptions = { url: mediaUrl, type: mediaType || 'image' };
       }
 
-      const result = await whatsappService.sendMessage(groupId, message, mediaOptions);
+      const result = await whatsappService.sendMessage(targetId, message, mediaOptions, { type: 'group', raw: true, userId: req.user?.id });
       res.json({ success: true, messageId: result.id?._serialized || result.id });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -387,15 +378,16 @@ const whatsappController = {
 
   channelPost: async (req, res) => {
     try {
-      const { channelId, message, mediaUrl, mediaType } = req.body;
-      if (!channelId || !message) return res.status(400).json({ error: 'channelId and message are required' });
+      const { channelId, number, id, message, mediaUrl, mediaType } = req.body;
+      const targetId = channelId || number || id;
+      if (!targetId || !message) return res.status(400).json({ error: 'Target ID (channelId/number/id) and message are required' });
       
       let mediaOptions = null;
       if (mediaUrl) {
         mediaOptions = { url: mediaUrl, type: mediaType || 'image' };
       }
 
-      const result = await whatsappService.sendMessage(channelId, message, mediaOptions);
+      const result = await whatsappService.sendMessage(targetId, message, mediaOptions, { type: 'channel', raw: true, userId: req.user?.id });
       res.json({ success: true, messageId: result.id?._serialized || result.id });
     } catch (err) {
       res.status(500).json({ error: err.message });

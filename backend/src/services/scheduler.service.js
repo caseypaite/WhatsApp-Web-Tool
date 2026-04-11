@@ -60,7 +60,8 @@ class SchedulerService {
             await whatsappService.sendMessage(
               target.id, 
               msg.message, 
-              msg.media_url ? { url: msg.media_url, type: msg.media_type } : null
+              msg.media_url ? { url: msg.media_url, type: msg.media_type } : null,
+              { type: target.type }
             );
           }
 

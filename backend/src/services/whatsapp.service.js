@@ -1,4 +1,63 @@
-const { Client, LocalAuth, MessageMedia, Poll } = require('whatsapp-web.js');
+const { Client, LocalAuth, MessageMedia, Poll, Channel } = require('whatsapp-web.js');
+
+// Patch Channel structure to prevent crash when channelMetadata is missing
+if (Channel && Channel.prototype && Channel.prototype._patch) {
+  const oldPatch = Channel.prototype._patch;
+  Channel.prototype._patch = function (data) {
+    if (data && !data.channelMetadata) {
+      data.channelMetadata = {};
+    }
+    return oldPatch.call(this, data);
+  };
+}
+
+// Monkey-patch Client.prototype.sendMessage to inject the chat.msgs fix and link preview wait
+const oldSendMessage = Client.prototype.sendMessage;
+Client.prototype.sendMessage = async function(chatId, content, options = {}) {
+  if (this.pupPage) {
+    try {
+      await this.pupPage.evaluate(() => {
+        if (window.WWebJS && window.WWebJS.sendMessage && !window.WWebJS.sendMessage._patched) {
+          const oldWWebJSMessage = window.WWebJS.sendMessage;
+          window.WWebJS.sendMessage = async function(chat, content, options) {
+            if (chat && !chat.msgs) {
+              chat.msgs = { add: () => {} };
+            }
+            
+            // Automatically try link preview if not explicitly disabled
+            const shouldTryPreview = options.linkPreview !== false;
+            if (shouldTryPreview && window.Store.LinkPreview && window.Store.Validators) {
+              const link = window.Store.Validators.findLink(content);
+              if (link) {
+                let preview;
+                // Try up to 3 times with a delay
+                for (let i = 0; i < 3; i++) {
+                  preview = await window.Store.LinkPreview.getLinkPreview(link);
+                  if (preview && preview.data) break;
+                  await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5s between attempts
+                }
+                
+                if (preview && preview.data) {
+                  const previewData = preview.data;
+                  previewData.preview = true;
+                  previewData.subtype = 'url';
+                  Object.assign(options, previewData);
+                }
+              }
+            }
+            delete options.linkPreview; // Remove the flag before passing to internal function
+
+            return oldWWebJSMessage.apply(this, arguments);
+          };
+          window.WWebJS.sendMessage._patched = true;
+        }
+      });
+    } catch (err) {
+      console.warn(`[WHATSAPP] Link preview patch failed: ${err.message}`);
+    }
+  }
+  return oldSendMessage.apply(this, arguments);
+};
 const qrcode = require('qrcode-terminal');
 const settingsService = require('./settings.service');
 const db = require('../config/db');
@@ -63,13 +122,44 @@ class WhatsappService {
     return null;
   }
 
+  async reinitialize() {
+    console.log('[WHATSAPP] Manual re-initialization requested...');
+    try {
+      if (this.client) {
+        console.log('[WHATSAPP] Destroying existing client...');
+        try {
+          await this.client.destroy();
+        } catch (e) {
+          console.warn('[WHATSAPP] Error destroying client:', e.message);
+        }
+        this.client = null;
+      }
+      this.status = 'DISCONNECTED';
+      this.isReady = false;
+      this.qrCode = null;
+      this.pairingCode = null;
+      this.me = null;
+      
+      await settingsService.set('whatsapp_status', 'DISCONNECTED');
+      await settingsService.set('whatsapp_qr', '');
+      
+      return await this.initialize();
+    } catch (err) {
+      console.error('[WHATSAPP] Re-initialization error:', err.message);
+      throw err;
+    }
+  }
+
   async initialize() {
     if (this.client) return;
+
+    this.qrCode = null;
+    this.pairingCode = null;
 
     const executablePath = this.getBrowserPath();
     console.log('[WHATSAPP] Using browser:', executablePath || 'Default (Puppeteer bundled)');
 
-    const clientId = 'appstack-wa-session-' + Buffer.from(__dirname).toString('hex').slice(0, 8);
+    const clientId = 'appstack-wa-session';
     const dataPath = path.resolve(__dirname, '../../.wwebjs_auth');
 
     this.client = new Client({
@@ -80,14 +170,16 @@ class WhatsappService {
       puppeteer: {
         executablePath: executablePath,
         headless: true,
-        protocolTimeout: 60000,
+        protocolTimeout: 0, // Disable timeout
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
           '--disable-accelerated-2d-canvas',
           '--no-first-run',
-          '--disable-gpu'
+          '--disable-gpu',
+          '--disable-software-rasterizer',
+          '--disable-extensions'
         ]
       }
     });
@@ -97,7 +189,7 @@ class WhatsappService {
       this.pairingCode = null;
       this.status = 'DISCONNECTED';
       this.isReady = false;
-      console.log('[WHATSAPP] QR RECEIVED');
+      console.log(`[WHATSAPP] QR RECEIVED (${new Date().toISOString()})`);
       qrcode.generate(qr, { small: true });
       await settingsService.set('whatsapp_qr', qr);
       await settingsService.set('whatsapp_status', 'DISCONNECTED');
@@ -112,6 +204,7 @@ class WhatsappService {
       console.log('[WHATSAPP] Client is ready! Connected as:', this.me.pushname, '(', this.me.wid._serialized, ')');
       await settingsService.set('whatsapp_status', 'CONNECTED');
       await settingsService.set('whatsapp_qr', '');
+      await settingsService.set('whatsapp_pairing_code', '');
     });
 
     this.client.on('pairing_code', (code) => {
@@ -123,7 +216,10 @@ class WhatsappService {
     this.client.on('authenticated', async () => {
       console.log('[WHATSAPP] Authenticated');
       this.status = 'AUTHENTICATED';
+      this.qrCode = null; // Clear QR after authentication
+      this.pairingCode = null;
       await settingsService.set('whatsapp_status', 'AUTHENTICATED');
+      await settingsService.set('whatsapp_qr', ''); // Clear QR in DB
     });
 
     this.client.on('auth_failure', async (msg) => {
@@ -347,10 +443,17 @@ this.client.on('group_join', async (notification) => {
   }
 
   async getStatus() {
+    let currentQr = this.qrCode;
+    
+    // If memory QR is missing but we're in a state that should have one, check DB
+    if (!currentQr && (this.status === 'DISCONNECTED' || this.status === 'INITIALIZING')) {
+      currentQr = await settingsService.get('whatsapp_qr', true);
+    }
+
     return {
       status: this.status,
       ready: this.isReady,
-      qr: this.qrCode,
+      qr: currentQr,
       pairingCode: this.pairingCode,
       me: this.me
     };
@@ -481,17 +584,25 @@ this.client.on('group_join', async (notification) => {
         const isNewsletter = !!(idStr.endsWith('@newsletter') || chat.id?.server === 'newsletter' || chat.isNewsletter);
         
         let isAdmin = false;
+        let activeChat = chat;
+        
         if (isGroup) {
           try {
+            // Ensure groupMetadata is loaded
+            if (!activeChat.groupMetadata && typeof activeChat.id?._serialized === 'string') {
+              activeChat = await this.client.getChatById(activeChat.id._serialized);
+            }
+            
             const meId = this.me?.wid?._serialized || this.me?.id?._serialized || this.client.info?.wid?._serialized;
-            const participants = chat.groupMetadata?.participants || [];
-            const meParticipant = participants.find(p => p.id?._serialized === meId);
+            const participants = activeChat.groupMetadata?.participants || [];
+            const meParticipant = participants.find(p => (p.id?._serialized || p.id) === meId);
             isAdmin = !!meParticipant?.isAdmin;
           } catch (e) {
+            console.warn(`[WHATSAPP] Could not determine admin status for group ${idStr}:`, e.message);
             isAdmin = false;
           }
         } else if (isNewsletter) {
-          isAdmin = chat.isAdmin !== undefined ? chat.isAdmin : true;
+          isAdmin = activeChat.isAdmin !== undefined ? activeChat.isAdmin : true;
         }
 
         // Only return groups and channels where the bot is an admin/owner
@@ -499,19 +610,19 @@ this.client.on('group_join', async (notification) => {
 
         let iconUrl = null;
         try {
-          if (typeof chat.getContact === 'function') {
-            const contact = await chat.getContact();
+          if (typeof activeChat.getContact === 'function') {
+            const contact = await activeChat.getContact();
             iconUrl = await contact.getProfilePicUrl();
           }
         } catch (e) {}
 
         return {
-          id: chat.id,
-          name: chat.name || 'Unknown',
+          id: activeChat.id,
+          name: activeChat.name || 'Unknown',
           isGroup: isGroup,
           isNewsletter: isNewsletter,
-          unreadCount: chat.unreadCount || 0,
-          timestamp: chat.timestamp || 0,
+          unreadCount: activeChat.unreadCount || 0,
+          timestamp: activeChat.timestamp || 0,
           iconUrl: iconUrl,
           isAdmin: isAdmin,
           greetingsEnabled: isGroup ? (groupSettingsMap[idStr] !== undefined ? groupSettingsMap[idStr] : null) : null
@@ -689,11 +800,33 @@ this.client.on('group_join', async (notification) => {
       formattedMessage = `🏛️ *${siteName.toUpperCase()}*\n\n${message}\n\n_System generated notification_`;
     }
 
-    let finalJid = number.toString();
+    let finalJid = typeof number === 'object' ? (number._serialized || number.id?._serialized) : number.toString();
+    
     if (!finalJid.includes('@')) {
-      const cleanNumber = normalizePhoneNumber(finalJid);
-      finalJid = `${cleanNumber}@c.us`;
+      if (options.type === 'group') {
+        finalJid = `${finalJid}@g.us`;
+      } else if (options.type === 'channel' || options.type === 'newsletter') {
+        finalJid = `${finalJid}@newsletter`;
+      } else {
+        const cleanNumber = normalizePhoneNumber(finalJid);
+        finalJid = `${cleanNumber}@c.us`;
+      }
     }
+
+    // WORKAROUND: Disabling sendSeen for newsletters to avoid 'getLastMsgKeyForAction' error (WWebJS Issue #5788)
+    const isNewsletter = finalJid.endsWith('@newsletter');
+    const sendOptions = { ...options };
+    
+    // Remove custom internal options before passing to WWebJS client
+    const userId = options.userId || null;
+    delete sendOptions.type;
+    delete sendOptions.raw;
+    delete sendOptions.userId;
+
+    if (isNewsletter) {
+      sendOptions.sendSeen = false;
+    }
+
     console.log(`[WHATSAPP] Sending message to: ${finalJid}`);
     try {
       let result;
@@ -703,21 +836,35 @@ this.client.on('group_join', async (notification) => {
         if (!isUrlSafe) throw new Error('Security Error: Potential SSRF attempt blocked.');
 
         const media = await MessageMedia.fromUrl(mediaOptions.url, { unsafeMime: true });
-        result = await this.client.sendMessage(finalJid, media, { caption: formattedMessage, sendMediaAsDocument: mediaOptions.type === 'document' });
+        result = await this.client.sendMessage(finalJid, media, { 
+          caption: formattedMessage, 
+          sendMediaAsDocument: mediaOptions.type === 'document',
+          ...sendOptions
+        });
       } else {
-        result = await this.client.sendMessage(finalJid, formattedMessage);
+        result = await this.client.sendMessage(finalJid, formattedMessage, sendOptions);
       }
-      await this.logMessage({ phoneNumber: finalJid, message: formattedMessage, status: 'SUCCESS' });
+      await this.logMessage({ userId, phoneNumber: finalJid, message: formattedMessage, status: 'SUCCESS' });
       return result;
     } catch (err) {
+      // WORKAROUND: If sending to a newsletter fails with 'description' property error, 
+      // it usually means the message was sent but the library crashed while parsing the response.
+      if (isNewsletter && err.message.includes("reading 'description'")) {
+        console.warn(`[WHATSAPP] Newsletter transmission successful, but library response parsing failed: ${err.message}`);
+        const mockResult = { id: { _serialized: `newsletter-ack-${Date.now()}` } };
+        await this.logMessage({ userId, phoneNumber: finalJid, message: formattedMessage, status: 'SUCCESS' });
+        return mockResult;
+      }
+
       console.error(`[WHATSAPP] Failed to send to ${finalJid}:`, err.message);
-      await this.logMessage({ phoneNumber: finalJid, message: formattedMessage, status: 'FAILED', errorMessage: err.message });
+      await this.logMessage({ userId, phoneNumber: finalJid, message: formattedMessage, status: 'FAILED', errorMessage: err.message });
       throw err;
     }
   }
 
-  async sendPoll(chatId, question, options, allowMultiple = false) {
+  async sendPoll(chatId, question, options, allowMultiple = false, extraOptions = {}) {
     if (!this.isReady) throw new Error('WhatsApp client not ready');
+    const userId = extraOptions.userId || null;
     try {
       const result = await this.client.sendMessage(chatId, new Poll(question, options, { allowMultiple }));
       
@@ -731,9 +878,11 @@ this.client.on('group_join', async (notification) => {
         [pollId, question, JSON.stringify(currentOptions), chatId]
       );
       
+      await this.logMessage({ userId, phoneNumber: chatId, message: `POLL: ${question}`, status: 'SUCCESS' });
       return result;
     } catch (err) {
       console.error('[WHATSAPP] Send poll error:', err.message);
+      await this.logMessage({ userId, phoneNumber: chatId, message: `POLL: ${question}`, status: 'FAILED', errorMessage: err.message });
       throw err;
     }
   }

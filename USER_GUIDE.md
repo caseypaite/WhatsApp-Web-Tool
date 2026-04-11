@@ -108,23 +108,28 @@ The Admin Dashboard includes a live-updating documentation hub:
 2. Click the **API Documentation** button in the sidebar.
 3. Access interactive cURL examples for all supported endpoints, including parameters for **Direct Group Messaging** and **Channel (Newsletter) Publication**.
 
-### Common API Endpoints
+### Clean API Endpoints (v1)
+All external requests should use the following "clean" endpoints for better integration:
 
-#### Send Direct Group Message
-**Endpoint**: `POST /api/whatsapp/group/message`
+#### 1. Universal Broadcast
+**Endpoint**: `POST /api/v1/broadcast`
 **Header**: `x-api-key: YOUR_KEY`
 **Payload**:
 ```json
 {
-  "groupId": "120363000000000000@g.us",
-  "message": "System Alert: Maintenance scheduled for midnight.",
+  "targets": [
+    { "id": "91XXXXXXXXXX@c.us", "type": "individual" },
+    { "id": "120363000000000000@g.us", "type": "group" },
+    { "id": "120363000000000000@newsletter", "type": "channel" }
+  ],
+  "message": "Unified system alert.",
   "mediaUrl": "https://example.com/alert.png",
   "mediaType": "image"
 }
 ```
 
-#### Post to Newsletter (Channel)
-**Endpoint**: `POST /api/whatsapp/channel/post`
+#### 2. Direct Channel Publication
+**Endpoint**: `POST /api/v1/message/channel`
 **Payload**:
 ```json
 {
@@ -135,17 +140,37 @@ The Admin Dashboard includes a live-updating documentation hub:
 }
 ```
 
-#### Multi-Target Broadcast
-**Endpoint**: `POST /api/whatsapp/broadcast`
+#### 3. Direct Group Message
+**Endpoint**: `POST /api/v1/message/group`
 **Payload**:
 ```json
 {
-  "targets": [
-    {"id": "919000000000@c.us", "type": "individual"},
-    {"id": "120363000000000000@g.us", "type": "group"}
-  ],
-  "message": "Hello everyone!",
-  "templateId": 5
+  "groupId": "120363000000000000@g.us",
+  "message": "Maintenance update for group members.",
+  "mediaUrl": "https://example.com/notice.jpg",
+  "mediaType": "image"
+}
+```
+
+#### 4. Direct Single Message
+**Endpoint**: `POST /api/v1/message/single`
+**Payload**:
+```json
+{
+  "number": "91XXXXXXXXXX",
+  "message": "Your OTP code is 123456"
+}
+```
+
+#### 5. Native WhatsApp Poll
+**Endpoint**: `POST /api/v1/poll`
+**Payload**:
+```json
+{
+  "chatId": "120363000000000000@g.us",
+  "question": "Choose your preferred slot:",
+  "options": ["Morning", "Afternoon", "Evening"],
+  "allowMultiple": false
 }
 ```
 

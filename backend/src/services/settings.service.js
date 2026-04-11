@@ -8,8 +8,8 @@ class SettingsService {
   /**
    * Retrieves a setting value. Priority: Database > Process Env.
    */
-  async get(key) {
-    if (this.cache[key]) return this.cache[key];
+  async get(key, bypassCache = false) {
+    if (!bypassCache && this.cache[key]) return this.cache[key];
     try {
       const res = await db.query('SELECT value FROM system_settings WHERE key = $1', [key]);
       if (res.rows.length > 0 && res.rows[0].value) {

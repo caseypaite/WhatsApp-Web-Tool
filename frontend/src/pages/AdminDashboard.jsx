@@ -226,6 +226,13 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleManualRefresh = async () => {
+    setWaActionLoading(true);
+    await fetchWaStatus();
+    // Small delay to ensure smooth UI transition
+    setTimeout(() => setWaActionLoading(false), 500);
+  };
+
   const fetchWaChats = async () => {
     try {
       const chats = await authService.getWhatsappChats();
@@ -388,9 +395,17 @@ const AdminDashboard = () => {
   };
 
   useEffect(() => {
-    loadData();
-    const interval = setInterval(fetchWaStatus, 30000);
+    let interval;
+    if (activeTab === 'whatsapp' && !waStatus.ready) {
+      interval = setInterval(fetchWaStatus, 5000);
+    } else {
+      interval = setInterval(fetchWaStatus, 30000);
+    }
     return () => clearInterval(interval);
+  }, [activeTab, waStatus.ready]);
+
+  useEffect(() => {
+    loadData();
   }, []);
 
   useEffect(() => {
@@ -1417,7 +1432,7 @@ const AdminDashboard = () => {
                           <div className="flex flex-col items-center">
                             {waStatus.qr ? (
                               <div className="p-4 bg-white border border-[#dcdcde] shadow-inner mb-6">
-                                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(waStatus.qr)}`} className="w-[180px] h-[180px]" alt="Scan" />
+                                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(waStatus.qr)}&t=${new Date().getTime()}`} className="w-[180px] h-[180px]" alt="Scan" />
                               </div>
                             ) : (
                               <div className="py-12 flex flex-col items-center opacity-30">
@@ -1425,7 +1440,16 @@ const AdminDashboard = () => {
                                 <p className="text-[10px] font-bold uppercase">Awaiting Vector...</p>
                               </div>
                             )}
-                            <p className="text-[10px] text-[#646970] italic text-center">Scan the dynamic matrix with your mobile device scanner.</p>
+                            <p className="text-[10px] text-[#646970] italic text-center mb-4">Scan the dynamic matrix with your mobile device scanner.</p>
+                            
+                            <button 
+                              onClick={handleManualRefresh}
+                              disabled={waActionLoading}
+                              className="flex items-center gap-2 px-4 py-2 bg-white border border-[#dcdcde] text-[10px] font-bold uppercase text-[#2271b1] hover:bg-[#f6f7f7] transition-all rounded shadow-sm disabled:opacity-50"
+                            >
+                              <RefreshCw className={`w-3 h-3 ${waActionLoading ? 'animate-spin' : ''}`} />
+                              Refresh Vector
+                            </button>
                           </div>
                         )}
                       </div>
@@ -2283,15 +2307,14 @@ const AdminDashboard = () => {
                       <div className="space-y-1">
                         {[
                           { n: 'System Status', m: 'GET', p: '/whatsapp/status', k: true, d: 'Check connection status' },
-                          { n: 'Single Message Node', m: 'POST', p: '/whatsapp/send-message', k: true, mo: true, d: 'Send message to a single mobile number', b: '{"number": "91XXXXXXXXXX", "message": "Direct notification", "mediaUrl": "", "mediaType": "text"}' },
-                          { n: 'Broadcast Node', m: 'POST', p: '/whatsapp/broadcast', k: true, mo: true, d: 'Send message to multiple targets', b: '{"targets": [{"id": "91XXXXXXXXXX@c.us", "type": "individual"}], "message": "Broadcast content", "mediaUrl": "", "mediaType": "image"}' },
-                          { n: 'Group Node Message', m: 'POST', p: '/whatsapp/group/message', k: true, mo: true, d: 'Direct message to a group node', b: '{"groupId": "120363XXXXXXXXXXXX@g.us", "message": "Group update", "mediaUrl": "", "mediaType": "image"}' },
-                          { n: 'Channel Publication', m: 'POST', p: '/whatsapp/channel/post', k: true, mo: true, d: 'Publish to a channel newsletter', b: '{"channelId": "120363XXXXXXXXXXXX@newsletter", "message": "Channel publication", "mediaUrl": "", "mediaType": "image"}' },
-                          { n: 'Deploy Poll', m: 'POST', p: '/whatsapp/poll', k: true, mo: true, d: 'Deploy a native WhatsApp poll', b: '{"chatId": "91XXXXXXXXXX@c.us", "question": "Are you ready?", "options": ["Yes", "No"], "allowMultiple": false}' },
+                          { n: 'Broadcast Node (v1)', m: 'POST', p: '/v1/broadcast', k: true, mo: true, d: 'Unified transmission to multiple targets', b: '{"targets": [{"id": "91XXXXXXXXXX@c.us", "type": "individual"}], "message": "Broadcast content", "mediaUrl": "", "mediaType": "image"}' },
+                          { n: 'Direct Channel (v1)', m: 'POST', p: '/v1/message/channel', k: true, mo: true, d: 'Publish to a channel newsletter', b: '{"channelId": "120363XXXXXXXXXXXX@newsletter", "message": "Channel publication", "mediaUrl": "", "mediaType": "image"}' },
+                          { n: 'Direct Group (v1)', m: 'POST', p: '/v1/message/group', k: true, mo: true, d: 'Direct message to a group node', b: '{"groupId": "120363XXXXXXXXXXXX@g.us", "message": "Group update", "mediaUrl": "", "mediaType": "image"}' },
+                          { n: 'Direct Single (v1)', m: 'POST', p: '/v1/message/single', k: true, mo: true, d: 'Send message to a single mobile number', b: '{"number": "91XXXXXXXXXX", "message": "Direct notification", "mediaUrl": "", "mediaType": "text"}' },
+                          { n: 'Deploy Poll (v1)', m: 'POST', p: '/v1/poll', k: true, mo: true, d: 'Deploy a native WhatsApp poll', b: '{"chatId": "91XXXXXXXXXX@c.us", "question": "Are you ready?", "options": ["Yes", "No"], "allowMultiple": false}' },
                           { n: 'Chat Registry', m: 'GET', p: '/whatsapp/chats', k: true, d: 'Retrieve all managed chats' },
                           { n: 'Initialize Group', m: 'POST', p: '/whatsapp/groups', k: true, d: 'Create a new group node', b: '{"name": "New Team", "participants": ["91XXXXXXXXXX"]}' },
-                          { n: 'Initialize Channel', m: 'POST', p: '/whatsapp/channels', k: true, d: 'Create a new channel newsletter', b: '{"name": "System News", "description": "Official updates"}' }
-                        ].map(endpoint => (
+                          { n: 'Initialize Channel', m: 'POST', p: '/whatsapp/channels', k: true, d: 'Create a new channel newsletter', b: '{"name": "System News", "description": "Official updates"}' }                        ].map(endpoint => (
                           <APIEndpointEntry key={endpoint.p} endpoint={endpoint} onClick={setActiveEndpoint} />
                         ))}
                       </div>

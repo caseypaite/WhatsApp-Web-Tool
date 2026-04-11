@@ -18,6 +18,7 @@ const scheduledRoutes = require('./routes/scheduled.routes');
 const auditRoutes = require('./routes/audit.routes');
 const pollRoutes = require('./routes/poll.routes');
 const systemRoutes = require('./routes/system.routes');
+const apiV1Routes = require('./routes/api.v1');
 
 const whatsappService = require('./services/whatsapp.service');
 const schedulerService = require('./services/scheduler.service');
@@ -136,6 +137,7 @@ app.use('/api/scheduled', scheduledRoutes);
 app.use('/api/audit', auditRoutes);
 app.use('/api/polls', pollRoutes);
 app.use('/api/system', systemRoutes);
+app.use('/api/v1', apiV1Routes);
 
 // Upload Endpoint
 const { authenticate, checkRole } = require('./middleware/auth.middleware');
