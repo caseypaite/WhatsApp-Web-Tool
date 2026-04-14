@@ -6,7 +6,7 @@
 
 set -e
 
-VERSION="1.6.0"
+VERSION="1.6.0-beta-rev2"
 ROOT_DIR="/home/ubuntu/AppStack"
 PROD_DIR="$ROOT_DIR/production"
 RELEASE_DIR="$ROOT_DIR/releases"
