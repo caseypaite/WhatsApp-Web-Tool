@@ -68,4 +68,4 @@ Critical or sensitive operations utilize **Multi-Factor Authentication (MFA)** v
 - Sensitive configuration (API keys, DB credentials, JWT secrets) is stored in protected `.env` files and excluded from version control.
 
 ---
-*Last Updated: March 22, 2026*
+*Last Updated: April 11, 2026*

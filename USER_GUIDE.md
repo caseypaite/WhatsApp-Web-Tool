@@ -192,7 +192,14 @@ The system includes an **SSRF Validation Layer**. If you provide a `mediaUrl`, t
 
 ## 📅 Release History
 
-### Beta v1.6.0-rev1 (2026-03-28)
+### Beta v1.6.0-rev2 (2026-04-11)
+- **Session Reliability**: Fixed absolute paths for authentication storage to ensure session persistence across reboots.
+- **Messaging Expansion**: Implemented the **Single Message Node** for direct WhatsApp communications to individual numbers via API.
+- **API Optimization**: Refined external endpoints to send cleaner messages and record logs for improved auditing.
+- **Intelligence**: Integrated dynamic version fetching from GitHub for real-time status in the portal dashboard.
+- **Poll Visualization**: Enhanced the Poll Results dashboard with improved charts and normalized phone number handling.
+
+### Beta v1.6.0-rev1 (2026-03-29)
 - **Group Greetings**: Integrated a global and per-group option to enable or disable automatic greeting messages for new members. Default is disabled.
 - **Beta Transition**: Platform officially enters Beta status with significant stability and security improvements.
 - **Security**: Complete transition to **HttpOnly Secure Cookie** authentication.

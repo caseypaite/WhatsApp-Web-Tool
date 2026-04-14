@@ -56,6 +56,13 @@ Refer to the [SECURITY.md](./SECURITY.md) for details on authentication protocol
 
 ### 📅 Latest Releases
 
+#### [Beta v1.6.0-rev2] - 2026-04-11
+- **Security**: Hardened **Session Persistence** by switching to absolute paths for authentication storage to survive service reboots.
+- **API**: Added **Single Message Node** (`/api/v1/message/single`) for individual communications via the messaging API.
+- **API**: Optimized **External API Endpoints** to deliver cleaner messages and automated activity logging for external systems.
+- **Diagnostics**: Implemented **Dynamic Version History** fetching directly from GitHub API for real-time release status accuracy.
+- **Performance**: Enhanced **Poll Results Dashboard** with improved visualization and automated phone number normalization.
+
 #### [Beta v1.6.0] - 2026-03-29
 - **Milestone**: Platform officially transitioned from Alpha to **Beta** status.
 - **Security**: Implemented **HttpOnly Secure Cookie** authentication, replacing localStorage for session management.
