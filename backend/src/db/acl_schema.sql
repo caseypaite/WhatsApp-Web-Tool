@@ -185,6 +185,16 @@ CREATE TABLE IF NOT EXISTS system_settings (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Named Messaging-Only API Keys
+CREATE TABLE IF NOT EXISTS messaging_api_keys (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) UNIQUE NOT NULL,
+    api_key VARCHAR(255) UNIQUE NOT NULL,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- WhatsApp Gatekeeper Logs
 CREATE TABLE IF NOT EXISTS group_gatekeeper_logs (
     id SERIAL PRIMARY KEY,
@@ -233,3 +243,5 @@ CREATE INDEX IF NOT EXISTS idx_message_history_phone ON message_history(phone_nu
 CREATE INDEX IF NOT EXISTS idx_message_history_user ON message_history(user_id);
 CREATE INDEX IF NOT EXISTS idx_ai_interaction_logs_phone ON ai_interaction_logs(phone_number);
 CREATE INDEX IF NOT EXISTS idx_ai_interaction_logs_created ON ai_interaction_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_messaging_api_keys_key ON messaging_api_keys(api_key);
+CREATE INDEX IF NOT EXISTS idx_messaging_api_keys_active ON messaging_api_keys(is_active);

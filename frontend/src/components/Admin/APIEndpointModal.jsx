@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { RefreshCw, Play } from 'lucide-react';
 import Modal from './Modal';
 
-const APIEndpointModal = ({ endpoint, isOpen, onClose, onTest, loading, result, settings }) => {
+const APIEndpointModal = ({ endpoint, isOpen, onClose, onTest, loading, result, settings, messagingApiKeys = [] }) => {
   const [testPayload, setTestPayload] = useState({});
+  const [selectedApiKey, setSelectedApiKey] = useState('');
 
   useEffect(() => {
     if (endpoint && endpoint.b) {
@@ -17,6 +18,18 @@ const APIEndpointModal = ({ endpoint, isOpen, onClose, onTest, loading, result, 
     }
   }, [endpoint]);
 
+  const legacyMessagingApiKey = settings.find(s => s.key === 'messaging_api_key')?.value;
+  const activeMessagingApiKeys = messagingApiKeys.filter(key => key.is_active);
+  const defaultMessagingApiKey = activeMessagingApiKeys[0]?.api_key || legacyMessagingApiKey || '';
+
+  useEffect(() => {
+    if (!endpoint?.mo) {
+      setSelectedApiKey('');
+      return;
+    }
+    setSelectedApiKey(defaultMessagingApiKey);
+  }, [endpoint, defaultMessagingApiKey]);
+
   if (!endpoint || !isOpen) return null;
   
   const apiBaseUrl = settings.find(s => s.key === 'vite_api_base_url')?.value || import.meta.env.VITE_API_BASE_URL || window.location.origin;
@@ -24,8 +37,9 @@ const APIEndpointModal = ({ endpoint, isOpen, onClose, onTest, loading, result, 
   
   // Select the appropriate key based on endpoint requirements
   const fullApiKey = settings.find(s => s.key === 'api_key')?.value;
-  const moApiKey = settings.find(s => s.key === 'messaging_api_key')?.value;
-  const apiKey = (endpoint.mo && moApiKey) ? moApiKey : (fullApiKey || 'YOUR_KEY');
+  const apiKey = endpoint.mo
+    ? (selectedApiKey || defaultMessagingApiKey || 'YOUR_KEY')
+    : (fullApiKey || 'YOUR_KEY');
   
   const currentPayload = JSON.stringify(testPayload);
   const fullUrl = `${apiUrl}/api${endpoint.p}`;
@@ -131,6 +145,23 @@ const APIEndpointModal = ({ endpoint, isOpen, onClose, onTest, loading, result, 
         )}
 
         <div className="space-y-2">
+          {endpoint.k && endpoint.mo && activeMessagingApiKeys.length > 0 && (
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Messaging API Key</label>
+              <select
+                className="w-full wp-input text-[10px] font-bold uppercase bg-white"
+                value={selectedApiKey}
+                onChange={(e) => setSelectedApiKey(e.target.value)}
+              >
+                {activeMessagingApiKeys.map((key) => (
+                  <option key={key.id} value={key.api_key}>
+                    {key.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <label className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Vector Transmission Blueprint (cURL)</label>
             <button 
@@ -149,7 +180,7 @@ const APIEndpointModal = ({ endpoint, isOpen, onClose, onTest, loading, result, 
         <div className="flex gap-3">
           <button 
             type="button"
-            onClick={() => onTest({ ...endpoint, b: currentPayload })}
+            onClick={() => onTest({ ...endpoint, b: currentPayload, selectedApiKey: endpoint.mo ? selectedApiKey : '' })}
             disabled={loading}
             className="flex-1 wp-button-primary py-3 flex items-center justify-center gap-2"
           >

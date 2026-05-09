@@ -28,6 +28,8 @@ const AdminDashboard = () => {
   const [activeSettingsTab, setActiveSettingsTab] = useState('general');
   const [users, setUsers] = useState([]);
   const [settings, setSettings] = useState([]);
+  const [messagingApiKeys, setMessagingApiKeys] = useState([]);
+  const [newMessagingApiKeyName, setNewMessagingApiKeyName] = useState('');
   const [groups, setGroups] = useState([]);
   const [selectedGroup, setSelectedGroup] = useState(null);
   const [groupMembers, setGroupMembers] = useState([]);
@@ -274,6 +276,17 @@ const AdminDashboard = () => {
     }
   };
 
+  const fetchMessagingApiKeys = async () => {
+    try {
+      const response = await api.get('/settings/messaging-api-keys');
+      setMessagingApiKeys(response.data || []);
+    } catch (err) {
+      if (err.response?.status !== 404) {
+        showFlash('Failed to fetch messaging API keys.', 'error');
+      }
+    }
+  };
+
   const fetchGroups = async () => {
     try {
       const data = await authService.getAllGroups();
@@ -373,7 +386,9 @@ const AdminDashboard = () => {
       case 'history': await fetchAuditLogs(); break;
       case 'polls': await fetchPollResults(); break;
       case 'cms': await fetchLandingContent(); break;
-      case 'settings': await fetchSettings(); break;
+      case 'settings':
+        await Promise.all([fetchSettings(), fetchMessagingApiKeys()]);
+        break;
       default: break;
     }
   };
@@ -383,7 +398,8 @@ const AdminDashboard = () => {
     try {
       await Promise.all([
         fetchWaStatus(),
-        fetchSettings()
+        fetchSettings(),
+        fetchMessagingApiKeys()
       ]);
       // Lazy load current active tab
       await fetchTabContent(activeTab);
@@ -938,6 +954,151 @@ const AdminDashboard = () => {
     });
   };
 
+  const getPreferredMessagingApiKey = (overrideApiKey = null) => {
+    if (overrideApiKey) return overrideApiKey;
+
+    const activeNamedKey = messagingApiKeys.find(key => key.is_active);
+    if (activeNamedKey?.api_key) return activeNamedKey.api_key;
+
+    return settings.find(s => s.key === 'messaging_api_key')?.value || '';
+  };
+
+  const persistMessagingApiKeysFallback = async (nextKeys) => {
+    await api.put('/settings/update', {
+      key: 'messaging_api_keys',
+      value: JSON.stringify(nextKeys)
+    });
+    setMessagingApiKeys(nextKeys);
+  };
+
+  const handleCreateMessagingApiKey = async () => {
+    const name = newMessagingApiKeyName.trim();
+    if (!name) {
+      showFlash('Application name is required.', 'error');
+      return;
+    }
+
+    setSaveLoading(true);
+    try {
+      const response = await api.post('/settings/messaging-api-keys', { name });
+      setNewMessagingApiKeyName('');
+      showFlash(response.data?.message || 'Messaging API key created');
+      await fetchMessagingApiKeys();
+    } catch (err) {
+      if (err.response?.status === 404) {
+        try {
+          const now = new Date().toISOString();
+          const nextKey = {
+            id: messagingApiKeys.reduce((max, key) => Math.max(max, Number(key.id) || 0), 0) + 1,
+            name,
+            api_key: `mapi_${generateUUID()}`,
+            is_active: true,
+            created_at: now,
+            updated_at: now
+          };
+          await persistMessagingApiKeysFallback([nextKey, ...messagingApiKeys]);
+          setNewMessagingApiKeyName('');
+          showFlash(`Messaging API key created for ${name}.`);
+        } catch (fallbackErr) {
+          showFlash(fallbackErr.response?.data?.error || 'Failed to create messaging API key', 'error');
+        }
+      } else {
+        showFlash(err.response?.data?.error || 'Failed to create messaging API key', 'error');
+      }
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  const handleMessagingApiKeyFieldChange = (id, field, value) => {
+    setMessagingApiKeys(prev => prev.map(key => key.id === id ? { ...key, [field]: value } : key));
+  };
+
+  const handleUpdateMessagingApiKey = async (key) => {
+    setSaveLoading(true);
+    try {
+      const response = await api.put(`/settings/messaging-api-keys/${key.id}`, {
+        name: key.name,
+        is_active: key.is_active
+      });
+      showFlash(response.data?.message || 'Messaging API key updated');
+      await fetchMessagingApiKeys();
+    } catch (err) {
+      if (err.response?.status === 404) {
+        try {
+          const nextKeys = messagingApiKeys.map(entry => entry.id === key.id
+            ? { ...entry, name: key.name, is_active: key.is_active, updated_at: new Date().toISOString() }
+            : entry
+          );
+          await persistMessagingApiKeysFallback(nextKeys);
+          showFlash(`Messaging API key updated for ${key.name}.`);
+        } catch (fallbackErr) {
+          showFlash(fallbackErr.response?.data?.error || 'Failed to update messaging API key', 'error');
+        }
+      } else {
+        showFlash(err.response?.data?.error || 'Failed to update messaging API key', 'error');
+      }
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  const handleRotateMessagingApiKey = async (key) => {
+    if (!window.confirm(`Generate a new API key for ${key.name}? Existing integrations will stop working until updated.`)) {
+      return;
+    }
+
+    setSaveLoading(true);
+    try {
+      const response = await api.post(`/settings/messaging-api-keys/${key.id}/rotate`);
+      showFlash(response.data?.message || 'Messaging API key rotated');
+      await fetchMessagingApiKeys();
+    } catch (err) {
+      if (err.response?.status === 404) {
+        try {
+          const nextKeys = messagingApiKeys.map(entry => entry.id === key.id
+            ? { ...entry, api_key: `mapi_${generateUUID()}`, updated_at: new Date().toISOString() }
+            : entry
+          );
+          await persistMessagingApiKeysFallback(nextKeys);
+          showFlash(`Messaging API key rotated for ${key.name}.`);
+        } catch (fallbackErr) {
+          showFlash(fallbackErr.response?.data?.error || 'Failed to rotate messaging API key', 'error');
+        }
+      } else {
+        showFlash(err.response?.data?.error || 'Failed to rotate messaging API key', 'error');
+      }
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  const handleDeleteMessagingApiKey = async (key) => {
+    if (!window.confirm(`Delete the messaging API key for ${key.name}?`)) {
+      return;
+    }
+
+    setSaveLoading(true);
+    try {
+      const response = await api.delete(`/settings/messaging-api-keys/${key.id}`);
+      showFlash(response.data?.message || 'Messaging API key deleted');
+      await fetchMessagingApiKeys();
+    } catch (err) {
+      if (err.response?.status === 404) {
+        try {
+          await persistMessagingApiKeysFallback(messagingApiKeys.filter(entry => entry.id !== key.id));
+          showFlash(`Messaging API key deleted for ${key.name}.`);
+        } catch (fallbackErr) {
+          showFlash(fallbackErr.response?.data?.error || 'Failed to delete messaging API key', 'error');
+        }
+      } else {
+        showFlash(err.response?.data?.error || 'Failed to delete messaging API key', 'error');
+      }
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
   const handleUpdateSetting = async (key, value) => {
     // 1. Update local state immediately
     setSettings(prev => {
@@ -1015,8 +1176,9 @@ const AdminDashboard = () => {
       const config = {};
       if (apiTarget.k) {
         const fullApiKey = settings.find(s => s.key === 'api_key')?.value;
-        const moApiKey = settings.find(s => s.key === 'messaging_api_key')?.value;
-        const apiKey = (apiTarget.mo && moApiKey) ? moApiKey : fullApiKey;
+        const apiKey = apiTarget.mo
+          ? getPreferredMessagingApiKey(apiTarget.selectedApiKey)
+          : fullApiKey;
 
         if (apiKey) config.headers = { 'x-api-key': apiKey };
       }
@@ -2264,20 +2426,87 @@ const AdminDashboard = () => {
                               <label className="text-[10px] font-bold text-[#2271b1] uppercase">Full Access API Key</label>
                               <div className="flex gap-2">
                                  <input type="text" className="flex-1 wp-input font-mono" value={settings.find(s => s.key === 'api_key')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'api_key' ? {...s, value: e.target.value} : s))} placeholder="Enter custom API key..." />
-                                 <button onClick={() => { const key = generateUUID(); handleUpdateSetting('api_key', key); }} className="px-4 wp-button-secondary flex items-center gap-2"><Plus className="w-3 h-3" /> Generate</button>
-                                 <button onClick={() => handleUpdateSetting('api_key', settings.find(s => s.key === 'api_key')?.value)} className="px-6 wp-button-primary">Save</button>
+                                  <button type="button" onClick={() => { const key = generateUUID(); handleUpdateSetting('api_key', key); }} className="px-4 wp-button-secondary flex items-center gap-2"><Plus className="w-3 h-3" /> Generate</button>
+                                  <button type="button" onClick={() => handleUpdateSetting('api_key', settings.find(s => s.key === 'api_key')?.value)} className="px-6 wp-button-primary">Save</button>
                               </div>
                               <p className="text-[10px] text-[#646970] italic font-bold">WARNING: This key grants full administrative access to all system endpoints.</p>
                            </div>
 
-                           <div className="space-y-1 pt-4 border-t border-[#dcdcde]">
-                              <label className="text-[10px] font-bold text-[#00a32a] uppercase tracking-widest">Messaging-Only API Key</label>
-                              <div className="flex gap-2">
-                                 <input type="text" className="flex-1 wp-input font-mono" value={settings.find(s => s.key === 'messaging_api_key')?.value || ''} onChange={(e) => setSettings(settings.map(s => s.key === 'messaging_api_key' ? {...s, value: e.target.value} : s))} placeholder="Enter messaging API key..." />
-                                 <button onClick={() => { const key = generateUUID(); handleUpdateSetting('messaging_api_key', key); }} className="px-4 wp-button-secondary flex items-center gap-2"><Plus className="w-3 h-3" /> Generate</button>
-                                 <button onClick={() => handleUpdateSetting('messaging_api_key', settings.find(s => s.key === 'messaging_api_key')?.value)} className="px-6 wp-button-primary">Save</button>
+                           <div className="space-y-4 pt-4 border-t border-[#dcdcde]">
+                              <div className="space-y-1">
+                                 <label className="text-[10px] font-bold text-[#00a32a] uppercase tracking-widest">Messaging-Only API Keys</label>
+                                 <div className="flex gap-2">
+                                    <input
+                                      type="text"
+                                      className="flex-1 wp-input"
+                                      value={newMessagingApiKeyName}
+                                      onChange={(e) => setNewMessagingApiKeyName(e.target.value)}
+                                      placeholder="Application name (CRM, ERP, Support Bot...)"
+                                    />
+                                     <button type="button" onClick={handleCreateMessagingApiKey} disabled={saveLoading} className="px-4 wp-button-secondary flex items-center gap-2">
+                                      <Plus className="w-3 h-3" /> Generate Key
+                                    </button>
+                                 </div>
+                                 <p className="text-[10px] text-[#646970] italic">Create one messaging-only API key per external application. Each key is restricted to messaging operations and can be renamed, rotated, or disabled without affecting the others.</p>
                               </div>
-                              <p className="text-[10px] text-[#646970] italic">This key is restricted to messaging operations (Broadcasts, Group Messages, Polls). It cannot access management or system configuration endpoints.</p>
+
+                              {settings.find(s => s.key === 'messaging_api_key')?.value && (
+                                <div className="p-3 bg-[#fcf9e8] border border-[#dba617] text-[10px] text-[#3c434a]">
+                                  Legacy `messaging_api_key` support is still active for backward compatibility. New integrations should use the named keys below.
+                                </div>
+                              )}
+
+                              <div className="space-y-3">
+                                {messagingApiKeys.length === 0 ? (
+                                  <div className="p-4 bg-[#f6f7f7] border border-[#dcdcde] text-[10px] text-[#646970] italic">
+                                    No named messaging API keys created yet.
+                                  </div>
+                                ) : (
+                                  messagingApiKeys.map((key) => (
+                                    <div key={key.id} className="p-4 bg-[#f6f7f7] border border-[#dcdcde] space-y-3">
+                                      <div className="flex gap-2">
+                                        <input
+                                          type="text"
+                                          className="flex-1 wp-input"
+                                          value={key.name}
+                                          onChange={(e) => handleMessagingApiKeyFieldChange(key.id, 'name', e.target.value)}
+                                          placeholder="Application name"
+                                        />
+                                        <select
+                                          className="wp-input text-[10px] font-bold uppercase"
+                                          value={key.is_active ? 'true' : 'false'}
+                                          onChange={(e) => handleMessagingApiKeyFieldChange(key.id, 'is_active', e.target.value === 'true')}
+                                        >
+                                          <option value="true">Active</option>
+                                          <option value="false">Disabled</option>
+                                        </select>
+                                      </div>
+
+                                      <textarea
+                                        rows="2"
+                                        readOnly
+                                        className="w-full wp-input font-mono text-[10px] resize-none bg-white"
+                                        value={key.api_key}
+                                      />
+
+                                      <div className="flex gap-2">
+                                        <button type="button" onClick={() => navigator.clipboard.writeText(key.api_key)} className="px-4 wp-button-secondary">
+                                          Copy
+                                        </button>
+                                        <button type="button" onClick={() => handleRotateMessagingApiKey(key)} disabled={saveLoading} className="px-4 wp-button-secondary">
+                                          Rotate
+                                        </button>
+                                        <button type="button" onClick={() => handleUpdateMessagingApiKey(key)} disabled={saveLoading} className="px-6 wp-button-primary">
+                                          Save
+                                        </button>
+                                        <button type="button" onClick={() => handleDeleteMessagingApiKey(key)} disabled={saveLoading} className="px-4 bg-[#d63638] text-white font-bold uppercase text-[10px] tracking-widest border border-[#b32d2e] hover:bg-[#b32d2e]">
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
                            </div>
                         </div>
                       )}
@@ -2672,6 +2901,7 @@ const AdminDashboard = () => {
         loading={apiTestLoading}
         result={apiTestResult}
         settings={settings}
+        messagingApiKeys={messagingApiKeys}
       />
     </div>
   );

@@ -26,6 +26,100 @@ class SettingsController {
     }
   }
 
+  async getMessagingApiKeys(req, res) {
+    try {
+      const keys = await settingsService.getMessagingApiKeys(true);
+      res.json(keys);
+    } catch (error) {
+      console.error('Error in SettingsController.getMessagingApiKeys:', error.message);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
+
+  async createMessagingApiKey(req, res) {
+    const name = req.body?.name?.trim();
+    if (!name) {
+      return res.status(400).json({ error: 'Application name is required.' });
+    }
+
+    try {
+      const key = await settingsService.createMessagingApiKey(name);
+      res.status(201).json({ message: `Messaging API key created for ${key.name}.`, key });
+    } catch (error) {
+      console.error('Error in SettingsController.createMessagingApiKey:', error.message);
+      if (error.code === '23505') {
+        return res.status(409).json({ error: 'Application name already exists.' });
+      }
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
+
+  async updateMessagingApiKey(req, res) {
+    const id = Number(req.params.id);
+    const name = req.body?.name?.trim();
+    const isActive = req.body?.is_active;
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'Invalid messaging API key id.' });
+    }
+    if (!name) {
+      return res.status(400).json({ error: 'Application name is required.' });
+    }
+    if (typeof isActive !== 'boolean') {
+      return res.status(400).json({ error: 'is_active must be true or false.' });
+    }
+
+    try {
+      const key = await settingsService.updateMessagingApiKey(id, { name, isActive });
+      if (!key) {
+        return res.status(404).json({ error: 'Messaging API key not found.' });
+      }
+      res.json({ message: `Messaging API key updated for ${key.name}.`, key });
+    } catch (error) {
+      console.error('Error in SettingsController.updateMessagingApiKey:', error.message);
+      if (error.code === '23505') {
+        return res.status(409).json({ error: 'Application name already exists.' });
+      }
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
+
+  async rotateMessagingApiKey(req, res) {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'Invalid messaging API key id.' });
+    }
+
+    try {
+      const key = await settingsService.rotateMessagingApiKey(id);
+      if (!key) {
+        return res.status(404).json({ error: 'Messaging API key not found.' });
+      }
+      res.json({ message: `Messaging API key rotated for ${key.name}.`, key });
+    } catch (error) {
+      console.error('Error in SettingsController.rotateMessagingApiKey:', error.message);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
+
+  async deleteMessagingApiKey(req, res) {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'Invalid messaging API key id.' });
+    }
+
+    try {
+      const key = await settingsService.deleteMessagingApiKey(id);
+      if (!key) {
+        return res.status(404).json({ error: 'Messaging API key not found.' });
+      }
+      res.json({ message: `Messaging API key deleted for ${key.name}.` });
+    } catch (error) {
+      console.error('Error in SettingsController.deleteMessagingApiKey:', error.message);
+      res.status(500).json({ error: 'Internal Server Error' });
+    }
+  }
+
   async getPublicConfig(req, res) {
     try {
       const vite_api_base_url = await settingsService.get('vite_api_base_url');

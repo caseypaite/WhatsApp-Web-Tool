@@ -47,7 +47,34 @@ const authenticate = async (req, res, next) => {
       return next();
     }
 
-    // 2.1 Messaging-Only API Key Auth
+    // 2.1 Named Messaging-Only API Key Auth
+    const namedMessagingApiKey = await settingsService.findMessagingApiKey(providedApiKey);
+    if (namedMessagingApiKey) {
+      const safeName = namedMessagingApiKey.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'messaging-api';
+
+      req.user = {
+        id: 0,
+        email: `${safeName}@messaging-api.local`,
+        roles: ['MessagingOnly'],
+        apiKeyId: namedMessagingApiKey.id,
+        apiKeyName: namedMessagingApiKey.name
+      };
+      req.auth = {
+        payload: {
+          sub: 0,
+          email: `${safeName}@messaging-api.local`,
+          roles: ['MessagingOnly'],
+          apiKeyId: namedMessagingApiKey.id,
+          apiKeyName: namedMessagingApiKey.name
+        }
+      };
+      return next();
+    }
+
+    // 2.2 Legacy single Messaging-Only API Key Auth
     const configuredMessagingKey = await settingsService.get('messaging_api_key');
     if (configuredMessagingKey && providedApiKey === configuredMessagingKey) {
       req.user = { id: 0, email: 'messaging-api@system.local', roles: ['MessagingOnly'] };
