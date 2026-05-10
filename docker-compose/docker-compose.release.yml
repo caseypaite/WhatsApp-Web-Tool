@@ -14,16 +14,11 @@ services:
       retries: 5
     volumes:
       - ./data/db:/var/lib/postgresql/data
-      # Note: This still relies on local file for init, but release also has it
-      - ../backend/src/db/acl_schema.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - appstack-network
 
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile.release
-      target: backend-release
+    image: andycyx/wawat-backend:latest
     container_name: appstack-backend-release
     restart: always
     environment:
@@ -38,34 +33,28 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
     volumes:
-      - ./data/backend:/app
       - ./data/wwebjs_auth:/app/.wwebjs_auth
       - ./data/uploads:/app/uploads
     depends_on:
       db:
         condition: service_healthy
     command: >
-      sh -c "if [ ! -f /app/package.json ]; then cp -rf /app-orig/* /app/; fi && node src/db/seeder.js && npm start"
+      sh -c "node src/db/applySchema.js && node src/db/seeder.js && npm start"
     networks:
       - appstack-network
     ports:
-      - "${BACKEND_EXTERNAL_PORT:-3085}:${BACKEND_INTERNAL_PORT:-3000}"
+      - "${BACKEND_EXTERNAL_PORT:-4010}:${BACKEND_INTERNAL_PORT:-3000}"
 
   frontend:
-    build:
-      context: .
-      dockerfile: Dockerfile.release
-      target: frontend-release
+    image: andycyx/wawat-frontend:latest
     container_name: appstack-frontend-release
     restart: always
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL}
-    volumes:
-      - ./data/frontend:/usr/share/nginx/html
     networks:
       - appstack-network
     ports:
-      - "${FRONTEND_EXTERNAL_PORT:-8080}:80"
+      - "${FRONTEND_EXTERNAL_PORT:-4011}:80"
     depends_on:
       - backend
 

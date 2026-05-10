@@ -139,7 +139,7 @@ const whatsappController = {
   sendTestMessage: async (req, res) => {
     const { number, message } = req.body;
     try {
-      const result = await whatsappService.sendMessage(number, message, null, { userId: req.user?.id });
+      const result = await whatsappService.sendMessage(number, message, null, { userId: req.user?.id, apiKeyName: req.user?.apiKeyName });
       res.json({ success: true, messageId: result.id });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -157,7 +157,7 @@ const whatsappController = {
         mediaOptions = { url: mediaUrl, type: mediaType || 'image' };
       }
 
-      const result = await whatsappService.sendMessage(targetNumber, message, mediaOptions, { raw: true, userId: req.user?.id });
+      const result = await whatsappService.sendMessage(targetNumber, message, mediaOptions, { raw: true, userId: req.user?.id, apiKeyName: req.user?.apiKeyName });
       res.json({ success: true, messageId: result.id?._serialized || result.id });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -196,7 +196,7 @@ const whatsappController = {
 
       for (const target of targets) {
         try {
-          await whatsappService.sendMessage(target.id, finalMessage, mediaOptions, { type: target.type, raw: true, userId: req.user?.id });
+          await whatsappService.sendMessage(target.id, finalMessage, mediaOptions, { type: target.type, raw: true, userId: req.user?.id, apiKeyName: req.user?.apiKeyName });
           results.success.push(target.id);
         } catch (err) {
           results.failed.push({ id: target.id, error: err.message });
@@ -351,7 +351,7 @@ const whatsappController = {
     try {
       const { chatId, question, options, allowMultiple } = req.body;
       if (!chatId || !question || !options) return res.status(400).json({ error: 'Missing parameters' });
-      const result = await whatsappService.sendPoll(chatId, question, options, allowMultiple, { userId: req.user?.id });
+      const result = await whatsappService.sendPoll(chatId, question, options, allowMultiple, { userId: req.user?.id, apiKeyName: req.user?.apiKeyName });
       res.json({ success: true, messageId: result.id });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -369,7 +369,7 @@ const whatsappController = {
         mediaOptions = { url: mediaUrl, type: mediaType || 'image' };
       }
 
-      const result = await whatsappService.sendMessage(targetId, message, mediaOptions, { type: 'group', raw: true, userId: req.user?.id });
+      const result = await whatsappService.sendMessage(targetId, message, mediaOptions, { type: 'group', raw: true, userId: req.user?.id, apiKeyName: req.user?.apiKeyName });
       res.json({ success: true, messageId: result.id?._serialized || result.id });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -387,7 +387,7 @@ const whatsappController = {
         mediaOptions = { url: mediaUrl, type: mediaType || 'image' };
       }
 
-      const result = await whatsappService.sendMessage(targetId, message, mediaOptions, { type: 'channel', raw: true, userId: req.user?.id });
+      const result = await whatsappService.sendMessage(targetId, message, mediaOptions, { type: 'channel', raw: true, userId: req.user?.id, apiKeyName: req.user?.apiKeyName });
       res.json({ success: true, messageId: result.id?._serialized || result.id });
     } catch (err) {
       res.status(500).json({ error: err.message });

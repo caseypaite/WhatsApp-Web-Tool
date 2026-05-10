@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import authService from '../services/auth.service';
 import DOMPurify from 'dompurify';
-import { ArrowRight, Shield, Zap, Layout as LayoutIcon, Cpu, User, BarChart2, Globe, MessageSquare, ShieldCheck, Activity } from 'lucide-react';
+import { ArrowRight, Shield, Zap, Layout as LayoutIcon, Cpu, User, BarChart2, Globe, MessageSquare, ShieldCheck, Activity, History } from 'lucide-react';
 
 const LandingPage = () => {
   const { user, loading, logout, siteName } = useAuth();
@@ -15,6 +15,10 @@ const LandingPage = () => {
     image_url: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&q=80&w=1200'
   });
   const [activePolls, setActivePolls] = useState([]);
+  const [buildInfo, setBuildInfo] = useState({
+    version: '1.6.0',
+    history: []
+  });
 
   useEffect(() => {
     const fetchHeroContent = async () => {
@@ -37,8 +41,23 @@ const LandingPage = () => {
       }
     };
 
+    const fetchBuildInfo = async () => {
+      try {
+        const response = await api.get('/system/git-history');
+        if (response.data?.version) {
+          setBuildInfo({
+            version: response.data.version,
+            history: Array.isArray(response.data.history) ? response.data.history : []
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch build info:', err);
+      }
+    };
+
     fetchHeroContent();
     fetchPolls();
+    fetchBuildInfo();
   }, []);
 
   const injectVariables = (html) => {
@@ -187,6 +206,56 @@ const LandingPage = () => {
         </div>
       </section>
 
+      <section className="py-24 bg-white border-b border-[#dcdcde]">
+        <div className="container px-6 mx-auto">
+          <div className="max-w-3xl mb-14">
+            <h2 className="text-[11px] font-black text-[#2271b1] uppercase tracking-[0.4em] mb-4">Build Ledger</h2>
+            <h3 className="text-4xl font-extrabold text-[#1d2327] mb-6 tracking-tight">Git History & Version</h3>
+            <p className="text-lg text-[#646970] font-medium leading-relaxed">Live build metadata from the current node, including the running version and the latest repository activity.</p>
+          </div>
+
+          <div className="grid gap-8 lg:grid-cols-[320px,1fr]">
+            <div className="bg-[#1d2327] text-white border border-white/10 rounded-sm p-8 shadow-xl">
+              <div className="inline-flex items-center justify-center w-14 h-14 bg-[#2271b1] rounded-sm mb-6">
+                <Cpu className="w-7 h-7 text-white" />
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#72aee6] mb-3">Current Version</p>
+              <p className="text-4xl font-extrabold tracking-tight mb-4">v{buildInfo.version}</p>
+              <p className="text-sm text-[#a7aaad] leading-relaxed font-medium">This landing page now reflects the active application build instead of a hard-coded footer label.</p>
+            </div>
+
+            <div className="bg-white border border-[#dcdcde] rounded-sm shadow-sm">
+              <div className="flex items-center gap-3 p-6 border-b border-[#f0f0f1] bg-[#f6f7f7]">
+                <History className="w-5 h-5 text-[#2271b1]" />
+                <h4 className="text-sm font-bold uppercase tracking-[0.2em] text-[#1d2327]">Recent Git History</h4>
+              </div>
+
+              <div className="divide-y divide-[#f0f0f1]">
+                {buildInfo.history.length > 0 ? (
+                  buildInfo.history.map((entry) => (
+                    <div key={entry.id} className="p-6 md:p-7">
+                      <div className="flex flex-wrap items-center gap-3 mb-2">
+                        <span className="px-2.5 py-1 bg-[#f0f0f1] text-[#1d2327] text-xs font-bold rounded-sm">
+                          {entry.shortHash}
+                        </span>
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#a7aaad]">
+                          {entry.date}
+                        </span>
+                      </div>
+                      <p className="text-base font-semibold text-[#1d2327] leading-relaxed">{entry.message}</p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-10 text-center">
+                    <p className="text-sm font-medium text-[#646970]">Git history is not available on this node right now.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Decision Streams */}
       <section className="py-32 bg-white">
         <div className="container px-6 mx-auto">
@@ -282,7 +351,7 @@ const LandingPage = () => {
             <button onClick={() => navigate('/privacy')} className="text-[10px] font-bold uppercase tracking-widest text-[#646970] hover:text-[#2271b1] transition-colors">Privacy</button>
             <button onClick={() => navigate('/login')} className="text-[10px] font-bold uppercase tracking-widest text-[#646970] hover:text-[#2271b1] transition-colors">Node Access</button>
           </div>
-          <p className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-[0.2em]">© 2026 Identity Propagation Lab • Beta v1.6.0</p>
+          <p className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-[0.2em]">© 2026 Identity Propagation Lab • Beta v{buildInfo.version}</p>
         </div>
       </footer>
     </div>

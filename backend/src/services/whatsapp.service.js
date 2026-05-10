@@ -1,5 +1,11 @@
 const { Client, LocalAuth, MessageMedia, Poll, Channel } = require('whatsapp-web.js');
 
+const MANAGED_NEWSLETTER_ROLES = new Set(['admin', 'owner', 'creator']);
+
+const isManagedNewsletterRole = (role) => {
+  return typeof role === 'string' && MANAGED_NEWSLETTER_ROLES.has(role);
+};
+
 // Patch Channel structure to prevent crash when channelMetadata is missing
 if (Channel && Channel.prototype && Channel.prototype._patch) {
   const oldPatch = Channel.prototype._patch;
@@ -26,13 +32,15 @@ Client.prototype.sendMessage = async function(chatId, content, options = {}) {
             
             // Automatically try link preview if not explicitly disabled
             const shouldTryPreview = options.linkPreview !== false;
-            if (shouldTryPreview && window.Store.LinkPreview && window.Store.Validators) {
-              const link = window.Store.Validators.findLink(content);
+            const validators = window.require && window.require('WALinkify');
+            const linkPreviewModule = window.require && window.require('WAWebLinkPreviewChatAction');
+            if (shouldTryPreview && validators && linkPreviewModule && typeof validators.findLink === 'function') {
+              const link = validators.findLink(content);
               if (link) {
                 let preview;
                 // Try up to 3 times with a delay
                 for (let i = 0; i < 3; i++) {
-                  preview = await window.Store.LinkPreview.getLinkPreview(link);
+                  preview = await linkPreviewModule.getLinkPreview(link);
                   if (preview && preview.data) break;
                   await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5s between attempts
                 }
@@ -77,6 +85,70 @@ class WhatsappService {
     this.status = 'DISCONNECTED';
     this.isReady = false;
     this.me = null;
+  }
+
+  getAuthConfig() {
+    const clientId = 'appstack-wa-session';
+    const dataPath = path.resolve(__dirname, '../../.wwebjs_auth');
+    const sessionPath = path.join(dataPath, `session-${clientId}`);
+    return { clientId, dataPath, sessionPath, sessionPrefix: `session-${clientId}` };
+  }
+
+  resetRuntimeState() {
+    this.status = 'DISCONNECTED';
+    this.isReady = false;
+    this.qrCode = null;
+    this.pairingCode = null;
+    this.me = null;
+  }
+
+  async destroyClient() {
+    if (!this.client) return;
+    try {
+      await this.client.destroy();
+    } catch (err) {
+      console.warn('[WHATSAPP] Error destroying client:', err.message);
+    } finally {
+      this.client = null;
+    }
+  }
+
+  clearChromiumLockFiles(dataPath, sessionPrefix) {
+    const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket', 'DevToolsActivePort'];
+    let sessionDirs = [];
+
+    try {
+      sessionDirs = fs
+        .readdirSync(dataPath, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory() && entry.name.startsWith(sessionPrefix))
+        .map((entry) => path.join(dataPath, entry.name));
+    } catch (err) {
+      console.warn(`[WHATSAPP] Failed to enumerate auth sessions: ${err.message}`);
+    }
+
+    if (!sessionDirs.includes(path.join(dataPath, sessionPrefix))) {
+      sessionDirs.push(path.join(dataPath, sessionPrefix));
+    }
+
+    for (const sessionPath of sessionDirs) {
+      for (const fileName of lockFiles) {
+        const filePath = path.join(sessionPath, fileName);
+        try {
+          fs.lstatSync(filePath);
+          fs.rmSync(filePath, { force: true });
+          console.log(`[WHATSAPP] Removed stale Chromium artifact: ${filePath}`);
+        } catch (err) {
+          if (err.code !== 'ENOENT') {
+            console.warn(`[WHATSAPP] Failed to remove ${filePath}: ${err.message}`);
+          }
+        }
+      }
+    }
+  }
+
+  isChromiumProfileLockError(error) {
+    const message = error?.message || '';
+    return message.includes('profile appears to be in use') || message.includes('ProcessSingleton');
   }
 
   async validateUrl(urlStr) {
@@ -127,18 +199,9 @@ class WhatsappService {
     try {
       if (this.client) {
         console.log('[WHATSAPP] Destroying existing client...');
-        try {
-          await this.client.destroy();
-        } catch (e) {
-          console.warn('[WHATSAPP] Error destroying client:', e.message);
-        }
-        this.client = null;
+        await this.destroyClient();
       }
-      this.status = 'DISCONNECTED';
-      this.isReady = false;
-      this.qrCode = null;
-      this.pairingCode = null;
-      this.me = null;
+      this.resetRuntimeState();
       
       await settingsService.set('whatsapp_status', 'DISCONNECTED');
       await settingsService.set('whatsapp_qr', '');
@@ -150,7 +213,7 @@ class WhatsappService {
     }
   }
 
-  async initialize() {
+  async initialize(recoveryAttempted = false) {
     if (this.client) return;
 
     this.qrCode = null;
@@ -159,8 +222,7 @@ class WhatsappService {
     const executablePath = this.getBrowserPath();
     console.log('[WHATSAPP] Using browser:', executablePath || 'Default (Puppeteer bundled)');
 
-    const clientId = 'appstack-wa-session';
-    const dataPath = path.resolve(__dirname, '../../.wwebjs_auth');
+    const { clientId, dataPath, sessionPath, sessionPrefix } = this.getAuthConfig();
 
     this.client = new Client({
       authStrategy: new LocalAuth({
@@ -438,6 +500,15 @@ this.client.on('group_join', async (notification) => {
       this.status = 'INITIALIZING';
     } catch (err) {
       console.error('[WHATSAPP] Initialization error:', err.message);
+      await this.destroyClient();
+      this.resetRuntimeState();
+
+      if (!recoveryAttempted && this.isChromiumProfileLockError(err)) {
+        console.warn('[WHATSAPP] Detected stale Chromium profile lock. Clearing lock files and retrying initialization once.');
+        this.clearChromiumLockFiles(dataPath, sessionPrefix);
+        return this.initialize(true);
+      }
+
       this.status = 'DISCONNECTED';
     }
   }
@@ -491,58 +562,65 @@ this.client.on('group_join', async (notification) => {
         // Manual fallback using page.evaluate if the library methods fail
         try {
           const manualNewsletters = await this.client.pupPage.evaluate(async () => {
-            if (!window.Store) return [];
-            
-            const newsletterStore = window.Store.WAWebNewsletterCollection;
-            const metadataStore = window.Store.WAWebNewsletterMetadataCollection;
-            
-            let newsletters = [];
-            if (newsletterStore && typeof newsletterStore.getModelsArray === 'function') {
-               newsletters = newsletterStore.getModelsArray().map(n => {
-                 const idStr = n.id?._serialized || n.id;
-                 let metaData = null;
-                 
-                 if (metadataStore && typeof metadataStore.get === 'function') {
-                    const meta = metadataStore.get(idStr);
-                    if (meta) {
-                       metaData = {
-                         membershipType: meta.membershipType || meta.__x_membershipType
-                       };
-                    }
-                 }
+            try {
+              if (window.WWebJS && typeof window.WWebJS.getChannels === 'function') {
+                const channels = await window.WWebJS.getChannels();
+                return (channels || []).map(channel => ({
+                  idStr: channel.id?._serialized || channel.id,
+                  name: channel.name || channel.formattedTitle || channel.channelMetadata?.name || 'Unnamed Channel',
+                  membershipType: channel.channelMetadata?.membershipType || channel.channelMetadata?.viewer_metadata?.membershipType || null,
+                  role: channel.role || channel.channelMetadata?.role || null
+                }));
+              }
 
-                 return {
-                   idStr: idStr,
-                   name: n.name || n.subject || n.formattedTitle || 'Unnamed Channel',
-                   metaData: metaData,
-                   role: n.role
-                 };
-               });
+              const collections = window.require && window.require('WAWebCollections');
+              if (!collections) return [];
+
+              const newsletterStore = collections.WAWebNewsletterCollection || collections.NewsletterCollection;
+              const metadataStore = collections.NewsletterMetadataCollection || collections.WAWebNewsletterMetadataCollection;
+              if (!newsletterStore || typeof newsletterStore.getModelsArray !== 'function') return [];
+
+              const newsletters = [];
+              for (const newsletter of newsletterStore.getModelsArray()) {
+                const idStr = newsletter.id?._serialized || newsletter.id;
+                let membershipType = newsletter.newsletterMetadata?.membershipType ||
+                  newsletter.newsletterMetadata?.viewer_metadata?.membershipType ||
+                  newsletter.membershipType ||
+                  null;
+
+                try {
+                  if (metadataStore && typeof metadataStore.update === 'function' && newsletter.id) {
+                    await metadataStore.update(newsletter.id);
+                  }
+                } catch (err) {}
+
+                if (metadataStore && typeof metadataStore.get === 'function') {
+                  const meta = metadataStore.get(idStr) || metadataStore.get(newsletter.id);
+                  if (meta) {
+                    membershipType = meta.membershipType || meta.__x_membershipType || meta.viewer_metadata?.membershipType || membershipType;
+                  }
+                }
+
+                newsletters.push({
+                  idStr,
+                  name: newsletter.name || newsletter.subject || newsletter.formattedTitle || 'Unnamed Channel',
+                  membershipType,
+                  role: newsletter.role || newsletter.newsletterMetadata?.role || null
+                });
+              }
+
+              return newsletters;
+            } catch (err) {
+              return [];
             }
-            return newsletters;
           });
 
           if (manualNewsletters && manualNewsletters.length > 0) {
             channels = manualNewsletters.map(n => {
-               // Filter for managed channels where membershipType is owner, admin, or creator
-               let isManaged = false;
-               
-               if (n.metaData && n.metaData.membershipType) {
-                  const mt = n.metaData.membershipType;
-                  if (mt === 'admin' || mt === 'owner' || mt === 'creator') {
-                     isManaged = true;
-                  }
-               }
-               
-               // Fallback: Check n.role if metaData is missing
-               if (!isManaged && n.role) {
-                  if (n.role === 'admin' || n.role === 'owner' || n.role === 'creator') {
-                     isManaged = true;
-                  }
-               }
+               const isManaged = isManagedNewsletterRole(n.membershipType) || isManagedNewsletterRole(n.role);
 
-               return {
-                 id: {
+                return {
+                  id: {
                    _serialized: n.idStr,
                    server: 'newsletter',
                    user: n.idStr.split('@')[0]
@@ -602,7 +680,10 @@ this.client.on('group_join', async (notification) => {
             isAdmin = false;
           }
         } else if (isNewsletter) {
-          isAdmin = activeChat.isAdmin !== undefined ? activeChat.isAdmin : true;
+          const membershipType = activeChat.channelMetadata?.membershipType ||
+            activeChat.channelMetadata?.viewer_metadata?.membershipType ||
+            activeChat.role;
+          isAdmin = activeChat.isAdmin !== undefined ? activeChat.isAdmin : isManagedNewsletterRole(membershipType);
         }
 
         // Only return groups and channels where the bot is an admin/owner
@@ -819,9 +900,11 @@ this.client.on('group_join', async (notification) => {
     
     // Remove custom internal options before passing to WWebJS client
     const userId = options.userId || null;
+    const apiKeyName = options.apiKeyName || null;
     delete sendOptions.type;
     delete sendOptions.raw;
     delete sendOptions.userId;
+    delete sendOptions.apiKeyName;
 
     if (isNewsletter) {
       sendOptions.sendSeen = false;
@@ -844,7 +927,7 @@ this.client.on('group_join', async (notification) => {
       } else {
         result = await this.client.sendMessage(finalJid, formattedMessage, sendOptions);
       }
-      await this.logMessage({ userId, phoneNumber: finalJid, message: formattedMessage, status: 'SUCCESS' });
+      await this.logMessage({ userId, apiKeyName, phoneNumber: finalJid, message: formattedMessage, status: 'SUCCESS' });
       return result;
     } catch (err) {
       // WORKAROUND: If sending to a newsletter fails with 'description' property error, 
@@ -852,12 +935,12 @@ this.client.on('group_join', async (notification) => {
       if (isNewsletter && err.message.includes("reading 'description'")) {
         console.warn(`[WHATSAPP] Newsletter transmission successful, but library response parsing failed: ${err.message}`);
         const mockResult = { id: { _serialized: `newsletter-ack-${Date.now()}` } };
-        await this.logMessage({ userId, phoneNumber: finalJid, message: formattedMessage, status: 'SUCCESS' });
+        await this.logMessage({ userId, apiKeyName, phoneNumber: finalJid, message: formattedMessage, status: 'SUCCESS' });
         return mockResult;
       }
 
       console.error(`[WHATSAPP] Failed to send to ${finalJid}:`, err.message);
-      await this.logMessage({ userId, phoneNumber: finalJid, message: formattedMessage, status: 'FAILED', errorMessage: err.message });
+      await this.logMessage({ userId, apiKeyName, phoneNumber: finalJid, message: formattedMessage, status: 'FAILED', errorMessage: err.message });
       throw err;
     }
   }
@@ -865,6 +948,7 @@ this.client.on('group_join', async (notification) => {
   async sendPoll(chatId, question, options, allowMultiple = false, extraOptions = {}) {
     if (!this.isReady) throw new Error('WhatsApp client not ready');
     const userId = extraOptions.userId || null;
+    const apiKeyName = extraOptions.apiKeyName || null;
     try {
       const result = await this.client.sendMessage(chatId, new Poll(question, options, { allowMultiple }));
       
@@ -878,11 +962,11 @@ this.client.on('group_join', async (notification) => {
         [pollId, question, JSON.stringify(currentOptions), chatId]
       );
       
-      await this.logMessage({ userId, phoneNumber: chatId, message: `POLL: ${question}`, status: 'SUCCESS' });
+      await this.logMessage({ userId, apiKeyName, phoneNumber: chatId, message: `POLL: ${question}`, status: 'SUCCESS' });
       return result;
     } catch (err) {
       console.error('[WHATSAPP] Send poll error:', err.message);
-      await this.logMessage({ userId, phoneNumber: chatId, message: `POLL: ${question}`, status: 'FAILED', errorMessage: err.message });
+      await this.logMessage({ userId, apiKeyName, phoneNumber: chatId, message: `POLL: ${question}`, status: 'FAILED', errorMessage: err.message });
       throw err;
     }
   }
@@ -901,11 +985,11 @@ this.client.on('group_join', async (notification) => {
     }
   }
 
-  async logMessage({ userId, phoneNumber, message, status, errorMessage }) {
+  async logMessage({ userId, apiKeyName, phoneNumber, message, status, errorMessage }) {
     try {
       await db.query(
-        'INSERT INTO message_history (user_id, phone_number, message, status, error_message) VALUES ($1, $2, $3, $4, $5)',
-        [userId || null, phoneNumber, message, status, errorMessage || null]
+        'INSERT INTO message_history (user_id, phone_number, api_key_name, message, status, error_message) VALUES ($1, $2, $3, $4, $5, $6)',
+        [userId || null, phoneNumber, apiKeyName || null, message, status, errorMessage || null]
       );
     } catch (err) {}
   }

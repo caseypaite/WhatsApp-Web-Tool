@@ -1,7 +1,6 @@
 const db = require('../config/db');
 const { exec } = require('child_process');
 const path = require('path');
-const fs = require('fs');
 const axios = require('axios');
 const { promisify } = require('util');
 const execPromise = promisify(exec);
@@ -10,6 +9,50 @@ const execPromise = promisify(exec);
  * Controller for System Management and Updates
  */
 class SystemController {
+  getGitHubRepoConfig() {
+    return {
+      owner: 'caseypaite',
+      repo: 'WhatsApp-Web-Tool'
+    };
+  }
+
+  getPackageVersion() {
+    return require('../../package.json').version || '1.6.0';
+  }
+
+  getReleaseFallbackHistory() {
+    return [
+      { id: '1.6.0', shortHash: 'v1.6.0', message: 'Official Beta transition with secure cookie auth and modular UI', date: '2026-03-28' },
+      { id: '1.5.5', shortHash: 'v1.5.5', message: 'Interactive API diagnostics and external media support', date: '2026-03-28' },
+      { id: '1.5.4', shortHash: 'v1.5.4', message: 'Production recovery and sidebar restoration', date: '2026-03-28' }
+    ];
+  }
+
+  async fetchGitHubCommitHistory(limit = 5) {
+    const { owner, repo } = this.getGitHubRepoConfig();
+    const response = await axios.get(`https://api.github.com/repos/${owner}/${repo}/commits`, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        'User-Agent': 'AppStack-SystemController'
+      },
+      params: { per_page: limit },
+      timeout: 5000
+    });
+
+    if (!response.data || !Array.isArray(response.data)) {
+      throw new Error('Invalid GitHub commits response');
+    }
+
+    return response.data
+      .map((commit) => ({
+        id: commit.sha,
+        shortHash: commit.sha?.slice(0, 7),
+        date: commit.commit?.author?.date ? commit.commit.author.date.split('T')[0] : null,
+        message: commit.commit?.message?.split('\n')[0]
+      }))
+      .filter((entry) => entry.id && entry.shortHash && entry.date && entry.message);
+  }
+
   /**
    * Fetches version history from GitHub.
    */
@@ -44,102 +87,59 @@ class SystemController {
   }
 
   /**
-   * Performs a system update using an uploaded tar.gz package.
-...
-  async performUpdate(req, res) {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No update package provided.' });
-    }
-
-    const packagePath = req.file.path;
-    const tempDir = path.join(__dirname, '../../temp_update_' + Date.now());
-    const rootDir = path.join(__dirname, '../../../'); // AppStack root
-
-    console.log(`[SYSTEM] Starting update protocol with package: ${req.file.originalname}`);
+   * Returns the current app version and the latest git history.
+   */
+  async getGitHistory(req, res) {
+    const rootDir = path.join(__dirname, '../../../');
+    const version = this.getPackageVersion();
 
     try {
-      // 1. Create temp directory
-      if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
+      const { stdout } = await execPromise(
+        'git --no-pager log -5 --date=short --pretty=format:"%H%x09%h%x09%ad%x09%s"',
+        { cwd: rootDir }
+      );
 
-      // 2. Extract package
-      console.log(`[SYSTEM] Extracting package to: ${tempDir}`);
-      await execPromise(`tar -xzf ${packagePath} -C ${tempDir}`);
+      const history = stdout
+        .split('\n')
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => {
+          const [id, shortHash, date, ...messageParts] = line.split('\t');
+          return {
+            id,
+            shortHash,
+            date,
+            message: messageParts.join('\t')
+          };
+        })
+        .filter((entry) => entry.id && entry.shortHash && entry.date && entry.message);
 
-      // 3. Database Schema Sync (Retain data, add new tables/cols)
-      // We look for backend/src/db/acl_schema.sql in the extracted package
-      const schemaPath = path.join(tempDir, 'backend/src/db/acl_schema.sql');
-      if (fs.existsSync(schemaPath)) {
-        console.log('[SYSTEM] Applying database schema updates...');
-        const schemaSql = fs.readFileSync(schemaPath, 'utf8');
-        
-        // Split by semicolon and run each command to handle potential errors gracefully
-        const commands = schemaSql.split(';').filter(cmd => cmd.trim() !== '');
-        const client = await db.pool.connect();
-        try {
-          await client.query('BEGIN');
-          for (let cmd of commands) {
-            await client.query(cmd);
-          }
-          await client.query('COMMIT');
-          console.log('[SYSTEM] Database schema synchronized.');
-        } catch (dbErr) {
-          await client.query('ROLLBACK');
-          console.error('[SYSTEM] Schema sync error:', dbErr.message);
-          // We continue anyway as some commands might fail if already exists but 
-          // acl_schema.sql is now using IF NOT EXISTS/IF EXISTS so it should be fine.
-        } finally {
-          client.release();
-        }
+      if (history.length === 0) {
+        throw new Error('Git log returned no entries');
       }
 
-      // 4. Code Synchronization
-      // For Docker, we replace backend/src and root frontend (pre-built)
-      console.log('[SYSTEM] Synchronizing codebases...');
-      
-      const updateScript = `
-        # Synchronize Backend Source
-        rm -rf ${rootDir}/backend/src/*
-        cp -rf ${tempDir}/backend/src/* ${rootDir}/backend/src/
-        
-        # Synchronize Frontend Pre-built assets
-        if [ -d "${tempDir}/frontend" ]; then
-          rm -rf ${rootDir}/frontend/*
-          cp -rf ${tempDir}/frontend/* ${rootDir}/frontend/
-        fi
-
-        # Sync package files
-        cp ${tempDir}/backend/package.json ${rootDir}/backend/
-        cp ${tempDir}/frontend/package.json ${rootDir}/frontend/ 2>/dev/null || true
-      `;
-
-      await execPromise(updateScript);
-
-      // 5. Cleanup
-      console.log('[SYSTEM] Cleaning up temporary files...');
-      await execPromise(`rm -rf ${tempDir}`);
-      if (fs.existsSync(packagePath)) fs.unlinkSync(packagePath);
-
-      res.json({ 
-        message: 'Update package applied successfully. System will restart in 5 seconds to apply changes.',
-        status: 'PENDING_RESTART'
-      });
-
-      // 6. Auto-Restart (Trigger Docker to restart the container)
-      console.log('[SYSTEM] Update complete. Restarting process...');
-      setTimeout(() => {
-        process.exit(0); // Exit with success, Docker with restart:always will bring it back
-      }, 5000);
-
+      res.json({ version, source: 'git', history });
     } catch (error) {
-      console.error('[SYSTEM] Critical update failure:', error.message);
-      // Cleanup on failure
-      if (fs.existsSync(tempDir)) await execPromise(`rm -rf ${tempDir}`);
-      if (fs.existsSync(packagePath)) fs.unlinkSync(packagePath);
-      
-      res.status(500).json({ 
-        error: 'System update failed.', 
-        details: error.message 
-      });
+      console.error('[SYSTEM] Failed to read local git history:', error.message);
+      try {
+        const history = await this.fetchGitHubCommitHistory(5);
+        if (history.length === 0) {
+          throw new Error('GitHub commit history returned no entries');
+        }
+
+        res.json({
+          version,
+          source: 'github',
+          history
+        });
+      } catch (githubError) {
+        console.error('[SYSTEM] Failed to fetch GitHub commit history:', githubError.message);
+        res.json({
+          version,
+          source: 'fallback',
+          history: this.getReleaseFallbackHistory()
+        });
+      }
     }
   }
 
@@ -148,7 +148,7 @@ class SystemController {
    */
   async getSystemStatus(req, res) {
     try {
-      const version = require('../../package.json').version || '1.6.0';
+      const version = this.getPackageVersion();
       const dbStatus = await db.query('SELECT NOW()');
       
       res.json({

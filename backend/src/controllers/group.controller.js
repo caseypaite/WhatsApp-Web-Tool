@@ -112,6 +112,7 @@ const groupController = {
       
       await whatsappService.logMessage({
         userId: userId || null,
+        apiKeyName: req.user?.apiKeyName || null,
         phoneNumber: normalizedPhone,
         message,
         status: success ? 'SUCCESS' : 'FAILED',
@@ -125,6 +126,7 @@ const groupController = {
       const normalizedPhone = normalizePhoneNumber(phoneNumber);
       await whatsappService.logMessage({
         userId: userId || null,
+        apiKeyName: req.user?.apiKeyName || null,
         phoneNumber: normalizedPhone,
         message,
         status: 'FAILED',

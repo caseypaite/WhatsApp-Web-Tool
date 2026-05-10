@@ -68,11 +68,14 @@ CREATE TABLE IF NOT EXISTS message_history (
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE SET NULL,
     phone_number VARCHAR(20) NOT NULL,
+    api_key_name VARCHAR(255),
     message TEXT NOT NULL,
     status VARCHAR(50) DEFAULT 'SUCCESS', -- SUCCESS, FAILED
     error_message TEXT,
     sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE message_history ADD COLUMN IF NOT EXISTS api_key_name VARCHAR(255);
 
 -- Create OTP table
 CREATE TABLE IF NOT EXISTS otp_verification (

@@ -42,8 +42,8 @@ const authenticate = async (req, res, next) => {
   if (providedApiKey) {
     const configuredApiKey = await settingsService.get('api_key');
     if (configuredApiKey && providedApiKey === configuredApiKey) {
-      req.user = { id: 0, email: 'api-user@system.local', roles: ['Admin'] };
-      req.auth = { payload: { sub: 0, email: 'api-user@system.local', roles: ['Admin'] } };
+      req.user = { id: 0, email: 'api-user@system.local', roles: ['Admin'], apiKeyName: 'Full Access API Key' };
+      req.auth = { payload: { sub: 0, email: 'api-user@system.local', roles: ['Admin'], apiKeyName: 'Full Access API Key' } };
       return next();
     }
 
@@ -77,8 +77,8 @@ const authenticate = async (req, res, next) => {
     // 2.2 Legacy single Messaging-Only API Key Auth
     const configuredMessagingKey = await settingsService.get('messaging_api_key');
     if (configuredMessagingKey && providedApiKey === configuredMessagingKey) {
-      req.user = { id: 0, email: 'messaging-api@system.local', roles: ['MessagingOnly'] };
-      req.auth = { payload: { sub: 0, email: 'messaging-api@system.local', roles: ['MessagingOnly'] } };
+      req.user = { id: 0, email: 'messaging-api@system.local', roles: ['MessagingOnly'], apiKeyName: 'Legacy messaging_api_key' };
+      req.auth = { payload: { sub: 0, email: 'messaging-api@system.local', roles: ['MessagingOnly'], apiKeyName: 'Legacy messaging_api_key' } };
       return next();
     }
 

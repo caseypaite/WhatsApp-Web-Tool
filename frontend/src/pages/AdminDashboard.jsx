@@ -8,7 +8,7 @@ import {
   Globe, Lock, Cpu, Send, Plus, Trash2, History, ChevronDown, 
   ChevronUp, Terminal, MessageSquare, ShieldCheck, Users, 
   Layout, Smartphone, FileText, Menu, LogOut, Activity, BarChart2, Edit2, Link,
-  ImageIcon, FileIcon, Music, Video, Search, CheckCircle, Home, Play
+  ImageIcon, FileIcon, Music, Video, Search, CheckCircle, Home
 } from 'lucide-react';
 import Modal from '../components/Admin/Modal';
 import APIEndpointEntry from '../components/Admin/APIEndpointEntry';
@@ -100,12 +100,6 @@ const AdminDashboard = () => {
   const [showWaEntityForm, setShowWaEntityForm] = useState(false);
   const [waEntityType, setWaEntityType] = useState('group'); // 'group' or 'channel'
   const [newScheduled, setNewScheduled] = useState({ targets: [], message: '', media_url: '', media_type: 'image', scheduled_for: '' });
-
-  // System Update State
-  const [updateFile, setUpdateFile] = useState(null);
-  const [updateLoading, setUpdateLoading] = useState(false);
-  const [updateStatus, setUpdateStatus] = useState('');
-  const [updateCountdown, setUpdateCountdown] = useState(null);
 
   // Audit & Poll Results State
   const [auditLogs, setAuditLogs] = useState([]);
@@ -963,6 +957,8 @@ const AdminDashboard = () => {
     return settings.find(s => s.key === 'messaging_api_key')?.value || '';
   };
 
+  const legacyMessagingApiKey = settings.find(s => s.key === 'messaging_api_key')?.value || '';
+
   const persistMessagingApiKeysFallback = async (nextKeys) => {
     await api.put('/settings/update', {
       key: 'messaging_api_keys',
@@ -1099,6 +1095,19 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleDeleteLegacyMessagingApiKey = async () => {
+    if (!legacyMessagingApiKey) {
+      showFlash('Legacy messaging API key is already empty.', 'error');
+      return;
+    }
+
+    if (!window.confirm('Delete the legacy messaging API key? Existing integrations using it will stop working immediately.')) {
+      return;
+    }
+
+    await handleUpdateSetting('messaging_api_key', '');
+  };
+
   const handleUpdateSetting = async (key, value) => {
     // 1. Update local state immediately
     setSettings(prev => {
@@ -1132,42 +1141,6 @@ const AdminDashboard = () => {
       setSaveLoading(false);
     }
   };
-
-  const handleSystemUpdate = async () => {
-    if (!updateFile) {
-      showFlash('Please select a release package (.tar.gz) first.', 'error');
-      return;
-    }
-
-    if (!window.confirm('WARNING: This will replace system source code and sync the database. The system will be temporarily offline during restart. Proceed?')) {
-      return;
-    }
-
-    setUpdateLoading(true);
-    setUpdateStatus('Transmitting package and applying patches...');
-    
-    try {
-      const res = await authService.updateSystem(updateFile);
-      setUpdateStatus(res.message);
-      showFlash('System patched successfully!', 'success');
-      setUpdateCountdown(30); // Start 30s countdown for restart
-    } catch (err) {
-      setUpdateStatus('');
-      showFlash(err.response?.data?.details || err.response?.data?.error || 'System update failed.', 'error');
-    } finally {
-      setUpdateLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    let timer;
-    if (updateCountdown !== null && updateCountdown > 0) {
-      timer = setTimeout(() => setUpdateCountdown(updateCountdown - 1), 1000);
-    } else if (updateCountdown === 0) {
-      window.location.reload();
-    }
-    return () => clearTimeout(timer);
-  }, [updateCountdown]);
 
   const handleTestEndpoint = async (apiTarget) => {
     setApiTestLoading(true);
@@ -2061,10 +2034,11 @@ const AdminDashboard = () => {
                            {auditLogs.map(log => (
                              <tr key={log.id} className="border-b border-[#f0f0f1] hover:bg-[#f6f7f7] transition-colors">
                                 <td className="px-4 py-4 text-xs font-bold text-[#646970]">{new Date(log.sent_at).toLocaleString()}</td>
-                                <td className="px-4 py-4">
-                                   <div className="text-xs font-bold text-[#2271b1]">+{log.phone_number}</div>
-                                   {log.user_name && <div className="text-[9px] font-bold text-[#a7aaad] uppercase tracking-tighter">{log.user_name}</div>}
-                                </td>
+                                 <td className="px-4 py-4">
+                                    <div className="text-xs font-bold text-[#2271b1]">+{log.phone_number}</div>
+                                    {log.user_name && <div className="text-[9px] font-bold text-[#a7aaad] uppercase tracking-tighter">{log.user_name}</div>}
+                                    {log.api_key_name && <div className="text-[9px] font-bold text-[#00a32a] uppercase tracking-tighter">{log.api_key_name}</div>}
+                                 </td>
                                 <td className="px-4 py-4">
                                    <p className="text-xs text-[#3c434a] max-w-xl truncate italic leading-relaxed">"{log.message}"</p>
                                 </td>
@@ -2290,69 +2264,44 @@ const AdminDashboard = () => {
                              </button>
                            </div>
 
-                           <div className="pt-6 border-t border-[#dcdcde] mt-8">
-                              <h4 className="text-xs font-bold text-[#1d2327] uppercase tracking-widest mb-4 flex items-center gap-2">
-                                 <RefreshCw className={`w-3.5 h-3.5 ${updateLoading ? 'animate-spin' : ''}`} />
-                                 System Pulse & Update
-                              </h4>
-                              
-                              <div className="bg-[#fcf9e8] border border-[#dba617]/30 p-4 rounded-sm space-y-4">
-                                 <div className="flex items-start gap-3">
-                                    <AlertCircle className="w-5 h-5 text-[#dba617] mt-0.5" />
-                                    <div className="space-y-1">
-                                       <p className="text-xs font-bold text-[#1d2327]">Hot Patch Protocol</p>
-                                       <p className="text-[10px] text-[#646970] leading-relaxed">
-                                          Upload an official <strong>.tar.gz</strong> release package to patch system source code and synchronize database schemas. Existing data will be retained.
-                                       </p>
-                                    </div>
-                                 </div>
+                            <div className="pt-6 border-t border-[#dcdcde] mt-8">
+                               <h4 className="text-xs font-bold text-[#1d2327] uppercase tracking-widest mb-4 flex items-center gap-2">
+                                  <RefreshCw className="w-3.5 h-3.5" />
+                                  Release Delivery Flow
+                               </h4>
+                               
+                               <div className="bg-[#fcf9e8] border border-[#dba617]/30 p-4 rounded-sm space-y-4">
+                                  <div className="flex items-start gap-3">
+                                     <AlertCircle className="w-5 h-5 text-[#dba617] mt-0.5" />
+                                     <div className="space-y-1">
+                                        <p className="text-xs font-bold text-[#1d2327]">Docker Image Release Protocol</p>
+                                        <p className="text-[10px] text-[#646970] leading-relaxed">
+                                           Dashboard-based upload patches are disabled. Release delivery now happens through verified Docker images, and the published release package contains only <strong>.env.example</strong> and <strong>docker-compose.yml</strong>.
+                                        </p>
+                                     </div>
+                                  </div>
 
-                                 {updateCountdown !== null ? (
-                                    <div className="p-4 bg-[#2271b1] text-white text-center rounded-sm animate-pulse">
-                                       <p className="text-sm font-black uppercase tracking-widest">Restarting System...</p>
-                                       <p className="text-[10px] mt-1 opacity-80">Re-entry in {updateCountdown} seconds</p>
-                                    </div>
-                                 ) : (
-                                    <div className="space-y-3">
-                                       <div className="flex flex-col sm:flex-row gap-2">
-                                          <div className="flex-1 relative">
-                                             <input 
-                                                type="file" 
-                                                id="system-update-file" 
-                                                className="hidden" 
-                                                accept=".tar.gz" 
-                                                onChange={(e) => setUpdateFile(e.target.files[0])} 
-                                             />
-                                             <label 
-                                                htmlFor="system-update-file" 
-                                                className="w-full flex items-center justify-between px-3 py-2 bg-white border border-[#dcdcde] rounded-sm cursor-pointer hover:border-[#2271b1] transition-all"
-                                             >
-                                                <span className="text-[10px] font-mono text-[#646970] truncate">
-                                                   {updateFile ? updateFile.name : 'Select release-vX.X.X.tar.gz'}
-                                                </span>
-                                                <FileText className="w-3.5 h-3.5 text-[#a7aaad]" />
-                                             </label>
-                                          </div>
-                                          <button 
-                                             onClick={handleSystemUpdate}
-                                             disabled={updateLoading || !updateFile}
-                                             className="wp-button-primary px-6 py-2 text-[10px] font-black uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                                          >
-                                             {updateLoading ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-                                             Apply Patch
-                                          </button>
-                                       </div>
-                                       
-                                       {updateStatus && (
-                                          <div className="flex items-center gap-2 text-[10px] font-bold text-[#2271b1] bg-white/50 p-2 border border-[#2271b1]/10 rounded-sm">
-                                             <Terminal className="w-3 h-3" />
-                                             {updateStatus}
-                                          </div>
-                                       )}
-                                    </div>
-                                 )}
-                              </div>
-                           </div>
+                                  <div className="grid gap-3 sm:grid-cols-3">
+                                     <div className="bg-white/70 border border-[#dcdcde] rounded-sm p-3">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-[#2271b1]">1. Validate</p>
+                                        <p className="text-[10px] text-[#646970] mt-1">Pass dev testing with the updated backend and frontend images.</p>
+                                     </div>
+                                     <div className="bg-white/70 border border-[#dcdcde] rounded-sm p-3">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-[#2271b1]">2. Promote</p>
+                                        <p className="text-[10px] text-[#646970] mt-1">Launch production on the updated images and confirm the stack starts correctly.</p>
+                                     </div>
+                                     <div className="bg-white/70 border border-[#dcdcde] rounded-sm p-3">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-[#2271b1]">3. Publish</p>
+                                        <p className="text-[10px] text-[#646970] mt-1">Push the verified images and release only the compose file plus env example.</p>
+                                     </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 text-[10px] font-bold text-[#2271b1] bg-white/50 p-2 border border-[#2271b1]/10 rounded-sm">
+                                     <Terminal className="w-3 h-3" />
+                                     Published Docker Hub targets: andycyx/wawat-backend and andycyx/wawat-frontend
+                                  </div>
+                               </div>
+                            </div>
                         </div>
                       )}
 
@@ -2433,9 +2382,61 @@ const AdminDashboard = () => {
                            </div>
 
                            <div className="space-y-4 pt-4 border-t border-[#dcdcde]">
-                              <div className="space-y-1">
-                                 <label className="text-[10px] font-bold text-[#00a32a] uppercase tracking-widest">Messaging-Only API Keys</label>
-                                 <div className="flex gap-2">
+                               <div className="space-y-1">
+                                  <label className="text-[10px] font-bold text-[#dba617] uppercase tracking-widest">Legacy Messaging-Only API Key</label>
+                                  <div className="flex gap-2">
+                                     <input
+                                       type="text"
+                                       className="flex-1 wp-input font-mono"
+                                       value={legacyMessagingApiKey}
+                                       onChange={(e) => setSettings(settings.map(s => s.key === 'messaging_api_key' ? { ...s, value: e.target.value, is_fallback: false } : s))}
+                                       placeholder="Enter legacy messaging API key..."
+                                     />
+                                     <button
+                                       type="button"
+                                       onClick={() => setSettings(prev => {
+                                         const nextValue = generateUUID();
+                                         const exists = prev.find(s => s.key === 'messaging_api_key');
+                                         if (exists) {
+                                           return prev.map(s => s.key === 'messaging_api_key' ? { ...s, value: nextValue, is_fallback: false } : s);
+                                         }
+                                         return [...prev, { key: 'messaging_api_key', value: nextValue, is_fallback: false }];
+                                       })}
+                                       className="px-4 wp-button-secondary flex items-center gap-2"
+                                     >
+                                       <Plus className="w-3 h-3" /> Generate
+                                     </button>
+                                     <button
+                                       type="button"
+                                       onClick={() => navigator.clipboard.writeText(legacyMessagingApiKey)}
+                                       disabled={!legacyMessagingApiKey}
+                                       className="px-4 wp-button-secondary disabled:opacity-50"
+                                     >
+                                       Copy
+                                     </button>
+                                     <button
+                                       type="button"
+                                       onClick={() => handleUpdateSetting('messaging_api_key', legacyMessagingApiKey)}
+                                       disabled={saveLoading}
+                                       className="px-6 wp-button-primary"
+                                     >
+                                       Save
+                                     </button>
+                                     <button
+                                       type="button"
+                                       onClick={handleDeleteLegacyMessagingApiKey}
+                                       disabled={saveLoading || !legacyMessagingApiKey}
+                                       className="px-4 bg-[#d63638] text-white font-bold uppercase text-[10px] tracking-widest border border-[#b32d2e] hover:bg-[#b32d2e] disabled:opacity-50"
+                                     >
+                                       <Trash2 className="w-3 h-3" />
+                                     </button>
+                                  </div>
+                                  <p className="text-[10px] text-[#646970] italic">This is the backward-compatible single messaging API key. Clear it here to disable legacy integrations while keeping named keys active.</p>
+                               </div>
+
+                               <div className="space-y-1">
+                                  <label className="text-[10px] font-bold text-[#00a32a] uppercase tracking-widest">Messaging-Only API Keys</label>
+                                  <div className="flex gap-2">
                                     <input
                                       type="text"
                                       className="flex-1 wp-input"
@@ -2450,7 +2451,7 @@ const AdminDashboard = () => {
                                  <p className="text-[10px] text-[#646970] italic">Create one messaging-only API key per external application. Each key is restricted to messaging operations and can be renamed, rotated, or disabled without affecting the others.</p>
                               </div>
 
-                              {settings.find(s => s.key === 'messaging_api_key')?.value && (
+                              {legacyMessagingApiKey && (
                                 <div className="p-3 bg-[#fcf9e8] border border-[#dba617] text-[10px] text-[#3c434a]">
                                   Legacy `messaging_api_key` support is still active for backward compatibility. New integrations should use the named keys below.
                                 </div>

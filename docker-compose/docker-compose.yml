@@ -14,11 +14,11 @@ services:
       retries: 5
     volumes:
       - ./data/db:/var/lib/postgresql/data
-      - ../backend/src/db/acl_schema.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - appstack-network
 
   backend:
+    image: wawat-backend
     build:
       context: ../backend
       dockerfile: Dockerfile
@@ -42,13 +42,14 @@ services:
       db:
         condition: service_healthy
     command: >
-      sh -c "node src/db/seeder.js && npm start"
+      sh -c "node src/db/applySchema.js && node src/db/seeder.js && npm start"
     networks:
       - appstack-network
     ports:
       - "${BACKEND_EXTERNAL_PORT:-3085}:${BACKEND_INTERNAL_PORT:-3000}"
 
   frontend:
+    image: wawat-frontend
     build:
       context: ../frontend
       dockerfile: Dockerfile

@@ -2,42 +2,29 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Github, BookOpen, Shield, Code, History, Zap, ArrowLeft, Cpu, Globe, Activity, ShieldCheck, RefreshCw } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import axios from 'axios';
+import api from '../services/api';
 
 const AboutPage = () => {
   const { siteName } = useAuth();
   const navigate = useNavigate();
-  const version = "1.6.0";
-  const [versionHistory, setVersionHistory] = useState([]);
+  const [buildInfo, setBuildInfo] = useState({
+    version: '1.6.0',
+    history: []
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchHistory = async () => {
       try {
-        // Fetch directly from GitHub for absolute dynamic synchronization
-        const response = await axios.get('https://api.github.com/repos/caseypaite/WhatsApp-Web-Tool/releases', {
-          headers: { 'Accept': 'application/vnd.github.v3+json' },
-          timeout: 8000
-        });
-        
-        if (response.data && Array.isArray(response.data)) {
-          const history = response.data.slice(0, 10).map(release => ({
-            tag: release.tag_name,
-            message: release.name || release.body?.split('\n')[0] || 'Regular protocol update',
-            date: release.published_at ? release.published_at.split('T')[0] : '2026-04-04'
-          }));
-          setVersionHistory(history);
-        } else {
-          throw new Error('Invalid GitHub response');
+        const response = await api.get('/system/git-history');
+        if (response.data?.version) {
+          setBuildInfo({
+            version: response.data.version,
+            history: Array.isArray(response.data.history) ? response.data.history : []
+          });
         }
       } catch (err) {
-        console.error('Failed to fetch version history from GitHub:', err.message);
-        // Fallback to static data if GitHub is unreachable
-        setVersionHistory([
-          { tag: "v1.6.0", message: "Official Beta transition with secure cookie auth and modular UI", date: "2026-03-28" },
-          { tag: "v1.5.5", message: "Interactive API diagnostics and external media support", date: "2026-03-28" },
-          { tag: "v1.5.4", message: "Production recovery and sidebar restoration", date: "2026-03-28" }
-        ]);
+        console.error('Failed to fetch build info:', err.message);
       } finally {
         setLoading(false);
       }
@@ -118,18 +105,18 @@ const AboutPage = () => {
                     <p className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Synchronizing Build Logs...</p>
                   </div>
                 ) : (
-                  versionHistory.map((v, i) => (
-                    <div key={v.tag} className="flex gap-6 group">
+                  buildInfo.history.map((entry, i) => (
+                    <div key={entry.id} className="flex gap-6 group">
                       <div className="flex flex-col items-center">
                         <div className={`w-3 h-3 rounded-full border-2 transition-colors ${i === 0 ? 'bg-[#2271b1] border-[#2271b1]' : 'bg-white border-[#dcdcde] group-hover:border-[#2271b1]'}`} />
-                        {i !== versionHistory.length - 1 && <div className="w-0.5 h-full bg-[#f0f0f1]" />}
+                        {i !== buildInfo.history.length - 1 && <div className="w-0.5 h-full bg-[#f0f0f1]" />}
                       </div>
                       <div className="pb-8">
                         <div className="flex items-center gap-3 mb-1">
-                          <span className="text-xs font-bold text-[#1d2327] bg-[#f0f0f1] px-2 py-0.5 rounded-sm">{v.tag}</span>
-                          <span className="text-[10px] font-bold text-[#a7aaad] uppercase">{v.date}</span>
+                          <span className="text-xs font-bold text-[#1d2327] bg-[#f0f0f1] px-2 py-0.5 rounded-sm">{entry.shortHash}</span>
+                          <span className="text-[10px] font-bold text-[#a7aaad] uppercase">{entry.date}</span>
                         </div>
-                        <p className="text-sm text-[#646970] font-medium leading-relaxed">{v.message}</p>
+                        <p className="text-sm text-[#646970] font-medium leading-relaxed">{entry.message}</p>
                       </div>
                     </div>
                   ))
@@ -186,10 +173,10 @@ const AboutPage = () => {
               </a>
             </div>
 
-            <div className="p-6 border border-dashed border-[#dcdcde] text-center">
-               <Cpu className="w-8 h-8 text-[#dcdcde] mx-auto mb-2" />
-               <p className="text-[9px] font-bold text-[#a7aaad] uppercase tracking-[0.3em]">Protocol Build v{version}</p>
-            </div>
+             <div className="p-6 border border-dashed border-[#dcdcde] text-center">
+                <Cpu className="w-8 h-8 text-[#dcdcde] mx-auto mb-2" />
+               <p className="text-[9px] font-bold text-[#a7aaad] uppercase tracking-[0.3em]">Protocol Build v{buildInfo.version}</p>
+             </div>
           </div>
         </div>
       </div>

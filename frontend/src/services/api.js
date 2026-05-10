@@ -4,6 +4,9 @@ const getApiBaseUrl = () => {
   if (window._CONFIG_ && window._CONFIG_.VITE_API_BASE_URL && window._CONFIG_.VITE_API_BASE_URL !== '$VITE_API_BASE_URL') {
     return window._CONFIG_.VITE_API_BASE_URL;
   }
+  if (import.meta.env.DEV) {
+    return '/api';
+  }
   return import.meta.env.VITE_API_BASE_URL || '/api';
 };
 
