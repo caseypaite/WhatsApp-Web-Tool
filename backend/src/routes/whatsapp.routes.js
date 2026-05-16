@@ -4,9 +4,9 @@ const whatsappController = require('../controllers/whatsapp.controller');
 const { authenticate, checkRole } = require('../middleware/auth.middleware');
 
 /**
- * All WhatsApp routes are restricted to Admin
+ * All WhatsApp routes are restricted to Admin, except status and messaging
  */
-router.get('/status', authenticate, checkRole(['Admin']), whatsappController.getStatus);
+router.get('/status', authenticate, checkRole(['MessagingOnly']), whatsappController.getStatus);
 router.get('/chats', authenticate, checkRole(['Admin']), whatsappController.getChats);
 router.get('/contacts', authenticate, checkRole(['Admin']), whatsappController.getContacts);
 router.post('/logout', authenticate, checkRole(['Admin']), whatsappController.logout);

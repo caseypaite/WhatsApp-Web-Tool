@@ -1,5 +1,6 @@
 # Build Stage
-FROM node:20 as build-stage
+ARG BUILDPLATFORM
+FROM --platform=$BUILDPLATFORM node:20 AS build-stage
 WORKDIR /app
 COPY package*.json ./
 RUN npm install

@@ -8,6 +8,9 @@ const { authenticate, checkRole } = require('../middleware/auth.middleware');
  * These endpoints are optimized for external integration using API Keys.
  */
 
+// Connection Status
+router.get('/status', authenticate, checkRole(['MessagingOnly']), whatsappController.getStatus);
+
 // Universal Broadcast (Multiple targets: individual, group, or channel)
 router.post('/broadcast', authenticate, checkRole(['MessagingOnly']), whatsappController.broadcast);
 

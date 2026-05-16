@@ -99,7 +99,7 @@ The platform provides a robust API for external system integrations, allowing ot
 ### Authentication (`x-api-key`)
 External requests must include the `x-api-key` header. The platform supports two tiers of keys:
 - **Full Access Key**: Grants `Admin` permissions to all messaging, entity management, and system configuration endpoints.
-- **Messaging-Only Key**: Restricted to communication endpoints (Broadcast, Group/Channel Message, Poll). This key **cannot** access status checks, chat registries, or group management.
+- **Messaging-Only Key**: Restricted to communication endpoints (Broadcast, Group/Channel Message, Poll) and connection status checks. This key **cannot** access chat registries or group management.
 - **Location**: Manage your API Keys from the **Settings > Security** tab.
 
 ### API Vector Reference
@@ -111,7 +111,12 @@ The Admin Dashboard includes a live-updating documentation hub:
 ### Clean API Endpoints (v1)
 All external requests should use the following "clean" endpoints for better integration:
 
-#### 1. Universal Broadcast
+#### 1. Connection Status
+**Endpoint**: `GET /api/v1/status`
+**Header**: `x-api-key: YOUR_KEY`
+**Description**: Retrieve the current WhatsApp connection status, engine readiness, and battery/signal levels if available.
+
+#### 2. Universal Broadcast
 **Endpoint**: `POST /api/v1/broadcast`
 **Header**: `x-api-key: YOUR_KEY`
 **Payload**:
