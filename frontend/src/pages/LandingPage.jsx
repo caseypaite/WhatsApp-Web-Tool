@@ -6,13 +6,19 @@ import authService from '../services/auth.service';
 import DOMPurify from 'dompurify';
 import { ArrowRight, Shield, Zap, Layout as LayoutIcon, Cpu, User, BarChart2, Globe, MessageSquare, ShieldCheck, Activity, History } from 'lucide-react';
 
+const DEFAULT_HERO_IMAGE_URL = '/hero.png';
+const LEGACY_DEFAULT_HERO_IMAGES = new Set([
+  'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&q=80&w=1200',
+  'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&q=80&w=2832'
+]);
+
 const LandingPage = () => {
   const { user, loading, logout, siteName } = useAuth();
   const navigate = useNavigate();
   const [content, setContent] = useState({
     hero_text: 'Isolated WhatsApp Operations for Every Team',
     cta_text: 'Open Portal',
-    image_url: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&q=80&w=1200'
+    image_url: DEFAULT_HERO_IMAGE_URL
   });
   const [activePolls, setActivePolls] = useState([]);
   const [buildInfo, setBuildInfo] = useState({
@@ -25,7 +31,13 @@ const LandingPage = () => {
       try {
         const response = await api.get('/cms/landing');
         if (response.data && response.data.hero_text) {
-          setContent(response.data);
+          const imageUrl = response.data.image_url;
+          setContent({
+            ...response.data,
+            image_url: !imageUrl || LEGACY_DEFAULT_HERO_IMAGES.has(imageUrl)
+              ? DEFAULT_HERO_IMAGE_URL
+              : imageUrl
+          });
         }
       } catch (err) {
         console.error('Failed to fetch CMS content:', err);

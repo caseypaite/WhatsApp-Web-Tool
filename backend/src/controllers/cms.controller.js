@@ -1,6 +1,12 @@
 const db = require('../config/db');
 const sanitizeHtml = require('sanitize-html');
 
+const DEFAULT_HERO_IMAGE_URL = '/hero.png';
+const LEGACY_DEFAULT_HERO_IMAGES = new Set([
+  'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&q=80&w=1200',
+  'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&q=80&w=2832'
+]);
+
 /**
  * Controller for Landing Page CMS operations.
  */
@@ -18,12 +24,18 @@ class CmsController {
         return res.json({
           hero_text: 'Isolated WhatsApp Operations for Every Team',
           cta_text: 'Open Portal',
-          image_url: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&q=80&w=2832',
+          image_url: DEFAULT_HERO_IMAGE_URL,
           html_content: ''
         });
       }
 
-      res.json(result.rows[0]);
+      const landingConfig = result.rows[0];
+      res.json({
+        ...landingConfig,
+        image_url: !landingConfig.image_url || LEGACY_DEFAULT_HERO_IMAGES.has(landingConfig.image_url)
+          ? DEFAULT_HERO_IMAGE_URL
+          : landingConfig.image_url
+      });
     } catch (error) {
       console.error('Error fetching landing page:', error.message);
       res.status(500).json({ error: 'Internal Server Error' });
