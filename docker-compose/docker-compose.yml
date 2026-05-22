@@ -18,10 +18,7 @@ services:
       - appstack-network
 
   backend:
-    image: wawat-backend
-    build:
-      context: ../backend
-      dockerfile: Dockerfile
+    image: ${DOCKER_NAMESPACE:-andycyx}/wawat-backend:latest
     container_name: appstack-backend
     restart: always
     environment:
@@ -49,10 +46,7 @@ services:
       - "${BACKEND_EXTERNAL_PORT:-3085}:${BACKEND_INTERNAL_PORT:-3000}"
 
   frontend:
-    image: wawat-frontend
-    build:
-      context: ../frontend
-      dockerfile: Dockerfile
+    image: ${DOCKER_NAMESPACE:-andycyx}/wawat-frontend:latest
     container_name: appstack-frontend
     restart: always
     environment:

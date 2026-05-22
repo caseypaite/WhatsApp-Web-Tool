@@ -1,9 +1,26 @@
 const whatsappService = require('../services/whatsapp.service');
+const { resolveWhatsappTarget } = require('../services/whatsapp-session-resolver');
 const otpService = require('../services/otp.service');
 const db = require('../config/db');
 
 const whatsappController = {
   // ... existing methods
+
+  startSession: async (req, res) => {
+    try {
+      const target = resolveWhatsappTarget(req);
+      if (target.isUserScoped) {
+        const status = await target.service.startSession(target.sessionUserId);
+        return res.json(status);
+      }
+
+      await whatsappService.initialize();
+      return res.json(await whatsappService.getStatus());
+    } catch (err) {
+      console.error('[WHATSAPP CONTROLLER] Error starting session:', err.message);
+      res.status(500).json({ error: err.message });
+    }
+  },
   
   createGroup: async (req, res) => {
     try {
@@ -71,7 +88,10 @@ const whatsappController = {
   // Get connection status and QR if available
   getStatus: async (req, res) => {
     try {
-      const status = await whatsappService.getStatus();
+      const target = resolveWhatsappTarget(req);
+      const status = target.isUserScoped
+        ? await target.service.getStatus(target.sessionUserId)
+        : await target.service.getStatus();
 
       // If runtime says NOT READY, but status is CONNECTED, it's inconsistent
       if (!status.ready && status.status === 'CONNECTED') {
@@ -84,10 +104,31 @@ const whatsappController = {
       res.status(500).json({ error: 'Failed to get status' });
     }
   },
+
+  getSessionLogs: async (req, res) => {
+    try {
+      const limit = Number.parseInt(req.query?.limit, 10);
+      const resolvedLimit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 50;
+      const target = resolveWhatsappTarget(req);
+      const logs = target.isUserScoped
+        ? await target.service.getSessionLogs(target.sessionUserId, resolvedLimit)
+        : await target.service.getSessionLogs(resolvedLimit);
+      res.json(logs);
+    } catch (err) {
+      console.error('[WHATSAPP CONTROLLER] Error getting session logs:', err.message);
+      res.status(500).json({ error: 'Failed to get WhatsApp session logs' });
+    }
+  },
+
   // Manual Logout
   logout: async (req, res) => {
     try {
-      await whatsappService.logout();
+      const target = resolveWhatsappTarget(req);
+      if (target.isUserScoped) {
+        await target.service.logout(target.sessionUserId);
+      } else {
+        await target.service.logout();
+      }
       res.json({ message: 'Logged out successfully' });
     } catch (err) {
       res.status(500).json({ error: 'Failed to logout' });
@@ -108,7 +149,10 @@ const whatsappController = {
     try {
       const { phoneNumber } = req.body;
       if (!phoneNumber) return res.status(400).json({ error: 'Phone number is required' });
-      const code = await whatsappService.requestPairingCode(phoneNumber);
+      const target = resolveWhatsappTarget(req);
+      const code = target.isUserScoped
+        ? await target.service.requestPairingCode(target.sessionUserId, phoneNumber)
+        : await target.service.requestPairingCode(phoneNumber);
       res.json({ success: true, code });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -118,7 +162,10 @@ const whatsappController = {
   // Get Chats
   getChats: async (req, res) => {
     try {
-      const chats = await whatsappService.getChats();
+      const target = resolveWhatsappTarget(req);
+      const chats = target.isUserScoped
+        ? await target.service.getChats(target.sessionUserId)
+        : await target.service.getChats();
       res.json(chats);
     } catch (err) {
       res.status(500).json({ error: 'Failed to fetch chats' });
@@ -128,7 +175,10 @@ const whatsappController = {
   // Get Contacts
   getContacts: async (req, res) => {
     try {
-      const contacts = await whatsappService.getContacts();
+      const target = resolveWhatsappTarget(req);
+      const contacts = target.isUserScoped
+        ? await target.service.getContacts(target.sessionUserId)
+        : await target.service.getContacts();
       res.json(contacts);
     } catch (err) {
       res.status(500).json({ error: 'Failed to fetch contacts' });
@@ -139,7 +189,10 @@ const whatsappController = {
   sendTestMessage: async (req, res) => {
     const { number, message } = req.body;
     try {
-      const result = await whatsappService.sendMessage(number, message, null, { userId: req.user?.id, apiKeyName: req.user?.apiKeyName });
+      const target = resolveWhatsappTarget(req);
+      const result = target.isUserScoped
+        ? await target.service.sendMessage(target.sessionUserId, number, message, null, { userId: req.user?.id, apiKeyName: req.user?.apiKeyName })
+        : await target.service.sendMessage(number, message, null, { userId: req.user?.id, apiKeyName: req.user?.apiKeyName });
       res.json({ success: true, messageId: result.id });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -157,7 +210,10 @@ const whatsappController = {
         mediaOptions = { url: mediaUrl, type: mediaType || 'image' };
       }
 
-      const result = await whatsappService.sendMessage(targetNumber, message, mediaOptions, { raw: true, userId: req.user?.id, apiKeyName: req.user?.apiKeyName });
+      const target = resolveWhatsappTarget(req);
+      const result = target.isUserScoped
+        ? await target.service.sendMessage(target.sessionUserId, targetNumber, message, mediaOptions, { raw: true, userId: req.user?.id, apiKeyName: req.user?.apiKeyName })
+        : await target.service.sendMessage(targetNumber, message, mediaOptions, { raw: true, userId: req.user?.id, apiKeyName: req.user?.apiKeyName });
       res.json({ success: true, messageId: result.id?._serialized || result.id });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -194,9 +250,26 @@ const whatsappController = {
 
       const results = { success: [], failed: [] };
 
+      const resolvedTarget = resolveWhatsappTarget(req);
+
       for (const target of targets) {
         try {
-          await whatsappService.sendMessage(target.id, finalMessage, mediaOptions, { type: target.type, raw: true, userId: req.user?.id, apiKeyName: req.user?.apiKeyName });
+          if (resolvedTarget.isUserScoped) {
+            await resolvedTarget.service.sendMessage(
+              resolvedTarget.sessionUserId,
+              target.id,
+              finalMessage,
+              mediaOptions,
+              { type: target.type, raw: true, userId: req.user?.id, apiKeyName: req.user?.apiKeyName }
+            );
+          } else {
+            await resolvedTarget.service.sendMessage(
+              target.id,
+              finalMessage,
+              mediaOptions,
+              { type: target.type, raw: true, userId: req.user?.id, apiKeyName: req.user?.apiKeyName }
+            );
+          }
           results.success.push(target.id);
         } catch (err) {
           results.failed.push({ id: target.id, error: err.message });
@@ -351,7 +424,10 @@ const whatsappController = {
     try {
       const { chatId, question, options, allowMultiple } = req.body;
       if (!chatId || !question || !options) return res.status(400).json({ error: 'Missing parameters' });
-      const result = await whatsappService.sendPoll(chatId, question, options, allowMultiple, { userId: req.user?.id, apiKeyName: req.user?.apiKeyName });
+      const target = resolveWhatsappTarget(req);
+      const result = target.isUserScoped
+        ? await target.service.sendPoll(target.sessionUserId, chatId, question, options, allowMultiple, { userId: req.user?.id, apiKeyName: req.user?.apiKeyName })
+        : await target.service.sendPoll(chatId, question, options, allowMultiple, { userId: req.user?.id, apiKeyName: req.user?.apiKeyName });
       res.json({ success: true, messageId: result.id });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -369,7 +445,10 @@ const whatsappController = {
         mediaOptions = { url: mediaUrl, type: mediaType || 'image' };
       }
 
-      const result = await whatsappService.sendMessage(targetId, message, mediaOptions, { type: 'group', raw: true, userId: req.user?.id, apiKeyName: req.user?.apiKeyName });
+      const target = resolveWhatsappTarget(req);
+      const result = target.isUserScoped
+        ? await target.service.sendMessage(target.sessionUserId, targetId, message, mediaOptions, { type: 'group', raw: true, userId: req.user?.id, apiKeyName: req.user?.apiKeyName })
+        : await target.service.sendMessage(targetId, message, mediaOptions, { type: 'group', raw: true, userId: req.user?.id, apiKeyName: req.user?.apiKeyName });
       res.json({ success: true, messageId: result.id?._serialized || result.id });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -387,7 +466,10 @@ const whatsappController = {
         mediaOptions = { url: mediaUrl, type: mediaType || 'image' };
       }
 
-      const result = await whatsappService.sendMessage(targetId, message, mediaOptions, { type: 'channel', raw: true, userId: req.user?.id, apiKeyName: req.user?.apiKeyName });
+      const target = resolveWhatsappTarget(req);
+      const result = target.isUserScoped
+        ? await target.service.sendMessage(target.sessionUserId, targetId, message, mediaOptions, { type: 'channel', raw: true, userId: req.user?.id, apiKeyName: req.user?.apiKeyName })
+        : await target.service.sendMessage(targetId, message, mediaOptions, { type: 'channel', raw: true, userId: req.user?.id, apiKeyName: req.user?.apiKeyName });
       res.json({ success: true, messageId: result.id?._serialized || result.id });
     } catch (err) {
       res.status(500).json({ error: err.message });

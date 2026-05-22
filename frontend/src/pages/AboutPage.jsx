@@ -33,11 +33,11 @@ const AboutPage = () => {
   }, []);
 
   const backendLibraries = [
-    "Node.js (Express)", "whatsapp-web.js (Puppeteer)", "PostgreSQL (pg)", "JWT Auth", "Bcrypt.js", "AI Integration"
+    "Node.js (Express)", "whatsapp-web.js (Puppeteer)", "PostgreSQL (pg)", "JWT Cookies", "Bcrypt.js", "Session Log Services"
   ];
 
   const frontendLibraries = [
-    "React (Vite)", "Tailwind CSS", "Lucide Icons", "Recharts", "Axios", "AuthContext"
+    "React (Vite)", "Tailwind CSS", "Lucide Icons", "Recharts", "Axios", "HashRouter/AuthContext"
   ];
 
   return (
@@ -53,10 +53,10 @@ const AboutPage = () => {
           </div>
           <div className="max-w-2xl mx-auto">
             <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#2271b1] rounded-sm text-[10px] font-bold uppercase tracking-widest mb-4">
-              <Globe className="w-3 h-3" /> System Overview
+              <Globe className="w-3 h-3" /> Platform Intelligence
             </div>
-            <h2 className="text-4xl font-extrabold leading-tight mb-2 uppercase tracking-tighter">About the Platform</h2>
-            <p className="text-[#a7aaad] text-sm font-medium italic">Secure Identity Propagation and Governance Infrastructure</p>
+            <h2 className="text-4xl font-extrabold leading-tight mb-2 uppercase tracking-tighter">Intelligence Briefing</h2>
+            <p className="text-[#a7aaad] text-sm font-medium italic">Operational context for isolated WhatsApp sessions, API ownership, and governance workflows</p>
           </div>
         </div>
       </div>
@@ -73,31 +73,31 @@ const AboutPage = () => {
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-8">
             <div className="bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.24)] border border-[#dcdcde] p-8 md:p-12">
-              <h3 className="text-2xl font-bold text-[#1d2327] mb-6 border-b border-[#f0f0f1] pb-4 uppercase tracking-tight">About the Platform</h3>
+              <h3 className="text-2xl font-bold text-[#1d2327] mb-6 border-b border-[#f0f0f1] pb-4 uppercase tracking-tight">Platform Summary</h3>
               <div className="prose prose-slate max-w-none text-[#3c434a] leading-relaxed space-y-6">
                 <p className="text-lg font-medium italic text-[#646970]">
-                  {siteName} is a cryptographic identity propagation layer engineered for absolute integrity in distributed governance.
+                  {siteName} is a multi-tenant WhatsApp operations platform built to keep root administration, user messaging identities, and audit visibility cleanly separated.
                 </p>
                 <p>
-                  Built on a foundation of hardware-anchored verification, the platform leverages the WhatsApp communication vector to establish immutable session anchors. This approach ensures that every interaction within the ecosystem is backed by a verified organizational identity.
+                  The platform combines a root administrative WhatsApp account, isolated user-linked WhatsApp sessions, user-owned messaging API keys, and governance tooling in one stack. Operationally, that means a user can link their own number, send through their own session, review their own message and session logs, and still remain fully separated from the platform root account.
                 </p>
                 <div className="grid sm:grid-cols-2 gap-6 py-6">
                   <div className="p-4 bg-[#f6f7f7] border border-[#dcdcde]">
                     <Shield className="w-6 h-6 text-[#2271b1] mb-2" />
-                    <h4 className="font-bold text-sm uppercase mb-1">Secure Auth</h4>
-                    <p className="text-xs text-[#646970]">Multi-factor authentication anchored to communication units.</p>
+                    <h4 className="font-bold text-sm uppercase mb-1">Isolated Accounts</h4>
+                    <p className="text-xs text-[#646970]">Root admin and user WhatsApp sessions persist independently with separate startup and recovery paths.</p>
                   </div>
                   <div className="p-4 bg-[#f6f7f7] border border-[#dcdcde]">
                     <Activity className="w-6 h-6 text-[#2271b1] mb-2" />
-                    <h4 className="font-bold text-sm uppercase mb-1">Audit Stream</h4>
-                    <p className="text-xs text-[#646970]">Real-time logging of all node-to-node transmissions.</p>
+                    <h4 className="font-bold text-sm uppercase mb-1">Live Observability</h4>
+                    <p className="text-xs text-[#646970]">Users get their own message and session logs while admins retain a platform-wide audit view.</p>
                   </div>
                 </div>
               </div>
             </div>
 
             <div className="bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04),0_1px_2px_rgba(0,0,0,0.24)] border border-[#dcdcde] p-8 md:p-12">
-              <h3 className="text-2xl font-bold text-[#1d2327] mb-8 border-b border-[#f0f0f1] pb-4 uppercase tracking-tight">Version History</h3>
+              <h3 className="text-2xl font-bold text-[#1d2327] mb-8 border-b border-[#f0f0f1] pb-4 uppercase tracking-tight">Deployment History</h3>
               <div className="space-y-6">
                 {loading ? (
                   <div className="py-12 flex flex-col items-center justify-center space-y-4">
@@ -158,10 +158,10 @@ const AboutPage = () => {
             <div className="bg-[#1d2327] text-white p-6 rounded-sm shadow-xl">
               <div className="flex items-center gap-3 mb-4">
                 <ShieldCheck className="w-5 h-5 text-[#2271b1]" />
-                <h4 className="text-xs font-bold uppercase tracking-widest text-[#72aee6]">Licensing Protocol</h4>
+                <h4 className="text-xs font-bold uppercase tracking-widest text-[#72aee6]">Deployment Model</h4>
               </div>
               <p className="text-[11px] leading-relaxed text-[#a7aaad] mb-6 font-medium">
-                Released under the <strong className="text-white">ISC Open Access License</strong>. Authorized for deployment, modification, and redistribution across all organizational nodes.
+                Production runs from Docker Hub images through the compose stack, while development continues to use direct npm workflows in the backend and frontend directories.
               </p>
               <a 
                 href="https://github.com/caseypaite/WhatsApp-Web-Tool" 
@@ -169,7 +169,7 @@ const AboutPage = () => {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-white hover:text-[#72aee6] transition-colors"
               >
-                <Github className="w-4 h-4" /> Get Source Code
+                <Github className="w-4 h-4" /> View Repository
               </a>
             </div>
 

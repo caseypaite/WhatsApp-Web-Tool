@@ -1,5 +1,15 @@
 import api from './api';
 
+const withUserTarget = (options = {}) => {
+  if (!options?.userId) {
+    return {};
+  }
+
+  return {
+    params: { userId: options.userId }
+  };
+};
+
 const login = async (email, password) => {
   const response = await api.post('/user/login', { email, password });
   if (response.data.user) {
@@ -77,6 +87,11 @@ const getAllUsers = async (params) => {
   return response.data;
 };
 
+const createUser = async (userData) => {
+  const response = await api.post('/user/create', userData);
+  return response.data;
+};
+
 const updateProfile = async (profileData) => {
   const response = await api.put('/user/profile', profileData);
   return response.data;
@@ -149,18 +164,29 @@ const getMyMessages = async () => {
 };
 
 // WhatsApp Integration
-const getWhatsappStatus = async () => {
-  const response = await api.get('/whatsapp/status');
+const getWhatsappStatus = async (options = {}) => {
+  const response = await api.get('/whatsapp/status', withUserTarget(options));
   return response.data;
 };
 
-const getWhatsappChats = async () => {
-  const response = await api.get('/whatsapp/chats');
+const getWhatsappSessionLogs = async (options = {}) => {
+  const response = await api.get('/whatsapp/session/logs', withUserTarget(options));
   return response.data;
 };
 
-const getWhatsappContacts = async () => {
-  const response = await api.get('/whatsapp/contacts');
+const startWhatsappSession = async (options = {}) => {
+  const body = options?.userId ? { userId: options.userId } : {};
+  const response = await api.post('/whatsapp/session/start', body);
+  return response.data;
+};
+
+const getWhatsappChats = async (options = {}) => {
+  const response = await api.get('/whatsapp/chats', withUserTarget(options));
+  return response.data;
+};
+
+const getWhatsappContacts = async (options = {}) => {
+  const response = await api.get('/whatsapp/contacts', withUserTarget(options));
   return response.data;
 };
 
@@ -169,13 +195,43 @@ const confirmPasswordChange = async (otp, new_password) => {
   return response.data;
 };
 
+const verifyPasswordChange = async (new_password, otp) => {
+  return confirmPasswordChange(otp, new_password);
+};
+
 const requestPasswordChange = async () => {
   const response = await api.post('/user/request-password-change');
   return response.data;
 };
 
-const logoutWhatsapp = async () => {
-  const response = await api.post('/whatsapp/logout');
+const getOwnApiKeys = async () => {
+  const response = await api.get('/user/api-keys');
+  return response.data;
+};
+
+const createOwnApiKey = async (name) => {
+  const response = await api.post('/user/api-keys', { name });
+  return response.data;
+};
+
+const updateOwnApiKey = async (id, data) => {
+  const response = await api.put(`/user/api-keys/${id}`, data);
+  return response.data;
+};
+
+const rotateOwnApiKey = async (id) => {
+  const response = await api.post(`/user/api-keys/${id}/rotate`);
+  return response.data;
+};
+
+const deleteOwnApiKey = async (id) => {
+  const response = await api.delete(`/user/api-keys/${id}`);
+  return response.data;
+};
+
+const logoutWhatsapp = async (options = {}) => {
+  const body = options?.userId ? { userId: options.userId } : {};
+  const response = await api.post('/whatsapp/logout', body);
   return response.data;
 };
 
@@ -184,8 +240,11 @@ const reinitializeWhatsapp = async () => {
   return response.data;
 };
 
-const requestWaPairingCode = async (phoneNumber) => {
-  const response = await api.post('/whatsapp/request-pairing-code', { phoneNumber });
+const requestWaPairingCode = async (phoneNumber, options = {}) => {
+  const response = await api.post('/whatsapp/request-pairing-code', {
+    phoneNumber,
+    ...(options?.userId ? { userId: options.userId } : {})
+  });
   return response.data;
 };
 
@@ -450,6 +509,7 @@ export default {
   requestPhoneUpdate,
   verifyPhoneUpdate,
   getAllUsers,
+  createUser,
   createGroup,
   deleteGroup,
   getAllGroups,
@@ -462,6 +522,8 @@ export default {
   getMyGroups,
   getMyMessages,
   getWhatsappStatus,
+  getWhatsappSessionLogs,
+  startWhatsappSession,
   getWhatsappChats,
   getWhatsappContacts,
   logoutWhatsapp,
@@ -473,6 +535,12 @@ export default {
   updateLandingPage,
   requestPasswordChange,
   confirmPasswordChange,
+  verifyPasswordChange,
+  getOwnApiKeys,
+  createOwnApiKey,
+  updateOwnApiKey,
+  rotateOwnApiKey,
+  deleteOwnApiKey,
   createWaGroup,
   createWaChannel,
   requestWaDeleteOtp,

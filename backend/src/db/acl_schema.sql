@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
     name VARCHAR(255),
     phone_number VARCHAR(20),
     status VARCHAR(50) DEFAULT 'PENDING_VERIFICATION', -- PENDING_VERIFICATION, PENDING_APPROVAL, ACTIVE, INACTIVE
+    can_create_polls BOOLEAN DEFAULT false,
     address TEXT,
     country VARCHAR(100),
     state VARCHAR(100),
@@ -22,6 +23,8 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS can_create_polls BOOLEAN DEFAULT false;
 
 -- Create UserRoles association table
 CREATE TABLE IF NOT EXISTS user_roles (
@@ -76,6 +79,16 @@ CREATE TABLE IF NOT EXISTS message_history (
 );
 
 ALTER TABLE message_history ADD COLUMN IF NOT EXISTS api_key_name VARCHAR(255);
+
+CREATE TABLE IF NOT EXISTS whatsapp_session_logs (
+    id SERIAL PRIMARY KEY,
+    session_scope VARCHAR(20) NOT NULL, -- ROOT, USER
+    user_id INT REFERENCES users(id) ON DELETE CASCADE,
+    event_type VARCHAR(100) NOT NULL,
+    status VARCHAR(50) NOT NULL,
+    details TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 -- Create OTP table
 CREATE TABLE IF NOT EXISTS otp_verification (
@@ -198,6 +211,34 @@ CREATE TABLE IF NOT EXISTS messaging_api_keys (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- User-owned Messaging-Only API Keys
+CREATE TABLE IF NOT EXISTS user_messaging_api_keys (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    api_key VARCHAR(255) UNIQUE NOT NULL,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (user_id, name)
+);
+
+-- Persisted User WhatsApp Session Metadata
+CREATE TABLE IF NOT EXISTS user_whatsapp_sessions (
+    user_id INT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    status VARCHAR(50) DEFAULT 'DISCONNECTED',
+    qr_code TEXT,
+    pairing_code VARCHAR(64),
+    phone_number VARCHAR(20),
+    wid VARCHAR(255),
+    push_name VARCHAR(255),
+    is_enabled BOOLEAN DEFAULT false,
+    last_error TEXT,
+    last_loaded_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- WhatsApp Gatekeeper Logs
 CREATE TABLE IF NOT EXISTS group_gatekeeper_logs (
     id SERIAL PRIMARY KEY,
@@ -244,7 +285,13 @@ CREATE INDEX IF NOT EXISTS idx_poll_votes_poll_id ON poll_votes(poll_id);
 CREATE INDEX IF NOT EXISTS idx_poll_votes_phone ON poll_votes(phone_number);
 CREATE INDEX IF NOT EXISTS idx_message_history_phone ON message_history(phone_number);
 CREATE INDEX IF NOT EXISTS idx_message_history_user ON message_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_session_logs_scope_created ON whatsapp_session_logs(session_scope, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_session_logs_user_created ON whatsapp_session_logs(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_ai_interaction_logs_phone ON ai_interaction_logs(phone_number);
 CREATE INDEX IF NOT EXISTS idx_ai_interaction_logs_created ON ai_interaction_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_messaging_api_keys_key ON messaging_api_keys(api_key);
 CREATE INDEX IF NOT EXISTS idx_messaging_api_keys_active ON messaging_api_keys(is_active);
+CREATE INDEX IF NOT EXISTS idx_user_messaging_api_keys_user ON user_messaging_api_keys(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_messaging_api_keys_key ON user_messaging_api_keys(api_key);
+CREATE INDEX IF NOT EXISTS idx_user_messaging_api_keys_active ON user_messaging_api_keys(is_active);
+CREATE INDEX IF NOT EXISTS idx_user_whatsapp_sessions_enabled ON user_whatsapp_sessions(is_enabled);

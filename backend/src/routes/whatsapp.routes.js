@@ -6,12 +6,14 @@ const { authenticate, checkRole } = require('../middleware/auth.middleware');
 /**
  * All WhatsApp routes are restricted to Admin, except status and messaging
  */
-router.get('/status', authenticate, checkRole(['MessagingOnly']), whatsappController.getStatus);
-router.get('/chats', authenticate, checkRole(['Admin']), whatsappController.getChats);
-router.get('/contacts', authenticate, checkRole(['Admin']), whatsappController.getContacts);
-router.post('/logout', authenticate, checkRole(['Admin']), whatsappController.logout);
+router.get('/status', authenticate, whatsappController.getStatus);
+router.get('/session/logs', authenticate, whatsappController.getSessionLogs);
+router.post('/session/start', authenticate, whatsappController.startSession);
+router.get('/chats', authenticate, whatsappController.getChats);
+router.get('/contacts', authenticate, whatsappController.getContacts);
+router.post('/logout', authenticate, whatsappController.logout);
 router.post('/reinitialize', authenticate, checkRole(['Admin']), whatsappController.reinitialize);
-router.post('/request-pairing-code', authenticate, checkRole(['Admin']), whatsappController.requestPairingCode);
+router.post('/request-pairing-code', authenticate, whatsappController.requestPairingCode);
 router.post('/send-test', authenticate, checkRole(['MessagingOnly']), whatsappController.sendTestMessage);
 router.post('/send-message', authenticate, checkRole(['MessagingOnly']), whatsappController.sendSingleMessage);
 router.post('/broadcast', authenticate, checkRole(['MessagingOnly']), whatsappController.broadcast);

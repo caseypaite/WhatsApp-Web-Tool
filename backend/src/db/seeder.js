@@ -80,7 +80,7 @@ const seedAdmin = async () => {
       `INSERT INTO landing_page_config (hero_text, cta_text, image_url, html_content)
        VALUES ($1, $2, $3, $4)
        ON CONFLICT DO NOTHING`,
-      ['Distributed Identity Protocol', 'Get Started', 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&q=80&w=2832', '']
+      ['Isolated WhatsApp Operations for Every Team', 'Open Portal', 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&q=80&w=2832', '']
     );
 
     console.log('Seeding completed successfully.');

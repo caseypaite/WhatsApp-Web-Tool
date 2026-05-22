@@ -21,6 +21,7 @@ const systemRoutes = require('./routes/system.routes');
 const apiV1Routes = require('./routes/api.v1');
 
 const whatsappService = require('./services/whatsapp.service');
+const userWhatsappService = require('./services/user-whatsapp.service');
 const schedulerService = require('./services/scheduler.service');
 
 const rateLimit = require('express-rate-limit');
@@ -108,6 +109,10 @@ const upload = multer({
 
 // Initialize WhatsApp
 whatsappService.initialize();
+userWhatsappService.schedulePersistedSessionInitialization({
+  initialDelayMs: 15000,
+  stepDelayMs: 5000
+});
 // Start Scheduler
 schedulerService.start();
 

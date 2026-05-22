@@ -22,13 +22,20 @@ router.post('/logout', (req, res) => userController.logout(req, res));
  * Protected Routes
  */
 router.get('/all', authenticate, checkRole(['Admin']), (req, res) => userController.getAllUsers(req, res));
+router.post('/create', authenticate, checkRole(['Admin']), (req, res) => userController.createUser(req, res));
 router.put('/status', authenticate, checkRole(['Admin']), (req, res) => userController.updateUserStatus(req, res));
+router.put('/poll-permission', authenticate, checkRole(['Admin']), (req, res) => userController.updateUserPollPermission(req, res));
 router.get('/profile', authenticate, (req, res) => userController.getProfile(req, res));
 router.put('/profile', authenticate, (req, res) => userController.updateProfile(req, res));
 router.post('/request-phone-update', authenticate, (req, res) => userController.requestPhoneUpdate(req, res));
 router.post('/confirm-phone-update', authenticate, (req, res) => userController.confirmPhoneUpdate(req, res));
 router.post('/request-password-change', authenticate, (req, res) => userController.requestPasswordChange(req, res));
 router.post('/confirm-password-change', authenticate, (req, res) => userController.confirmPasswordChange(req, res));
+router.get('/api-keys', authenticate, checkRole(['User', 'Admin', 'SuperAdmin']), (req, res) => userController.getOwnMessagingApiKeys(req, res));
+router.post('/api-keys', authenticate, checkRole(['User', 'Admin', 'SuperAdmin']), (req, res) => userController.createOwnMessagingApiKey(req, res));
+router.put('/api-keys/:id', authenticate, checkRole(['User', 'Admin', 'SuperAdmin']), (req, res) => userController.updateOwnMessagingApiKey(req, res));
+router.post('/api-keys/:id/rotate', authenticate, checkRole(['User', 'Admin', 'SuperAdmin']), (req, res) => userController.rotateOwnMessagingApiKey(req, res));
+router.delete('/api-keys/:id', authenticate, checkRole(['User', 'Admin', 'SuperAdmin']), (req, res) => userController.deleteOwnMessagingApiKey(req, res));
 
 const groupController = require('../controllers/group.controller');
 

@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import authService from '../services/auth.service';
-import api from '../services/api';
 import axios from 'axios';
+import QRCode from 'qrcode';
 import { 
   User, Mail, Phone, Shield, Clock, AlertCircle, Edit2, 
   CheckCircle, Send, X, Terminal, ChevronDown, ChevronUp, 
@@ -12,6 +12,9 @@ import {
   Plus, MoreVertical
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import APIEndpointEntry from '../components/Admin/APIEndpointEntry';
+import APIEndpointModal from '../components/Admin/APIEndpointModal';
+import { userApiReference } from '../constants/userApiReference';
 
 const Modal = ({ isOpen, onClose, title, subtitle, children, maxWidth = 'max-w-2xl', error, successMessage }) => {
   if (!isOpen) return null;
@@ -58,12 +61,20 @@ const Modal = ({ isOpen, onClose, title, subtitle, children, maxWidth = 'max-w-2
 
 const UserDashboard = () => {
   const navigate = useNavigate();
-  const { user, logout, siteName } = useAuth();
+  const { user, logout, siteName, publicConfig } = useAuth();
   const [activeTab, setActiveTab] = useState('profile');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [profile, setProfile] = useState(null);
   const [myGroups, setMyGroups] = useState([]);
   const [myMessages, setMyMessages] = useState([]);
+  const [sessionLogs, setSessionLogs] = useState([]);
+  const [ownApiKeys, setOwnApiKeys] = useState([]);
+  const [newApiKeyName, setNewApiKeyName] = useState('');
+  const [waStatus, setWaStatus] = useState({ status: 'DISCONNECTED', ready: false, qr: null, pairingCode: null, me: null });
+  const [waQrImage, setWaQrImage] = useState('');
+  const [activeEndpoint, setActiveEndpoint] = useState(null);
+  const [apiTestLoading, setApiTestLoading] = useState(false);
+  const [apiTestResult, setApiTestResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -72,6 +83,56 @@ const UserDashboard = () => {
   const showFlash = (message, type = 'success') => {
     setFlash({ message, type });
     setTimeout(() => setFlash(null), 5000);
+  };
+
+  const getUserWhatsappTarget = () => {
+    const currentUser = profile || user;
+    if (currentUser?.roles?.includes('Admin') && currentUser?.id) {
+      return { userId: currentUser.id };
+    }
+    return {};
+  };
+
+  const isAdminUser = Boolean(profile?.roles?.includes('Admin') || profile?.roles?.includes('SuperAdmin') || user?.roles?.includes('Admin') || user?.roles?.includes('SuperAdmin'));
+  const canCreateCommunityPolls = isAdminUser || (Boolean(profile?.can_create_polls) && myGroups.some(group => group.my_role === 'ADMIN'));
+
+  const fetchOwnApiKeys = async () => {
+    try {
+      const keys = await authService.getOwnApiKeys();
+      setOwnApiKeys(keys || []);
+    } catch (err) {
+      setOwnApiKeys([]);
+      showFlash(err.response?.data?.error || 'Failed to load your API keys.', 'error');
+    }
+  };
+
+  const fetchSessionLogs = async () => {
+    try {
+      const logs = await authService.getWhatsappSessionLogs(getUserWhatsappTarget());
+      setSessionLogs(logs || []);
+    } catch (err) {
+      setSessionLogs([]);
+      showFlash(err.response?.data?.error || 'Failed to load your WhatsApp session logs.', 'error');
+    }
+  };
+
+  const fetchMyMessageLogs = async () => {
+    try {
+      const messagesData = await authService.getMyMessages();
+      setMyMessages(messagesData || []);
+    } catch (err) {
+      setMyMessages([]);
+      showFlash(err.response?.data?.error || 'Failed to load your transmitted message logs.', 'error');
+    }
+  };
+
+  const fetchWhatsappStatus = async () => {
+    try {
+      const status = await authService.getWhatsappStatus(getUserWhatsappTarget());
+      setWaStatus(status || { status: 'DISCONNECTED', ready: false, qr: null, pairingCode: null, me: null });
+    } catch (err) {
+      setWaStatus({ status: 'DISCONNECTED', ready: false, qr: null, pairingCode: null, me: null });
+    }
   };
   
   // Phone Update State
@@ -114,6 +175,7 @@ const UserDashboard = () => {
 
   const [viewingResultsId, setViewingResultsId] = useState(null);
   const [advancedResults, setAdvancedResults] = useState(null);
+  const [apiActionLoading, setApiActionLoading] = useState(false);
 
   // Voting State
   const [votingData, setVotingData] = useState({ pollId: null, phone_number: '', otp: '', option_selected: '', candidate_id: null });
@@ -245,20 +307,25 @@ const UserDashboard = () => {
 
   const fetchTabSpecificData = async (tab) => {
     try {
-      if (tab === 'groups' && myGroups.length === 0) {
+      if (tab === 'profile') {
+        await fetchWhatsappStatus();
+      } else if (tab === 'groups' && myGroups.length === 0) {
         const groupsData = await authService.getMyGroups();
         setMyGroups(groupsData || []);
-      } else if (tab === 'messages' && myMessages.length === 0) {
-        const messagesData = await authService.getMyMessages();
-        setMyMessages(messagesData || []);
+      } else if (tab === 'message-logs') {
+        await fetchMyMessageLogs();
+      } else if (tab === 'session-logs') {
+        await fetchSessionLogs();
       } else if (tab === 'polls') {
         const [pollsData, waChats] = await Promise.all([
           authService.getEligiblePolls(),
-          authService.getWhatsappChats().catch(() => [])
+          authService.getWhatsappChats(getUserWhatsappTarget()).catch(() => [])
         ]);
         setPolls(pollsData || []);
         // Only managed WA groups
         setWaGroups(waChats.filter(c => c.isGroup && c.isAdmin) || []);
+      } else if (tab === 'api') {
+        await fetchOwnApiKeys();
       }
     } catch (err) {
       console.error(`Failed to load data for tab: ${tab}`);
@@ -268,6 +335,71 @@ const UserDashboard = () => {
   useEffect(() => {
     if (activeTab) fetchTabSpecificData(activeTab);
   }, [activeTab]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const buildQrImage = async () => {
+      if (!waStatus?.qr) {
+        setWaQrImage('');
+        return;
+      }
+
+      try {
+        const dataUrl = await QRCode.toDataURL(waStatus.qr, {
+          width: 320,
+          margin: 2
+        });
+
+        if (!cancelled) {
+          setWaQrImage(dataUrl);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setWaQrImage('');
+        }
+      }
+    };
+
+    buildQrImage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [waStatus?.qr]);
+
+  useEffect(() => {
+    if (activeTab !== 'profile') return undefined;
+
+    fetchWhatsappStatus();
+    const interval = window.setInterval(() => {
+      fetchWhatsappStatus();
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'session-logs') return undefined;
+
+    fetchSessionLogs();
+    const interval = window.setInterval(() => {
+      fetchSessionLogs();
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [activeTab, profile?.id]);
+
+  useEffect(() => {
+    if (activeTab !== 'message-logs') return undefined;
+
+    fetchMyMessageLogs();
+    const interval = window.setInterval(() => {
+      fetchMyMessageLogs();
+    }, 5000);
+
+    return () => window.clearInterval(interval);
+  }, [activeTab, profile?.id]);
 
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
@@ -348,8 +480,161 @@ const UserDashboard = () => {
     }
   };
 
+  const handleStartWhatsappSession = async () => {
+    setApiActionLoading(true);
+    try {
+      await authService.startWhatsappSession(getUserWhatsappTarget());
+      await fetchWhatsappStatus();
+      showFlash('WhatsApp session started. Scan the QR code with your phone.');
+    } catch (err) {
+      showFlash(err.response?.data?.error || 'Failed to start your WhatsApp session.', 'error');
+    } finally {
+      setApiActionLoading(false);
+    }
+  };
+
+  const handleLogoutWhatsapp = async () => {
+    setApiActionLoading(true);
+    try {
+      await authService.logoutWhatsapp(getUserWhatsappTarget());
+      await fetchWhatsappStatus();
+      showFlash('Your WhatsApp session has been disconnected.');
+    } catch (err) {
+      showFlash(err.response?.data?.error || 'Failed to disconnect your WhatsApp session.', 'error');
+    } finally {
+      setApiActionLoading(false);
+    }
+  };
+
+  const handleCreateOwnApiKey = async () => {
+    const name = newApiKeyName.trim();
+    if (!name) {
+      showFlash('Application name is required.', 'error');
+      return;
+    }
+
+    setApiActionLoading(true);
+    try {
+      const response = await authService.createOwnApiKey(name);
+      setNewApiKeyName('');
+      await fetchOwnApiKeys();
+      showFlash(response.message || 'API key created.');
+    } catch (err) {
+      showFlash(err.response?.data?.error || 'Failed to create API key.', 'error');
+    } finally {
+      setApiActionLoading(false);
+    }
+  };
+
+  const handleUpdateOwnApiKey = async (key) => {
+    setApiActionLoading(true);
+    try {
+      const response = await authService.updateOwnApiKey(key.id, {
+        name: key.name,
+        is_active: key.is_active
+      });
+      await fetchOwnApiKeys();
+      showFlash(response.message || 'API key updated.');
+    } catch (err) {
+      showFlash(err.response?.data?.error || 'Failed to update API key.', 'error');
+    } finally {
+      setApiActionLoading(false);
+    }
+  };
+
+  const handleRotateOwnApiKey = async (key) => {
+    if (!window.confirm(`Generate a new API key for ${key.name}? Existing integrations using it will stop working until updated.`)) {
+      return;
+    }
+
+    setApiActionLoading(true);
+    try {
+      const response = await authService.rotateOwnApiKey(key.id);
+      await fetchOwnApiKeys();
+      showFlash(response.message || 'API key rotated.');
+    } catch (err) {
+      showFlash(err.response?.data?.error || 'Failed to rotate API key.', 'error');
+    } finally {
+      setApiActionLoading(false);
+    }
+  };
+
+  const handleDeleteOwnApiKey = async (key) => {
+    if (!window.confirm(`Delete the API key for ${key.name}?`)) {
+      return;
+    }
+
+    setApiActionLoading(true);
+    try {
+      const response = await authService.deleteOwnApiKey(key.id);
+      await fetchOwnApiKeys();
+      showFlash(response.message || 'API key deleted.');
+    } catch (err) {
+      showFlash(err.response?.data?.error || 'Failed to delete API key.', 'error');
+    } finally {
+      setApiActionLoading(false);
+    }
+  };
+
+  const handleOwnApiKeyFieldChange = (id, field, value) => {
+    setOwnApiKeys((prev) => prev.map((entry) => (
+      entry.id === id ? { ...entry, [field]: value } : entry
+    )));
+  };
+
+  const getApiBaseUrl = () => {
+    if (publicConfig?.VITE_API_BASE_URL) {
+      return publicConfig.VITE_API_BASE_URL.replace(/\/api$/, '');
+    }
+    if (window._CONFIG_?.VITE_API_BASE_URL && window._CONFIG_.VITE_API_BASE_URL !== '$VITE_API_BASE_URL') {
+      return window._CONFIG_.VITE_API_BASE_URL.replace(/\/api$/, '');
+    }
+    return window.location.origin;
+  };
+
+  const handleTestEndpoint = async (apiTarget) => {
+    setApiTestLoading(true);
+    setApiTestResult(null);
+
+    try {
+      const path = apiTarget.p.startsWith('/') ? apiTarget.p : `/${apiTarget.p}`;
+      const url = `${getApiBaseUrl()}/api${path}`;
+      const config = {
+        headers: {},
+        withCredentials: false
+      };
+
+      if (apiTarget.selectedApiKey) {
+        config.headers['x-api-key'] = apiTarget.selectedApiKey;
+      }
+
+      let res;
+      if (apiTarget.m === 'GET') {
+        res = await axios.get(url, config);
+      } else if (apiTarget.m === 'POST') {
+        res = await axios.post(url, JSON.parse(apiTarget.b || '{}'), config);
+      } else if (apiTarget.m === 'PUT') {
+        res = await axios.put(url, JSON.parse(apiTarget.b || '{}'), config);
+      }
+
+      setApiTestResult({ status: res.status, data: res.data, success: true });
+    } catch (err) {
+      setApiTestResult({
+        status: err.response?.status || 'ERROR',
+        data: err.response?.data || err.message,
+        success: false
+      });
+    } finally {
+      setApiTestLoading(false);
+    }
+  };
+
   const handleCreatePoll = async (e) => {
     e.preventDefault();
+    if (!canCreateCommunityPolls) {
+      setError('Your account is not allowed to create community polls.');
+      return;
+    }
     setActionLoading(true);
     setError('');
     try {
@@ -447,8 +732,10 @@ const UserDashboard = () => {
   const tabs = [
     { id: 'profile', label: 'My Profile', icon: User },
     { id: 'security', label: 'Security', icon: Lock },
+    { id: 'api', label: 'API Access', icon: Key },
     { id: 'polls', label: 'Polls', icon: BarChart2 },
-    { id: 'messages', label: 'Messages', icon: Activity },
+    { id: 'message-logs', label: 'Message Logs', icon: History },
+    { id: 'session-logs', label: 'Session Logs', icon: Activity },
   ];
 
   return (
@@ -491,7 +778,7 @@ const UserDashboard = () => {
                 title="Logout"
               >
                 <LogOut className="w-4 h-4 flex-shrink-0" />
-                {!isSidebarCollapsed && <span>Terminate Session</span>}
+                {!isSidebarCollapsed && <span>Logout</span>}
               </button>
             </div>
           </nav>
@@ -609,6 +896,58 @@ const UserDashboard = () => {
                    </div>
                 </div>
               </div>
+
+              <div className="wp-card">
+                <div className="px-4 py-3 border-b border-[#dcdcde] bg-[#f6f7f7] flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold">WhatsApp Session</h3>
+                    <p className="text-[10px] text-[#646970] mt-1">Connect your own mobile number and keep it isolated from every other user.</p>
+                  </div>
+                  <div className="flex items-center gap-2 px-2 py-1 bg-white border border-[#dcdcde] rounded-sm">
+                    <div className={`w-2 h-2 rounded-full ${waStatus.ready ? 'bg-[#00a32a]' : waStatus.qr ? 'bg-[#dba617]' : 'bg-[#d63638]'}`}></div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#646970]">{waStatus.status}</span>
+                  </div>
+                </div>
+                <div className="p-6 space-y-6">
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="p-4 border border-[#dcdcde] bg-[#f6f7f7] space-y-2">
+                      <p className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Connected Number</p>
+                      <p className="text-sm font-semibold text-[#1d2327]">{waStatus.me?.wid?.user ? `+${waStatus.me.wid.user}` : 'Not connected yet'}</p>
+                    </div>
+                    <div className="p-4 border border-[#dcdcde] bg-[#f6f7f7] space-y-2">
+                      <p className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Display Name</p>
+                      <p className="text-sm font-semibold text-[#1d2327]">{waStatus.me?.pushname || 'Unavailable'}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-3">
+                    <button onClick={handleStartWhatsappSession} disabled={apiActionLoading} className="wp-button-primary flex items-center gap-2">
+                      <RefreshCw className={`w-4 h-4 ${apiActionLoading ? 'animate-spin' : ''}`} />
+                      {waStatus.ready ? 'Refresh Session' : 'Generate QR Code'}
+                    </button>
+                    {waStatus.ready && (
+                      <button onClick={handleLogoutWhatsapp} disabled={apiActionLoading} className="wp-button-secondary border-[#d63638] text-[#d63638] hover:bg-[#fcf0f1]">
+                        Disconnect Session
+                      </button>
+                    )}
+                  </div>
+
+                  {waQrImage ? (
+                    <div className="border border-[#dcdcde] bg-white p-6 flex flex-col items-center text-center space-y-4">
+                      <img src={waQrImage} alt="WhatsApp QR" className="w-full max-w-[320px] border border-[#dcdcde]" />
+                      <div className="space-y-1">
+                        <p className="text-sm font-semibold text-[#1d2327]">Scan with WhatsApp on your phone</p>
+                        <p className="text-xs text-[#646970]">Open WhatsApp, choose Linked Devices, and scan this QR to activate your isolated session.</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="border border-dashed border-[#dcdcde] bg-[#f6f7f7] p-6 text-center space-y-2">
+                      <p className="text-sm font-semibold text-[#1d2327]">{waStatus.ready ? 'Your WhatsApp session is active.' : 'No QR code is waiting to be scanned.'}</p>
+                      <p className="text-xs text-[#646970]">{waStatus.ready ? 'Your message-only API keys will use this connected account.' : 'Generate a QR code when you are ready to link your own phone.'}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
@@ -632,46 +971,198 @@ const UserDashboard = () => {
             </div>
           )}
 
-          {activeTab === 'messages' && (
-            <div className="max-w-5xl space-y-4">
+          {activeTab === 'api' && (
+             <div className="space-y-6">
+               <div className="grid xl:grid-cols-[1.05fr,0.95fr] gap-6 items-start">
+                  <div className="wp-card">
+                    <div className="px-4 py-3 border-b border-[#dcdcde] bg-[#f6f7f7]">
+                      <h3 className="text-sm font-semibold">Message-only API Keys</h3>
+                      <p className="text-[10px] text-[#646970] mt-1">Only you can view, rotate, and delete these keys.</p>
+                    </div>
+                    <div className="p-6 space-y-4">
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          className="flex-1 wp-input"
+                          placeholder="Application name"
+                          value={newApiKeyName}
+                          onChange={(e) => setNewApiKeyName(e.target.value)}
+                        />
+                        <button onClick={handleCreateOwnApiKey} disabled={apiActionLoading} className="wp-button-primary whitespace-nowrap">Generate Key</button>
+                      </div>
+
+                      <div className="space-y-3 max-h-[520px] overflow-y-auto custom-scrollbar pr-1">
+                        {ownApiKeys.length > 0 ? ownApiKeys.map((key) => (
+                          <div key={key.id} className="border border-[#dcdcde] bg-[#f6f7f7] p-4 space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <input
+                                type="text"
+                                className="flex-1 wp-input"
+                                value={key.name}
+                                onChange={(e) => handleOwnApiKeyFieldChange(key.id, 'name', e.target.value)}
+                              />
+                              <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-[#646970]">
+                                <input
+                                  type="checkbox"
+                                  checked={!!key.is_active}
+                                  onChange={(e) => handleOwnApiKeyFieldChange(key.id, 'is_active', e.target.checked)}
+                                />
+                                Active
+                              </label>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">API Key</label>
+                              <div className="flex gap-2">
+                                <input type="text" readOnly className="flex-1 wp-input font-mono text-[10px] bg-white" value={key.api_key} />
+                                <button type="button" onClick={() => navigator.clipboard.writeText(key.api_key)} className="wp-button-secondary whitespace-nowrap">Copy</button>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              <button type="button" onClick={() => handleUpdateOwnApiKey(key)} disabled={apiActionLoading} className="wp-button-primary">Save</button>
+                              <button type="button" onClick={() => handleRotateOwnApiKey(key)} disabled={apiActionLoading} className="wp-button-secondary">Rotate</button>
+                              <button type="button" onClick={() => handleDeleteOwnApiKey(key)} disabled={apiActionLoading} className="wp-button-secondary border-[#d63638] text-[#d63638] hover:bg-[#fcf0f1]">Delete</button>
+                            </div>
+                          </div>
+                        )) : (
+                          <div className="border border-dashed border-[#dcdcde] bg-[#f6f7f7] p-6 text-center">
+                            <p className="text-sm font-semibold text-[#1d2327]">No API keys yet</p>
+                            <p className="text-xs text-[#646970] mt-2">Create your first message-only key after linking your WhatsApp account.</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="wp-card">
+                    <div className="px-4 py-3 border-b border-[#dcdcde] bg-[#f6f7f7]">
+                      <h3 className="text-sm font-semibold">User API Reference</h3>
+                      <p className="text-[10px] text-[#646970] mt-1">These are the only API endpoints exposed here because they are the ones your own API key can access.</p>
+                    </div>
+                    <div className="p-4 space-y-1">
+                      {userApiReference.map((endpoint) => (
+                        <APIEndpointEntry key={endpoint.p} endpoint={endpoint} onClick={setActiveEndpoint} />
+                      ))}
+                    </div>
+                  </div>
+               </div>
+             </div>
+          )}
+
+          {activeTab === 'message-logs' && (
+             <div className="max-w-6xl space-y-4">
                <div className="wp-card min-h-[500px] flex flex-col">
                   <div className="px-4 py-3 border-b border-[#dcdcde] bg-[#f6f7f7] flex items-center justify-between">
-                     <h3 className="text-sm font-semibold">Activity Log</h3>
-                     <span className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">{myMessages.length} Interactions</span>
+                     <h3 className="text-sm font-semibold">Transmitted Messages</h3>
+                     <span className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">{myMessages.length} Records</span>
                   </div>
                   <div className="flex-1 p-0 overflow-y-auto custom-scrollbar">
-                    {myMessages.length > 0 ? (
+                   {myMessages.length > 0 ? (
+                     <table className="wp-list-table w-full text-left border-collapse">
+                       <thead>
+                          <tr className="bg-[#f6f7f7] border-b border-[#dcdcde]">
+                             <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">Recipient</th>
+                             <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">API Key</th>
+                             <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">Message</th>
+                             <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">Status</th>
+                             <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase text-right">Timestamp</th>
+                          </tr>
+                       </thead>
+                       <tbody>
+                         {myMessages.map((msg) => (
+                           <tr key={msg.id} className="border-b border-[#f0f0f1] hover:bg-[#f6f7f7] transition-colors">
+                              <td className="px-4 py-4 align-top">
+                                 <div className="text-xs font-semibold text-[#2271b1]">{msg.phone_number}</div>
+                              </td>
+                              <td className="px-4 py-4 align-top text-xs text-[#646970]">
+                                 {msg.api_key_name || 'Dashboard session'}
+                              </td>
+                              <td className="px-4 py-4 text-sm text-[#3c434a] leading-relaxed max-w-xl">
+                                 {msg.message}
+                                 {msg.error_message && (
+                                   <div className="mt-2 text-xs text-[#d63638]">{msg.error_message}</div>
+                                 )}
+                              </td>
+                              <td className="px-4 py-4 align-top">
+                                 <span className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-tighter border ${
+                                   msg.status === 'SUCCESS'
+                                     ? 'bg-[#edfaef] text-[#00a32a] border-[#00a32a]'
+                                     : 'bg-[#fcf0f1] text-[#d63638] border-[#d63638]'
+                                 }`}>
+                                   {msg.status}
+                                 </span>
+                              </td>
+                              <td className="px-4 py-4 text-[10px] font-semibold text-[#a7aaad] text-right">
+                                 {new Date(msg.sent_at).toLocaleString()}
+                              </td>
+                           </tr>
+                         ))}
+                       </tbody>
+                     </table>
+                   ) : (
+                     <div className="flex flex-col items-center justify-center py-20 opacity-40">
+                        <History className="w-12 h-12 mb-4" />
+                        <p className="text-sm font-medium">No messages have been transmitted through this user session yet.</p>
+                     </div>
+                   )}
+                 </div>
+               </div>
+            </div>
+          )}
+
+          {activeTab === 'session-logs' && (
+             <div className="max-w-5xl space-y-4">
+               <div className="wp-card min-h-[500px] flex flex-col">
+                  <div className="px-4 py-3 border-b border-[#dcdcde] bg-[#f6f7f7] flex items-center justify-between">
+                     <h3 className="text-sm font-semibold">WhatsApp Session Log</h3>
+                     <span className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">{sessionLogs.length} Events</span>
+                  </div>
+                  <div className="flex-1 p-0 overflow-y-auto custom-scrollbar">
+                   {sessionLogs.length > 0 ? (
                       <table className="wp-list-table w-full text-left border-collapse">
                         <thead>
                            <tr className="bg-[#f6f7f7] border-b border-[#dcdcde]">
-                              <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">Unit</th>
-                              <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">Interaction Content</th>
-                              <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase text-right">Timestamp</th>
-                           </tr>
-                        </thead>
-                        <tbody>
-                          {myMessages.map((msg, i) => (
-                            <tr key={i} className="border-b border-[#f0f0f1] hover:bg-[#f6f7f7] transition-colors">
-                               <td className="px-4 py-4 align-top">
-                                  <span className="text-xs font-semibold text-[#2271b1]">{msg.group_name || 'Direct'}</span>
+                             <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">Event</th>
+                             <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">State</th>
+                             <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">Details</th>
+                             <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase text-right">Timestamp</th>
+                          </tr>
+                       </thead>
+                       <tbody>
+                         {sessionLogs.map((log) => (
+                           <tr key={log.id} className="border-b border-[#f0f0f1] hover:bg-[#f6f7f7] transition-colors">
+                              <td className="px-4 py-4 align-top">
+                                 <span className="text-xs font-semibold text-[#2271b1]">{String(log.event_type || '').replaceAll('_', ' ')}</span>
                                </td>
-                               <td className="px-4 py-4 text-sm text-[#3c434a] leading-relaxed max-w-xl">
-                                  {msg.message_content}
+                              <td className="px-4 py-4 align-top">
+                                 <span className={`px-2 py-0.5 text-[9px] font-bold uppercase tracking-tighter border ${
+                                   log.status === 'CONNECTED' ? 'bg-[#edfaef] text-[#00a32a] border-[#00a32a]' :
+                                   log.status === 'FAILED' ? 'bg-[#fcf0f1] text-[#d63638] border-[#d63638]' :
+                                   log.status === 'INITIALIZING' || log.status === 'QUEUED' || log.status === 'AUTHENTICATED' || log.status === 'AWAITING_SCAN'
+                                     ? 'bg-[#fcf9e8] text-[#dba617] border-[#dba617]'
+                                     : 'bg-[#f6f7f7] text-[#646970] border-[#dcdcde]'
+                                 }`}>
+                                   {log.status}
+                                 </span>
+                              </td>
+                              <td className="px-4 py-4 text-sm text-[#3c434a] leading-relaxed max-w-xl">
+                                 {log.details || 'No additional details recorded.'}
                                </td>
                                <td className="px-4 py-4 text-[10px] font-semibold text-[#a7aaad] text-right">
-                                  {new Date(msg.sent_at).toLocaleString()}
+                                 {new Date(log.created_at).toLocaleString()}
                                </td>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center py-20 opacity-40">
-                         <Activity className="w-12 h-12 mb-4" />
-                         <p className="text-sm font-medium">No activity recorded on this node.</p>
-                      </div>
-                    )}
-                  </div>
+                         ))}
+                       </tbody>
+                     </table>
+                   ) : (
+                     <div className="flex flex-col items-center justify-center py-20 opacity-40">
+                        <Activity className="w-12 h-12 mb-4" />
+                        <p className="text-sm font-medium">No WhatsApp session events recorded for this user.</p>
+                     </div>
+                   )}
+                 </div>
                </div>
             </div>
           )}
@@ -680,7 +1171,7 @@ const UserDashboard = () => {
             <div className="space-y-6">
                <div className="flex items-center justify-between">
                   <h3 className="text-xl font-medium text-[#1d2327]">Community Polls</h3>
-                  {(userData?.roles?.includes('Admin') || userData?.roles?.includes('SuperAdmin') || myGroups.some(g => g.my_role === 'ADMIN')) && (
+                  {canCreateCommunityPolls && (
                     <button onClick={() => setShowCreatePoll(true)} className="wp-button-primary flex items-center gap-1">
                       <Plus className="w-4 h-4" /> Create New Poll
                     </button>
@@ -826,10 +1317,10 @@ const UserDashboard = () => {
                     className="w-full wp-input" 
                     value={newPoll.group_id} 
                     onChange={(e) => setNewPoll({...newPoll, group_id: e.target.value})}
-                    required={!userData?.roles?.includes('Admin')}
+                    required={!isAdminUser}
                   >
                     <option value="">Global (No Link)</option>
-                    {myGroups.filter(g => g.my_role === 'ADMIN' || userData?.roles?.includes('Admin') || userData?.roles?.includes('SuperAdmin')).map(g => (
+                    {myGroups.filter(g => g.my_role === 'ADMIN' || isAdminUser).map(g => (
                       <option key={g.id} value={g.id}>{g.name}</option>
                     ))}
                   </select>
@@ -1014,6 +1505,20 @@ const UserDashboard = () => {
               )}
             </div>
           </Modal>
+
+          <APIEndpointModal
+            isOpen={!!activeEndpoint}
+            endpoint={activeEndpoint}
+            onClose={() => {
+              setActiveEndpoint(null);
+              setApiTestResult(null);
+            }}
+            onTest={handleTestEndpoint}
+            loading={apiTestLoading}
+            result={apiTestResult}
+            settings={[{ key: 'vite_api_base_url', value: publicConfig?.VITE_API_BASE_URL || '' }]}
+            messagingApiKeys={ownApiKeys}
+          />
 
           {/* EDIT PROFILE MODAL */}
           <Modal

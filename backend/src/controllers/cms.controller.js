@@ -16,8 +16,8 @@ class CmsController {
       if (result.rows.length === 0) {
         // Return default content if DB is empty to prevent blank page
         return res.json({
-          hero_text: 'Building the Future of Identity',
-          cta_text: 'Get Started',
+          hero_text: 'Isolated WhatsApp Operations for Every Team',
+          cta_text: 'Open Portal',
           image_url: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&q=80&w=2832',
           html_content: ''
         });

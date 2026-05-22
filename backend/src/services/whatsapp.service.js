@@ -68,6 +68,8 @@ Client.prototype.sendMessage = async function(chatId, content, options = {}) {
 };
 const qrcode = require('qrcode-terminal');
 const settingsService = require('./settings.service');
+const whatsappLaunchCoordinator = require('./whatsapp-launch-coordinator');
+const whatsappSessionLogService = require('./whatsapp-session-log.service');
 const db = require('../config/db');
 const aiService = require('../utils/ai.service');
 const reportService = require('../utils/report.service');
@@ -85,6 +87,7 @@ class WhatsappService {
     this.status = 'DISCONNECTED';
     this.isReady = false;
     this.me = null;
+    this.initializingPromise = null;
   }
 
   getAuthConfig() {
@@ -111,6 +114,10 @@ class WhatsappService {
     } finally {
       this.client = null;
     }
+  }
+
+  async logSessionEvent(eventType, status, details = null) {
+    await whatsappSessionLogService.logRoot(eventType, status, details);
   }
 
   clearChromiumLockFiles(dataPath, sessionPrefix) {
@@ -197,6 +204,7 @@ class WhatsappService {
   async reinitialize() {
     console.log('[WHATSAPP] Manual re-initialization requested...');
     try {
+      await this.logSessionEvent('MANUAL_REINITIALIZE_REQUESTED', 'INITIALIZING');
       if (this.client) {
         console.log('[WHATSAPP] Destroying existing client...');
         await this.destroyClient();
@@ -214,15 +222,35 @@ class WhatsappService {
   }
 
   async initialize(recoveryAttempted = false) {
+    if (this.initializingPromise) return this.initializingPromise;
+    if (this.client) return;
+
+    this.initializingPromise = this._initialize(recoveryAttempted)
+      .finally(() => {
+        this.initializingPromise = null;
+      });
+
+    return this.initializingPromise;
+  }
+
+  async _initialize(recoveryAttempted = false) {
     if (this.client) return;
 
     this.qrCode = null;
     this.pairingCode = null;
+    this.status = 'INITIALIZING';
+    this.isReady = false;
+    this.me = null;
 
     const executablePath = this.getBrowserPath();
     console.log('[WHATSAPP] Using browser:', executablePath || 'Default (Puppeteer bundled)');
 
     const { clientId, dataPath, sessionPath, sessionPrefix } = this.getAuthConfig();
+    this.clearChromiumLockFiles(dataPath, sessionPrefix);
+    await settingsService.set('whatsapp_status', 'INITIALIZING');
+    await settingsService.set('whatsapp_qr', '');
+    await settingsService.set('whatsapp_pairing_code', '');
+    await this.logSessionEvent('INITIALIZE_STARTED', 'INITIALIZING', recoveryAttempted ? 'Retry after stale lock recovery' : 'Starting root admin WhatsApp session');
 
     this.client = new Client({
       authStrategy: new LocalAuth({
@@ -255,6 +283,7 @@ class WhatsappService {
       qrcode.generate(qr, { small: true });
       await settingsService.set('whatsapp_qr', qr);
       await settingsService.set('whatsapp_status', 'DISCONNECTED');
+      await this.logSessionEvent('QR_RECEIVED', 'AWAITING_SCAN');
     });
 
     this.client.on('ready', async () => {
@@ -267,12 +296,14 @@ class WhatsappService {
       await settingsService.set('whatsapp_status', 'CONNECTED');
       await settingsService.set('whatsapp_qr', '');
       await settingsService.set('whatsapp_pairing_code', '');
+      await this.logSessionEvent('READY', 'CONNECTED', this.me?.wid?._serialized || null);
     });
 
     this.client.on('pairing_code', (code) => {
       console.log('[WHATSAPP] PAIRING CODE RECEIVED:', code);
       this.pairingCode = code;
       this.qrCode = null;
+      this.logSessionEvent('PAIRING_CODE_GENERATED', 'AWAITING_SCAN').catch(() => {});
     });
 
     this.client.on('authenticated', async () => {
@@ -282,12 +313,16 @@ class WhatsappService {
       this.pairingCode = null;
       await settingsService.set('whatsapp_status', 'AUTHENTICATED');
       await settingsService.set('whatsapp_qr', ''); // Clear QR in DB
+      await this.logSessionEvent('AUTHENTICATED', 'AUTHENTICATED');
     });
 
     this.client.on('auth_failure', async (msg) => {
       console.error('[WHATSAPP] Auth failure', msg);
       this.status = 'DISCONNECTED';
+      this.isReady = false;
+      this.me = null;
       await settingsService.set('whatsapp_status', 'DISCONNECTED');
+      await this.logSessionEvent('AUTH_FAILURE', 'FAILED', msg || 'Authentication failed');
     });
 
     this.client.on('disconnected', async (reason) => {
@@ -296,6 +331,7 @@ class WhatsappService {
       this.isReady = false;
       this.me = null;
       await settingsService.set('whatsapp_status', 'DISCONNECTED');
+      await this.logSessionEvent('DISCONNECTED', 'DISCONNECTED', reason || null);
     });
 
     this.client.on('message', async (msg) => {
@@ -496,17 +532,17 @@ this.client.on('group_join', async (notification) => {
     });
 
     try {
-      await this.client.initialize();
-      this.status = 'INITIALIZING';
+      await whatsappLaunchCoordinator.run(() => this.client.initialize());
     } catch (err) {
       console.error('[WHATSAPP] Initialization error:', err.message);
       await this.destroyClient();
       this.resetRuntimeState();
+      await this.logSessionEvent('INITIALIZE_FAILED', 'FAILED', err.message);
 
       if (!recoveryAttempted && this.isChromiumProfileLockError(err)) {
         console.warn('[WHATSAPP] Detected stale Chromium profile lock. Clearing lock files and retrying initialization once.');
         this.clearChromiumLockFiles(dataPath, sessionPrefix);
-        return this.initialize(true);
+        return this._initialize(true);
       }
 
       this.status = 'DISCONNECTED';
@@ -530,6 +566,10 @@ this.client.on('group_join', async (notification) => {
     };
   }
 
+  async getSessionLogs(limit = 50) {
+    return whatsappSessionLogService.listRoot(limit);
+  }
+
   async requestPairingCode(phoneNumber) {
     if (!this.client) throw new Error('WhatsApp client not initialized');
     try {
@@ -538,9 +578,11 @@ this.client.on('group_join', async (notification) => {
       const code = await this.client.requestPairingCode(cleanNumber);
       this.pairingCode = code;
       this.qrCode = null; // Clear QR as we are using pairing code
+      await this.logSessionEvent('PAIRING_CODE_REQUESTED', 'AWAITING_SCAN', cleanNumber);
       return code;
     } catch (err) {
       console.error('[WHATSAPP] Pairing code error:', err.message);
+      await this.logSessionEvent('PAIRING_CODE_FAILED', 'FAILED', err.message);
       throw err;
     }
   }
@@ -972,15 +1014,25 @@ this.client.on('group_join', async (notification) => {
   }
 
   async logout() {
-    if (!this.client) return;
+    if (!this.client) {
+      this.resetRuntimeState();
+      await settingsService.set('whatsapp_status', 'DISCONNECTED');
+      await settingsService.set('whatsapp_qr', '');
+      await settingsService.set('whatsapp_pairing_code', '');
+      await this.logSessionEvent('LOGOUT', 'DISCONNECTED', 'No active client');
+      return;
+    }
     try {
       await this.client.logout();
-      this.status = 'DISCONNECTED';
-      this.isReady = false;
-      this.me = null;
+      await this.destroyClient();
+      this.resetRuntimeState();
       await settingsService.set('whatsapp_status', 'DISCONNECTED');
+      await settingsService.set('whatsapp_qr', '');
+      await settingsService.set('whatsapp_pairing_code', '');
+      await this.logSessionEvent('LOGOUT', 'DISCONNECTED');
     } catch (err) {
       console.error('[WHATSAPP] Logout error:', err.message);
+      await this.logSessionEvent('LOGOUT_FAILED', 'FAILED', err.message);
       throw err;
     }
   }

@@ -27,6 +27,18 @@ const AdminDashboard = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState('general');
   const [users, setUsers] = useState([]);
+  const [newUserForm, setNewUserForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    phone_number: '',
+    status: 'ACTIVE',
+    can_create_polls: false
+  });
+  const [showCreateUserForm, setShowCreateUserForm] = useState(false);
+  const [selectedUserWa, setSelectedUserWa] = useState(null);
+  const [selectedUserWaStatus, setSelectedUserWaStatus] = useState({ status: 'DISCONNECTED', ready: false, qr: null, pairingCode: null, me: null });
+  const [selectedUserWaLoading, setSelectedUserWaLoading] = useState(false);
   const [settings, setSettings] = useState([]);
   const [messagingApiKeys, setMessagingApiKeys] = useState([]);
   const [newMessagingApiKeyName, setNewMessagingApiKeyName] = useState('');
@@ -229,6 +241,16 @@ const AdminDashboard = () => {
     setTimeout(() => setWaActionLoading(false), 500);
   };
 
+  const fetchUserWaStatus = async (userId) => {
+    try {
+      const status = await authService.getWhatsappStatus({ userId });
+      setSelectedUserWaStatus(status || { status: 'DISCONNECTED', ready: false, qr: null, pairingCode: null, me: null });
+    } catch (err) {
+      setSelectedUserWaStatus({ status: 'DISCONNECTED', ready: false, qr: null, pairingCode: null, me: null });
+      throw err;
+    }
+  };
+
   const fetchWaChats = async () => {
     try {
       const chats = await authService.getWhatsappChats();
@@ -413,6 +435,17 @@ const AdminDashboard = () => {
     }
     return () => clearInterval(interval);
   }, [activeTab, waStatus.ready]);
+
+  useEffect(() => {
+    if (!selectedUserWa?.id) return undefined;
+
+    fetchUserWaStatus(selectedUserWa.id).catch(() => {});
+    const interval = setInterval(() => {
+      fetchUserWaStatus(selectedUserWa.id).catch(() => {});
+    }, selectedUserWaStatus.ready ? 30000 : 5000);
+
+    return () => clearInterval(interval);
+  }, [selectedUserWa?.id, selectedUserWaStatus.ready]);
 
   useEffect(() => {
     loadData();
@@ -937,6 +970,81 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleCreateUser = async (e) => {
+    e.preventDefault();
+    setSaveLoading(true);
+    try {
+      const response = await authService.createUser(newUserForm);
+      showFlash(response.message || 'User created');
+      setNewUserForm({
+        name: '',
+        email: '',
+        password: '',
+        phone_number: '',
+        status: 'ACTIVE',
+        can_create_polls: false
+      });
+      setShowCreateUserForm(false);
+      fetchUsers();
+    } catch (err) {
+      showFlash(err.response?.data?.error || 'Failed to create user', 'error');
+    } finally {
+      setSaveLoading(false);
+    }
+  };
+
+  const handleManageUserWa = async (user) => {
+    setSelectedUserWa(user);
+    setSelectedUserWaLoading(true);
+    try {
+      await fetchUserWaStatus(user.id);
+    } catch (err) {
+      showFlash(err.response?.data?.error || 'Failed to load user WhatsApp session.', 'error');
+    } finally {
+      setSelectedUserWaLoading(false);
+    }
+  };
+
+  const handleUpdateUserPollPermission = async (userId, canCreatePolls) => {
+    try {
+      await api.put('/user/poll-permission', { userId, can_create_polls: canCreatePolls });
+      setUsers(prev => prev.map(user => user.id === userId ? { ...user, can_create_polls: canCreatePolls } : user));
+      showFlash(`Community poll access ${canCreatePolls ? 'enabled' : 'disabled'}.`);
+    } catch (err) {
+      showFlash(err.response?.data?.error || 'Failed to update poll access', 'error');
+    }
+  };
+
+  const handleStartUserWaSession = async () => {
+    if (!selectedUserWa?.id) return;
+
+    setSelectedUserWaLoading(true);
+    try {
+      await authService.startWhatsappSession({ userId: selectedUserWa.id });
+      await fetchUserWaStatus(selectedUserWa.id);
+      showFlash(`Started WhatsApp setup for ${selectedUserWa.name || selectedUserWa.email}.`);
+    } catch (err) {
+      showFlash(err.response?.data?.error || 'Failed to start user WhatsApp session.', 'error');
+    } finally {
+      setSelectedUserWaLoading(false);
+    }
+  };
+
+  const handleLogoutUserWaSession = async () => {
+    if (!selectedUserWa?.id) return;
+
+    setSelectedUserWaLoading(true);
+    try {
+      await authService.logoutWhatsapp({ userId: selectedUserWa.id });
+      await fetchUserWaStatus(selectedUserWa.id);
+      showFlash(`Disconnected WhatsApp session for ${selectedUserWa.name || selectedUserWa.email}.`);
+    } catch (err) {
+      showFlash(err.response?.data?.error || 'Failed to disconnect user WhatsApp session.', 'error');
+    } finally {
+      setSelectedUserWaLoading(false);
+    }
+  };
+
   const generateUUID = () => {
     if (window.crypto && window.crypto.randomUUID) {
       return window.crypto.randomUUID();
@@ -1352,15 +1460,61 @@ const AdminDashboard = () => {
               <div className="wp-card">
                 <div className="px-4 py-3 border-b border-[#dcdcde] bg-[#f6f7f7] flex items-center justify-between">
                   <h3 className="text-sm font-semibold">User Management</h3>
-                  <span className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">{users.length} Nodes</span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">{users.length} Nodes</span>
+                    <button onClick={() => setShowCreateUserForm(!showCreateUserForm)} className="wp-button-secondary flex items-center gap-1 py-1.5">
+                      <Plus className="w-3 h-3" />
+                      Add User
+                    </button>
+                  </div>
                 </div>
+                {showCreateUserForm && (
+                  <form onSubmit={handleCreateUser} className="p-4 bg-[#f6f7f7] border-b border-[#dcdcde] grid lg:grid-cols-[1.1fr,1.1fr,1fr,1fr,0.8fr,1fr,auto] gap-3 items-end">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Name</label>
+                      <input type="text" required className="w-full wp-input" value={newUserForm.name} onChange={(e) => setNewUserForm(prev => ({ ...prev, name: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Email</label>
+                      <input type="email" required className="w-full wp-input" value={newUserForm.email} onChange={(e) => setNewUserForm(prev => ({ ...prev, email: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Password</label>
+                      <input type="password" required className="w-full wp-input" value={newUserForm.password} onChange={(e) => setNewUserForm(prev => ({ ...prev, password: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Phone</label>
+                      <input type="tel" required className="w-full wp-input" placeholder="91XXXXXXXXXX" value={newUserForm.phone_number} onChange={(e) => setNewUserForm(prev => ({ ...prev, phone_number: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Status</label>
+                      <select className="w-full wp-input" value={newUserForm.status} onChange={(e) => setNewUserForm(prev => ({ ...prev, status: e.target.value }))}>
+                        <option value="ACTIVE">ACTIVE</option>
+                        <option value="INACTIVE">INACTIVE</option>
+                        <option value="PENDING_APPROVAL">PENDING APPROVAL</option>
+                      </select>
+                    </div>
+                    <label className="flex items-center gap-2 text-[11px] font-semibold text-[#1d2327] pb-2">
+                      <input
+                        type="checkbox"
+                        className="rounded border-[#8c8f94] text-[#2271b1] focus:ring-[#2271b1]"
+                        checked={newUserForm.can_create_polls}
+                        onChange={(e) => setNewUserForm(prev => ({ ...prev, can_create_polls: e.target.checked }))}
+                      />
+                      Allow community polls
+                    </label>
+                    <button type="submit" disabled={saveLoading} className="wp-button-primary whitespace-nowrap">{saveLoading ? 'Creating...' : 'Create User'}</button>
+                  </form>
+                )}
                 <div className="overflow-x-auto">
                   <table className="wp-list-table w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-[#f6f7f7] border-b border-[#dcdcde]">
                         <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">Identity</th>
                         <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">System Authorization</th>
+                        <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">Community Polls</th>
                         <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">Operational Status</th>
+                        <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase">User WhatsApp</th>
                         <th className="px-4 py-2 text-xs font-bold text-[#1d2327] uppercase text-right">Actions</th>
                       </tr>
                     </thead>
@@ -1380,12 +1534,32 @@ const AdminDashboard = () => {
                             </div>
                           </td>
                           <td className="px-4 py-4">
+                            <label className="inline-flex items-center gap-2 text-xs font-medium text-[#1d2327]">
+                              <input
+                                type="checkbox"
+                                className="rounded border-[#8c8f94] text-[#2271b1] focus:ring-[#2271b1]"
+                                checked={Boolean(u.can_create_polls)}
+                                onChange={(e) => handleUpdateUserPollPermission(u.id, e.target.checked)}
+                              />
+                              <span>{u.can_create_polls ? 'Allowed' : 'Blocked'}</span>
+                            </label>
+                          </td>
+                          <td className="px-4 py-4">
                             <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-tighter border rounded-sm ${
                               u.status === 'ACTIVE' ? 'bg-[#edfaef] text-[#00a32a] border-[#00a32a]' :
                               u.status === 'PENDING_APPROVAL' ? 'bg-[#fcf9e8] text-[#dba617] border-[#dba617]' : 'bg-[#f6f7f7] text-[#646970] border-[#dcdcde]'
                             }`}>
                               {u.status.replace('_', ' ')}
                             </span>
+                          </td>
+                          <td className="px-4 py-4">
+                            <button
+                              type="button"
+                              onClick={() => handleManageUserWa(u)}
+                              className="wp-button-secondary text-[10px] py-1.5"
+                            >
+                              Manage Instance
+                            </button>
                           </td>
                           <td className="px-4 py-4 text-right">
                             <select 
@@ -1496,15 +1670,15 @@ const AdminDashboard = () => {
                 <div className="space-y-6">
                   <div className="wp-card">
                     <div className="px-4 py-3 border-b border-[#dcdcde] bg-[#f6f7f7]">
-                      <h3 className="text-sm font-semibold">Engine Status Protocol</h3>
+                      <h3 className="text-sm font-semibold">Root Admin WhatsApp Account</h3>
                     </div>
                     <div className="p-4 space-y-4">
                       <div className="flex items-center justify-between p-3 bg-[#f6f7f7] border border-[#dcdcde]">
-                        <span className="text-xs font-semibold text-[#646970]">Network Link</span>
+                        <span className="text-xs font-semibold text-[#646970]">Root Account Link</span>
                         <span className={`px-2 py-0.5 rounded-sm text-[10px] font-bold border ${waStatus.status === 'CONNECTED' ? 'bg-[#edfaef] text-[#00a32a] border-[#00a32a]' : 'bg-[#fcf0f1] text-[#d63638] border-[#d63638]'}`}>{waStatus.status}</span>
                       </div>
                       <div className="flex items-center justify-between p-3 bg-[#f6f7f7] border border-[#dcdcde]">
-                        <span className="text-xs font-semibold text-[#646970]">Runtime Status</span>
+                        <span className="text-xs font-semibold text-[#646970]">Admin Runtime Status</span>
                         <span className={`px-2 py-0.5 rounded-sm text-[10px] font-bold border ${waStatus.ready ? 'bg-[#edfaef] text-[#00a32a] border-[#00a32a]' : 'bg-[#fcf9e8] text-[#dba617] border-[#dba617]'}`}>{waStatus.ready ? 'READY' : 'INITIALIZING'}</span>
                       </div>
                       
@@ -2624,6 +2798,76 @@ const AdminDashboard = () => {
             <button type="button" onClick={() => setShowDirectMessage(false)} className="px-6 wp-button-secondary">Abort</button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        isOpen={!!selectedUserWa}
+        onClose={() => {
+          setSelectedUserWa(null);
+          setSelectedUserWaStatus({ status: 'DISCONNECTED', ready: false, qr: null, pairingCode: null, me: null });
+        }}
+        title="User WhatsApp Instance"
+        subtitle={selectedUserWa ? `${selectedUserWa.name || 'User'} (${selectedUserWa.email})` : ''}
+        maxWidth="max-w-3xl"
+      >
+        <div className="space-y-6">
+          <div className="p-4 bg-[#f6f7f7] border border-[#dcdcde] text-xs text-[#646970]">
+            This session is isolated from the root admin WhatsApp account. Use it only to link and manage the selected user&apos;s WhatsApp instance.
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="p-4 border border-[#dcdcde] bg-[#f6f7f7] space-y-2">
+              <p className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Session Status</p>
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${selectedUserWaStatus.ready ? 'bg-[#00a32a]' : selectedUserWaStatus.qr ? 'bg-[#dba617]' : 'bg-[#d63638]'}`}></div>
+                <span className="text-sm font-semibold text-[#1d2327]">{selectedUserWaStatus.status}</span>
+              </div>
+            </div>
+            <div className="p-4 border border-[#dcdcde] bg-[#f6f7f7] space-y-2">
+              <p className="text-[10px] font-bold text-[#a7aaad] uppercase tracking-widest">Linked Number</p>
+              <p className="text-sm font-semibold text-[#1d2327]">
+                {selectedUserWaStatus.me?.wid?.user ? `+${selectedUserWaStatus.me.wid.user}` : `+${selectedUserWa?.phone_number || 'Not linked'}`}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <button onClick={handleStartUserWaSession} disabled={selectedUserWaLoading} className="wp-button-primary">
+              {selectedUserWaLoading ? 'Loading...' : 'Generate User QR'}
+            </button>
+            {selectedUserWaStatus.ready && (
+              <button onClick={handleLogoutUserWaSession} disabled={selectedUserWaLoading} className="wp-button-secondary border-[#d63638] text-[#d63638]">
+                Disconnect User Session
+              </button>
+            )}
+          </div>
+
+          {selectedUserWaLoading ? (
+            <div className="py-12 flex flex-col items-center opacity-40">
+              <RefreshCw className="w-10 h-10 animate-spin mb-4" />
+              <p className="text-[10px] font-bold uppercase">Loading user session...</p>
+            </div>
+          ) : selectedUserWaStatus.qr ? (
+            <div className="flex flex-col items-center space-y-4">
+              <div className="p-4 bg-white border border-[#dcdcde] shadow-inner">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=${encodeURIComponent(selectedUserWaStatus.qr)}&t=${new Date().getTime()}`}
+                  className="w-[220px] h-[220px]"
+                  alt="Scan user WhatsApp QR"
+                />
+              </div>
+              <p className="text-[11px] text-[#646970] italic text-center">
+                Scan this QR from the selected user&apos;s WhatsApp app. The root admin WhatsApp account stays separate.
+              </p>
+            </div>
+          ) : (
+            <div className="py-10 border border-dashed border-[#dcdcde] bg-[#f6f7f7] text-center text-[#646970]">
+              {selectedUserWaStatus.ready
+                ? 'This user WhatsApp instance is already linked.'
+                : 'Generate a QR code to link this user to a separate WhatsApp instance.'}
+            </div>
+          )}
+        </div>
       </Modal>
 
       <Modal

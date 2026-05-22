@@ -107,12 +107,21 @@ class PollController {
   async create(req, res) {
     let { title, description, type, access_type, options, group_id, candidates, starts_at, ends_at, background_image_url, wa_jid } = req.body;
     const creator_id = req.user.id;
+    const isAdmin = req.user.roles?.includes('Admin') || req.user.roles?.includes('SuperAdmin');
 
     const client = await db.pool.connect();
     try {
       const finalGroupId = (group_id && group_id !== "") ? parseInt(group_id) : null;
 
-      if (!req.user.roles?.includes('Admin')) {
+      if (!isAdmin) {
+        const permissionRes = await client.query(
+          'SELECT can_create_polls FROM users WHERE id = $1',
+          [creator_id]
+        );
+        if (!permissionRes.rows[0]?.can_create_polls) {
+          return res.status(403).json({ error: 'Your account does not have permission to create community polls' });
+        }
+
         if (!finalGroupId) {
           return res.status(403).json({ error: 'Only system administrators can create global public polls' });
         }

@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const otpService = require('../services/otp.service');
 const settingsService = require('../services/settings.service');
+const userApiKeyService = require('../services/user-api-key.service');
 const { validatePassword } = require('../utils/validators');
 const { normalizePhone } = require('../utils/core.utils');
 
@@ -317,11 +318,66 @@ const userController = {
     offset = offset ? parseInt(offset) : 0;
     
     try {
-      let query = `SELECT u.id, u.email, u.name, u.phone_number, u.status, u.created_at, u.address, u.country, u.state, u.district, u.pincode, array_agg(r.name) as roles FROM users u LEFT JOIN user_roles ur ON u.id = ur.user_id LEFT JOIN roles r ON ur.role_id = r.id GROUP BY u.id ORDER BY u.created_at DESC LIMIT $1 OFFSET $2`;
+      let query = `SELECT u.id, u.email, u.name, u.phone_number, u.status, u.can_create_polls, u.created_at, u.address, u.country, u.state, u.district, u.pincode, array_agg(r.name) as roles FROM users u LEFT JOIN user_roles ur ON u.id = ur.user_id LEFT JOIN roles r ON ur.role_id = r.id GROUP BY u.id ORDER BY u.created_at DESC LIMIT $1 OFFSET $2`;
       const result = await db.query(query, [limit, offset]);
       res.json(result.rows);
     } catch (error) {
       res.status(500).json({ error: 'Error' });
+    }
+  },
+
+  createUser: async (req, res) => {
+    let { email, password, name, phone_number, status, can_create_polls } = req.body;
+
+    if (!email || !password || !name || !phone_number) {
+      return res.status(400).json({ error: 'Name, email, password, and phone number are required.' });
+    }
+
+    const pwdCheck = validatePassword(password);
+    if (!pwdCheck.isValid) {
+      return res.status(400).json({ error: pwdCheck.message });
+    }
+
+    phone_number = normalizePhone(phone_number);
+    status = ['ACTIVE', 'INACTIVE', 'PENDING_APPROVAL'].includes(status) ? status : 'ACTIVE';
+    can_create_polls = can_create_polls === true;
+
+    try {
+      const existingUser = await db.query(
+        'SELECT id FROM users WHERE email = $1 OR phone_number = $2 LIMIT 1',
+        [email, phone_number]
+      );
+      if (existingUser.rows.length > 0) {
+        return res.status(409).json({ error: 'A user with this email or phone number already exists.' });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const result = await db.query(
+        `INSERT INTO users (email, password, name, phone_number, status, can_create_polls)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         RETURNING id, email, name, phone_number, status, can_create_polls, created_at`,
+        [email, hashedPassword, name.trim(), phone_number, status, can_create_polls]
+      );
+
+      const user = result.rows[0];
+      const roleResult = await db.query("SELECT id FROM roles WHERE name = 'User' LIMIT 1");
+      if (roleResult.rows[0]) {
+        await db.query(
+          'INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+          [user.id, roleResult.rows[0].id]
+        );
+      }
+
+      res.status(201).json({
+        message: 'User created successfully.',
+        user: {
+          ...user,
+          roles: ['User']
+        }
+      });
+    } catch (error) {
+      console.error('[CREATE_USER] Error:', error.message);
+      res.status(500).json({ error: 'Failed to create user.' });
     }
   },
 
@@ -361,6 +417,32 @@ const userController = {
     }
   },
 
+  updateUserPollPermission: async (req, res) => {
+    const userId = Number(req.body?.userId);
+    const canCreatePolls = req.body?.can_create_polls;
+
+    if (!Number.isInteger(userId) || userId <= 0) {
+      return res.status(400).json({ error: 'Invalid user id.' });
+    }
+    if (typeof canCreatePolls !== 'boolean') {
+      return res.status(400).json({ error: 'can_create_polls must be true or false.' });
+    }
+
+    try {
+      const result = await db.query(
+        'UPDATE users SET can_create_polls = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING id, can_create_polls',
+        [canCreatePolls, userId]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'User not found.' });
+      }
+      res.json({ message: 'Poll creation permission updated.', user: result.rows[0] });
+    } catch (error) {
+      console.error('[UPDATE_POLL_PERMISSION] Error:', error.message);
+      res.status(500).json({ error: 'Failed to update poll permission.' });
+    }
+  },
+
   updateProfile: async (req, res) => {
     const dbUserId = getDbUserId(req);
     let { name, phone_number, address, country, state, district, pincode } = req.body;
@@ -384,6 +466,100 @@ const userController = {
     } catch (error) {
       console.error('[UPDATE_PROFILE] Error:', error.message);
       res.status(500).json({ error: 'Critical system synchronization error during profile update.' });
+    }
+  },
+
+  getOwnMessagingApiKeys: async (req, res) => {
+    try {
+      const keys = await userApiKeyService.listByUser(req.user.id);
+      res.json(keys);
+    } catch (error) {
+      console.error('[USER_API_KEYS] List error:', error.message);
+      res.status(500).json({ error: 'Failed to fetch API keys.' });
+    }
+  },
+
+  createOwnMessagingApiKey: async (req, res) => {
+    const name = req.body?.name?.trim();
+    if (!name) {
+      return res.status(400).json({ error: 'Application name is required.' });
+    }
+
+    try {
+      const key = await userApiKeyService.create(req.user.id, name);
+      res.status(201).json({ message: `API key created for ${key.name}.`, key });
+    } catch (error) {
+      console.error('[USER_API_KEYS] Create error:', error.message);
+      if (error.code === '23505') {
+        return res.status(409).json({ error: 'Application name already exists.' });
+      }
+      res.status(500).json({ error: 'Failed to create API key.' });
+    }
+  },
+
+  updateOwnMessagingApiKey: async (req, res) => {
+    const id = Number(req.params.id);
+    const name = req.body?.name?.trim();
+    const isActive = req.body?.is_active;
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'Invalid API key id.' });
+    }
+    if (!name) {
+      return res.status(400).json({ error: 'Application name is required.' });
+    }
+    if (typeof isActive !== 'boolean') {
+      return res.status(400).json({ error: 'is_active must be true or false.' });
+    }
+
+    try {
+      const key = await userApiKeyService.update(req.user.id, id, { name, isActive });
+      if (!key) {
+        return res.status(404).json({ error: 'API key not found.' });
+      }
+      res.json({ message: `API key updated for ${key.name}.`, key });
+    } catch (error) {
+      console.error('[USER_API_KEYS] Update error:', error.message);
+      if (error.code === '23505') {
+        return res.status(409).json({ error: 'Application name already exists.' });
+      }
+      res.status(500).json({ error: 'Failed to update API key.' });
+    }
+  },
+
+  rotateOwnMessagingApiKey: async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'Invalid API key id.' });
+    }
+
+    try {
+      const key = await userApiKeyService.rotate(req.user.id, id);
+      if (!key) {
+        return res.status(404).json({ error: 'API key not found.' });
+      }
+      res.json({ message: `API key rotated for ${key.name}.`, key });
+    } catch (error) {
+      console.error('[USER_API_KEYS] Rotate error:', error.message);
+      res.status(500).json({ error: 'Failed to rotate API key.' });
+    }
+  },
+
+  deleteOwnMessagingApiKey: async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: 'Invalid API key id.' });
+    }
+
+    try {
+      const key = await userApiKeyService.delete(req.user.id, id);
+      if (!key) {
+        return res.status(404).json({ error: 'API key not found.' });
+      }
+      res.json({ message: `API key deleted for ${key.name}.` });
+    } catch (error) {
+      console.error('[USER_API_KEYS] Delete error:', error.message);
+      res.status(500).json({ error: 'Failed to delete API key.' });
     }
   }
 };

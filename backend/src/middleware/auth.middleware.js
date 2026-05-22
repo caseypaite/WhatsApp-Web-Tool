@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const settingsService = require('../services/settings.service');
+const userApiKeyService = require('../services/user-api-key.service');
 
 /**
  * Middleware to check for required permissions/roles.
@@ -44,6 +45,29 @@ const authenticate = async (req, res, next) => {
     if (configuredApiKey && providedApiKey === configuredApiKey) {
       req.user = { id: 0, email: 'api-user@system.local', roles: ['Admin'], apiKeyName: 'Full Access API Key' };
       req.auth = { payload: { sub: 0, email: 'api-user@system.local', roles: ['Admin'], apiKeyName: 'Full Access API Key' } };
+      return next();
+    }
+
+    const userMessagingApiKey = await userApiKeyService.findByApiKey(providedApiKey);
+    if (userMessagingApiKey) {
+      req.user = {
+        id: userMessagingApiKey.user_id,
+        email: userMessagingApiKey.email,
+        roles: ['User', 'MessagingOnly'],
+        apiKeyId: userMessagingApiKey.id,
+        apiKeyName: userMessagingApiKey.name,
+        whatsappSessionUserId: userMessagingApiKey.user_id
+      };
+      req.auth = {
+        payload: {
+          sub: userMessagingApiKey.user_id,
+          email: userMessagingApiKey.email,
+          roles: ['User', 'MessagingOnly'],
+          apiKeyId: userMessagingApiKey.id,
+          apiKeyName: userMessagingApiKey.name,
+          whatsappSessionUserId: userMessagingApiKey.user_id
+        }
+      };
       return next();
     }
 

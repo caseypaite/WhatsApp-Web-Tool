@@ -10,8 +10,8 @@ const LandingPage = () => {
   const { user, loading, logout, siteName } = useAuth();
   const navigate = useNavigate();
   const [content, setContent] = useState({
-    hero_text: 'Building the Future of Identity',
-    cta_text: 'Get Started',
+    hero_text: 'Isolated WhatsApp Operations for Every Team',
+    cta_text: 'Open Portal',
     image_url: 'https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&q=80&w=1200'
   });
   const [activePolls, setActivePolls] = useState([]);
@@ -105,7 +105,7 @@ const LandingPage = () => {
                   {content.hero_text}
                 </h1>
                 <p className="mb-12 text-xl text-[#646970] leading-relaxed max-w-lg font-medium">
-                  A sophisticated ecosystem for distributed governance, secure identity propagation, and group management.
+                  Run a separate WhatsApp session for every user, keep the root admin account isolated, and operate messaging, audits, and polls from one controlled platform.
                 </p>
                 <div className="flex flex-wrap gap-4 items-center">
                   {loading ? (
@@ -131,7 +131,7 @@ const LandingPage = () => {
                         onClick={() => logout()}
                         className="inline-flex items-center px-10 py-4 text-base font-bold text-[#1d2327] transition-all bg-[#f0f0f1] border border-[#dcdcde] rounded-sm hover:bg-[#dcdcde]"
                       >
-                        Terminate Session
+                        Logout
                       </button>
                     </div>
                   )}
@@ -192,10 +192,10 @@ const LandingPage = () => {
         <div className="container px-6 mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {[
-              { label: 'Secure Nodes', val: '2.4k+' },
-              { label: 'Integrations', val: '150+' },
-              { label: 'Uptime Protocol', val: '99.9%' },
-              { label: 'Registry', val: 'Secure' }
+            { label: 'Isolated Sessions', val: 'Root + User' },
+            { label: 'API Ownership', val: 'User Scoped' },
+            { label: 'Restart Mode', val: 'Serialized' },
+            { label: 'Audit Surface', val: 'Live Logs' }
             ].map((stat, i) => (
               <div key={i} className="text-center md:text-left border-l border-[#dcdcde] pl-6 first:border-0 first:pl-0">
                 <p className="text-[10px] font-black text-[#a7aaad] uppercase tracking-[0.2em] mb-1">{stat.label}</p>
@@ -210,8 +210,8 @@ const LandingPage = () => {
         <div className="container px-6 mx-auto">
           <div className="max-w-3xl mb-14">
             <h2 className="text-[11px] font-black text-[#2271b1] uppercase tracking-[0.4em] mb-4">Build Ledger</h2>
-            <h3 className="text-4xl font-extrabold text-[#1d2327] mb-6 tracking-tight">Git History & Version</h3>
-            <p className="text-lg text-[#646970] font-medium leading-relaxed">Live build metadata from the current node, including the running version and the latest repository activity.</p>
+            <h3 className="text-4xl font-extrabold text-[#1d2327] mb-6 tracking-tight">Release Intelligence</h3>
+            <p className="text-lg text-[#646970] font-medium leading-relaxed">Track the active build, recent repository changes, and the current deployment posture from the running node.</p>
           </div>
 
           <div className="grid gap-8 lg:grid-cols-[320px,1fr]">
@@ -221,7 +221,7 @@ const LandingPage = () => {
               </div>
               <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[#72aee6] mb-3">Current Version</p>
               <p className="text-4xl font-extrabold tracking-tight mb-4">v{buildInfo.version}</p>
-              <p className="text-sm text-[#a7aaad] leading-relaxed font-medium">This landing page now reflects the active application build instead of a hard-coded footer label.</p>
+              <p className="text-sm text-[#a7aaad] leading-relaxed font-medium">This node reports the running application version and exposes the latest repository activity directly on the landing page.</p>
             </div>
 
             <div className="bg-white border border-[#dcdcde] rounded-sm shadow-sm">
@@ -262,7 +262,7 @@ const LandingPage = () => {
           <div className="max-w-3xl mb-20">
             <h2 className="text-[11px] font-black text-[#2271b1] uppercase tracking-[0.4em] mb-4">Governance Layer</h2>
             <h3 className="text-4xl font-extrabold text-[#1d2327] mb-6 tracking-tight">Community Polls</h3>
-            <p className="text-lg text-[#646970] font-medium leading-relaxed">Cast your encrypted vote on active organizational inquiries and shape the collective future.</p>
+            <p className="text-lg text-[#646970] font-medium leading-relaxed">Publish verified public decisions while keeping internal and user-scoped operations isolated behind authenticated sessions.</p>
           </div>
 
           {activePolls.length > 0 ? (
@@ -320,9 +320,9 @@ const LandingPage = () => {
 
           <div className="grid gap-16 md:grid-cols-3">
             {[
-              { icon: Shield, title: 'Cryptographic Auth', desc: 'Hardware-anchored identity verification using the WhatsApp Propagation Protocol.' },
-              { icon: LayoutIcon, title: 'Granular RBAC', desc: 'Matrix-based access control for administrative, operational, and observer units.' },
-              { icon: MessageSquare, title: 'Interaction Audit', desc: 'Full stream log of all node communications with immutable timestamping.' }
+              { icon: Shield, title: 'Session Isolation', desc: 'Root admin WhatsApp and every user-linked WhatsApp account run as separate persisted sessions.' },
+              { icon: LayoutIcon, title: 'Owned API Access', desc: 'Users create and rotate their own message-only API keys while admins keep platform governance controls.' },
+              { icon: MessageSquare, title: 'Operational Telemetry', desc: 'Message logs and session lifecycle logs provide live visibility into user and platform messaging activity.' }
             ].map((feature, i) => (
               <div key={i} className="group cursor-default">
                 <div className="inline-flex items-center justify-center w-16 h-16 mb-8 text-[#72aee6] bg-white/5 border border-white/10 rounded-sm group-hover:bg-[#2271b1] group-hover:text-white transition-all duration-500 group-hover:rotate-[360deg]">
